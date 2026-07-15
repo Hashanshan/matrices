@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, use } from 'react';
 import { useCart } from '@/lib/contexts/cart-context';
 import { MOCK_PRODUCTS } from '@/lib/mock-data';
 import { motion } from 'framer-motion';
@@ -10,8 +10,9 @@ import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import Header from '@/components/header';
 
-export default function ProductDetailPage({ params }: { params: { id: string } }) {
-  const product = MOCK_PRODUCTS.find((p) => p.id === params.id);
+export default function ProductDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const resolvedParams = use(params);
+  const product = MOCK_PRODUCTS.find((p) => p.id === resolvedParams.id);
   const { addToCart } = useCart();
 
   const [selectedImage, setSelectedImage] = useState(0);
@@ -84,16 +85,16 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
             >
               {/* Main Image with Zoom */}
               <div
-                className="relative w-full aspect-square bg-secondary rounded-lg overflow-hidden cursor-zoom-in border border-border"
+                className="relative w-full aspect-[4/3] sm:aspect-square bg-white rounded-2xl overflow-hidden cursor-zoom-in border border-border/50 shadow-sm"
                 onClick={() => setIsZoomed(!isZoomed)}
               >
                 <Image
                   src={images[selectedImage]}
                   alt={product.name}
                   fill
-                  className={`object-cover w-full h-full ${isZoomed ? 'scale-150 cursor-zoom-out' : 'cursor-zoom-in'} transition-transform duration-300`}
+                  className={`object-contain p-4 w-full h-full ${isZoomed ? 'scale-150 cursor-zoom-out' : 'cursor-zoom-in'} transition-transform duration-300`}
                 />
-                <div className="absolute top-4 right-4 bg-black/50 text-white px-3 py-1 rounded-full text-sm">
+                <div className="absolute top-4 right-4 bg-black/50 backdrop-blur-sm text-white px-3 py-1 rounded-full text-sm shadow-md">
                   {selectedImage + 1} / {images.length}
                 </div>
               </div>
@@ -134,7 +135,7 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
               {/* Title & Rating */}
               <div>
                 <div className="flex items-start justify-between mb-3">
-                  <h1 className="text-3xl font-bold text-foreground">{product.name}</h1>
+                  <h1 className="text-3xl sm:text-4xl font-extrabold text-foreground tracking-tight">{product.name}</h1>
                 </div>
                 <div className="flex items-center gap-3 mb-4">
                   <div className="flex text-yellow-400">
@@ -156,10 +157,13 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
               </div>
 
               {/* Price */}
-              <div className="border-t border-b border-border py-4">
-                <p className="text-4xl font-bold text-accent">${product.price.toFixed(2)}</p>
+              <div className="border-t border-b border-border/50 py-6 bg-secondary/30 rounded-xl px-4 mt-6">
+                <p className="text-4xl font-black text-primary">${product.price.toFixed(2)}</p>
                 {product.inStock && (
-                  <p className="text-sm text-green-600 mt-2 font-semibold">In Stock - Ready to Ship</p>
+                  <p className="text-sm text-emerald-600 mt-2 font-bold flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    In Stock - Ready to Ship
+                  </p>
                 )}
               </div>
 

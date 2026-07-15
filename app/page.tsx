@@ -58,11 +58,11 @@ export default function Page() {
             transition={{ duration: 0.5 }}
             className="mb-12"
           >
-            <div className="bg-gradient-to-r from-accent/10 to-accent/5 rounded-lg p-8 border border-accent/20">
-              <h2 className="text-4xl font-bold text-foreground mb-2">
+            <div className="bg-primary rounded-lg p-8 text-primary-foreground shadow-sm">
+              <h2 className="text-4xl font-bold mb-2">
                 Explore Matrices Collection
               </h2>
-              <p className="text-muted-foreground">
+              <p className="text-primary-foreground/80">
                 Browse our curated collection of premium tech products with stunning visuals, detailed specs, and intelligent filtering.
               </p>
             </div>

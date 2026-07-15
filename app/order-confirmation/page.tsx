@@ -8,7 +8,7 @@ import Header from '@/components/header';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { CheckCircle, Package, Calendar, MapPin, Mail, Phone } from 'lucide-react';
-import Button from '@/components/ui/button';
+import { Button } from '@/components/ui/button';
 
 interface Order {
   id: string;

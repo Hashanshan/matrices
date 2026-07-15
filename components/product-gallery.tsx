@@ -123,7 +123,7 @@ export default function ProductGallery({ searchQuery, onFilterChange }: ProductG
         className="space-y-4"
       >
         <div>
-          <h2 className="text-4xl md:text-5xl font-black text-foreground mb-2">
+          <h2 className="text-4xl md:text-5xl font-black text-primary mb-2">
             Explore Matrices Tech Collection
           </h2>
           <p className="text-lg text-muted-foreground max-w-2xl">
@@ -134,7 +134,7 @@ export default function ProductGallery({ searchQuery, onFilterChange }: ProductG
         </div>
 
         {/* Controls Bar */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-card rounded-2xl p-4 border border-border">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-card rounded-lg p-4 border border-border">
           {/* Sort */}
           <div className="flex-1 sm:flex-none">
             <select
@@ -193,10 +193,10 @@ export default function ProductGallery({ searchQuery, onFilterChange }: ProductG
           transition={{ duration: 0.3 }}
           className={`${showFilters ? 'block' : 'hidden'} md:block md:col-span-1`}
         >
-          <div className="sticky top-24 space-y-6 bg-card rounded-2xl p-6 border border-border">
+          <div className="sticky top-24 space-y-6 bg-card rounded-lg p-6 border border-border">
             {/* Categories with Nested Subcategories */}
             <div>
-              <h3 className="font-bold text-foreground mb-4 text-lg">Categories</h3>
+              <h3 className="font-bold text-primary mb-4 text-lg">Categories</h3>
               <div className="space-y-2">
                 {CATEGORIES.map((category) => {
                   const isExpanded = expandedCategories.includes(category);
@@ -301,7 +301,7 @@ export default function ProductGallery({ searchQuery, onFilterChange }: ProductG
 
             {/* Price Range */}
             <div className="border-t border-border/50 pt-6">
-              <h3 className="font-bold text-foreground mb-4 text-lg">Price Range</h3>
+              <h3 className="font-bold text-primary mb-4 text-lg">Price Range</h3>
               <div className="space-y-4">
                 <div>
                   <div className="flex justify-between items-center mb-2">

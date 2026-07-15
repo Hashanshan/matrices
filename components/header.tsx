@@ -39,7 +39,7 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
               className="relative h-14 w-40"
             >
               <Image
-                src="/matrices-neon-logo.png"
+                src="/matrices_logo.png"
                 alt="Matrices"
                 fill
                 className="object-contain hover:opacity-90 transition-opacity"

@@ -40,9 +40,10 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
         whileHover={{ y: -8 }}
         className="group h-full min-w-0"
       >
-        <div className="relative bg-card rounded-2xl overflow-hidden border border-border hover:border-accent transition-all h-full shadow-md hover:shadow-xl flex flex-col">
+        <div className="relative overflow-hidden border border-border hover:border-accent/50 transition-all duration-300 h-full shadow-sm hover:shadow-xl flex flex-col bg-white text-gray-900 rounded-sm">
           {/* Image Container */}
-          <div className="relative w-full h-72 overflow-hidden bg-gradient-to-br from-secondary to-secondary/50">
+          <div className="relative w-full h-56 sm:h-72 overflow-hidden bg-white/80 p-4">
+            <div className="absolute inset-0 bg-gradient-to-t from-black/5 to-transparent z-10 pointer-events-none"></div>
             <Image
               src={product.image}
               alt={product.name}
@@ -95,8 +96,8 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
           {/* Content */}
           <div className="p-5 flex flex-col h-48">
             {/* Title */}
-            <Link href={`/product/${product.id}`} className="group/link">
-              <h3 className="font-bold text-foreground text-base line-clamp-2 mb-2 group-hover/link:text-accent transition-colors">
+            <Link href={`/product/${product.id}`} className="group/link block">
+              <h3 className="font-bold text-primary text-base sm:text-lg leading-tight line-clamp-2 mb-2 group-hover/link:text-accent transition-colors">
                 {product.name}
               </h3>
             </Link>
