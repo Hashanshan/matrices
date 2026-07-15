@@ -5,10 +5,10 @@ import { Product, FilterState } from '@/lib/types';
 import { MOCK_PRODUCTS, CATEGORIES } from '@/lib/mock-data';
 import ProductCard from './product-card';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronDown, X, Check } from 'lucide-react';
+import { ChevronDown, X, Check, PanelLeftClose, PanelLeftOpen, Filter } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { formatPrice } from '@/lib/currency';
-import { getSubcategoriesForCategory } from '@/lib/categories-config';
+import { getSubcategoriesForCategory, getAllCategoryNames } from '@/lib/categories-config';
 
 interface ProductGalleryProps {
   searchQuery: string;
@@ -22,10 +22,10 @@ export default function ProductGallery({ searchQuery, onFilterChange }: ProductG
     subcategories: [],
     priceRange: [0, 40000],
     sortBy: 'newest',
-    gridSize: 3,
+    gridSize: 4,
   });
 
-  const [showFilters, setShowFilters] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
 
   // Filter and sort products
@@ -77,6 +77,21 @@ export default function ProductGallery({ searchQuery, onFilterChange }: ProductG
     return results;
   }, [searchQuery, filters]);
 
+  // Group products by category
+  const groupedProducts = useMemo(() => {
+    const groups: { [category: string]: Product[] } = {};
+    const categoryNames = getAllCategoryNames();
+    
+    categoryNames.forEach((cat) => {
+      const productsInCategory = filteredProducts.filter((p) => p.category === cat);
+      if (productsInCategory.length > 0) {
+        groups[cat] = productsInCategory;
+      }
+    });
+
+    return groups;
+  }, [filteredProducts]);
+
   const handleCategoryToggle = (category: string) => {
     setFilters((prev) => {
       let newCategories;
@@ -114,314 +129,310 @@ export default function ProductGallery({ searchQuery, onFilterChange }: ProductG
     }));
   };
 
+  const gridClass = filters.gridSize === 2
+    ? 'grid-cols-1 sm:grid-cols-2'
+    : filters.gridSize === 3
+      ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'
+      : filters.gridSize === 4
+        ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
+        : filters.gridSize === 5
+          ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5'
+          : 'grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6';
+
   return (
-    <div className="space-y-8">
-      {/* Header Section */}
+    <div className="space-y-6">
+      {/* Controls Bar */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="space-y-4"
+        className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-card rounded-lg p-4 border border-border shadow-sm"
       >
-        <div>
-          <h2 className="text-4xl md:text-5xl font-black text-primary mb-2">
-            Explore Matrices Tech Collection
-          </h2>
-          <p className="text-lg text-muted-foreground max-w-2xl">
-            {searchQuery
-              ? `Search results for "${searchQuery}" (${filteredProducts.length} found)`
-              : `Browse our carefully curated collection of ${MOCK_PRODUCTS.length} premium tech items`}
-          </p>
+        {/* Left: Sidebar Toggle + Sort */}
+        <div className="flex items-center gap-3">
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="hidden md:flex items-center gap-2 px-3 py-2.5 bg-primary text-white rounded-lg font-semibold text-sm hover:bg-primary/90 transition-colors"
+          >
+            {sidebarOpen ? <PanelLeftClose size={18} /> : <PanelLeftOpen size={18} />}
+            {sidebarOpen ? 'Hide Filters' : 'Show Filters'}
+          </motion.button>
+
+          <select
+            value={filters.sortBy}
+            onChange={(e) =>
+              setFilters((prev) => ({
+                ...prev,
+                sortBy: e.target.value as any,
+              }))
+            }
+            className="px-4 py-2.5 border border-border rounded-lg bg-background text-foreground font-medium focus:outline-none focus:ring-2 focus:ring-primary transition-all text-sm"
+          >
+            <option value="newest">Sort by: Newest</option>
+            <option value="price-low">Sort by: Price (Low to High)</option>
+            <option value="price-high">Sort by: Price (High to Low)</option>
+            <option value="rating">Sort by: Highest Rated</option>
+          </select>
         </div>
 
-        {/* Controls Bar */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-card rounded-lg p-4 border border-border">
-          {/* Sort */}
-          <div className="flex-1 sm:flex-none">
-            <select
-              value={filters.sortBy}
-              onChange={(e) =>
-                setFilters((prev) => ({
-                  ...prev,
-                  sortBy: e.target.value as any,
-                }))
-              }
-              className="w-full px-4 py-3 border border-border rounded-xl bg-background text-foreground font-medium focus:outline-none focus:ring-2 focus:ring-accent transition-all"
-            >
-              <option value="newest">Sort by: Newest</option>
-              <option value="price-low">Sort by: Price (Low to High)</option>
-              <option value="price-high">Sort by: Price (High to Low)</option>
-              <option value="rating">Sort by: Highest Rated</option>
-            </select>
-          </div>
-
-          {/* Grid Size */}
-          <div className="flex-1 sm:flex-none">
-            <select
-              value={filters.gridSize}
-              onChange={(e) =>
-                setFilters((prev) => ({
-                  ...prev,
-                  gridSize: parseInt(e.target.value),
-                }))
-              }
-              className="w-full px-4 py-3 border border-border rounded-xl bg-background text-foreground font-medium focus:outline-none focus:ring-2 focus:ring-accent transition-all"
-            >
-              <option value="2">Grid: 2 Columns</option>
-              <option value="3">Grid: 3 Columns</option>
-              <option value="4">Grid: 4 Columns</option>
-              <option value="5">Grid: 5 Columns</option>
-              <option value="6">Grid: 6 Columns</option>
-            </select>
-          </div>
-
-          {/* Filter Toggle */}
-          <Button
-            onClick={() => setShowFilters(!showFilters)}
-            className="md:hidden bg-accent text-white hover:bg-accent/90 rounded-xl py-3 font-semibold"
+        {/* Right: Grid Size + Mobile Filter Toggle */}
+        <div className="flex items-center gap-3">
+          <select
+            value={filters.gridSize}
+            onChange={(e) =>
+              setFilters((prev) => ({
+                ...prev,
+                gridSize: parseInt(e.target.value),
+              }))
+            }
+            className="px-4 py-2.5 border border-border rounded-lg bg-background text-foreground font-medium focus:outline-none focus:ring-2 focus:ring-primary transition-all text-sm"
           >
-            <ChevronDown size={20} className={`transition-transform ${showFilters ? 'rotate-180' : ''}`} />
+            <option value="2">Grid: 2 Columns</option>
+            <option value="3">Grid: 3 Columns</option>
+            <option value="4">Grid: 4 Columns</option>
+            <option value="5">Grid: 5 Columns</option>
+            <option value="6">Grid: 6 Columns</option>
+          </select>
+
+          <Button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="md:hidden bg-primary text-white hover:bg-primary/90 rounded-lg py-2.5 font-semibold text-sm"
+          >
+            <Filter size={18} />
             Filters
           </Button>
         </div>
+
+        {/* Results count */}
+        <div className="text-sm text-muted-foreground font-medium">
+          {searchQuery
+            ? `${filteredProducts.length} results for "${searchQuery}"`
+            : `${filteredProducts.length} products`}
+        </div>
       </motion.div>
 
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-8">
-        {/* Sidebar Filters */}
-        <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.3 }}
-          className={`${showFilters ? 'block' : 'hidden'} md:block md:col-span-1`}
-        >
-          <div className="sticky top-24 space-y-6 bg-card rounded-lg p-6 border border-border">
-            {/* Categories with Nested Subcategories */}
-            <div>
-              <h3 className="font-bold text-primary mb-4 text-lg">Categories</h3>
-              <div className="space-y-2">
-                {CATEGORIES.map((category) => {
-                  const isExpanded = expandedCategories.includes(category);
-                  const hasSubcategories = category !== 'All' && getSubcategoriesForCategory(category).length > 0;
-                  const isSelected = category === 'All' ? filters.categories.length === 0 : filters.categories.includes(category);
-
-                  return (
-                    <div key={category}>
-                      <motion.div
-                        className="flex items-center gap-2 group"
-                        whileHover={{ x: 2 }}
-                      >
-                        {/* Expand/Collapse Button - Only for categories with subcategories */}
-                        {hasSubcategories && (
-                          <motion.button
-                            onClick={() =>
-                              setExpandedCategories((prev) =>
-                                prev.includes(category)
-                                  ? prev.filter((c) => c !== category)
-                                  : [...prev, category]
-                              )
-                            }
-                            className="flex-shrink-0 p-1 hover:bg-accent/20 rounded transition-colors"
-                            whileHover={{ scale: 1.1 }}
-                            whileTap={{ scale: 0.95 }}
-                          >
-                            <motion.div
-                              animate={{ rotate: isExpanded ? 90 : 0 }}
-                              transition={{ duration: 0.2 }}
-                            >
-                              <ChevronDown size={16} className="text-foreground" />
-                            </motion.div>
-                          </motion.button>
-                        )}
-
-                        {/* Spacer for categories without subcategories */}
-                        {!hasSubcategories && <div className="w-7" />}
-
-                        {/* Category Checkbox */}
-                        <label className="flex items-center gap-2 cursor-pointer flex-1 group">
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={() => handleCategoryToggle(category)}
-                            className="w-5 h-5 rounded-lg border-2 border-border cursor-pointer accent-accent hover:border-accent transition-colors"
-                          />
-                          <span className="text-sm font-medium text-foreground group-hover:text-accent transition-colors">
-                            {category}
-                          </span>
-                        </label>
-                      </motion.div>
-
-                      {/* Nested Subcategories */}
-                      <AnimatePresence>
-                        {hasSubcategories && isExpanded && (
-                          <motion.div
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: 'auto' }}
-                            exit={{ opacity: 0, height: 0 }}
-                            transition={{ duration: 0.2 }}
-                            className="ml-6 mt-2 space-y-2 pl-3 border-l-2 border-accent/30"
-                          >
-                            {getSubcategoriesForCategory(category).sort().map((subcategory) => (
-                              <motion.div
-                                key={subcategory}
-                                initial={{ opacity: 0, x: -10 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                exit={{ opacity: 0, x: -10 }}
-                                whileHover={{ x: 4 }}
-                                className="flex items-center gap-3 p-2 rounded-lg hover:bg-accent/10 transition-colors group cursor-pointer"
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={filters.subcategories.includes(subcategory)}
-                                  onChange={() => handleSubcategoryToggle(subcategory)}
-                                  className="w-4 h-4 rounded border-2 border-accent/40 cursor-pointer accent-accent hover:border-accent transition-colors"
-                                />
-                                <span className="text-xs font-medium text-foreground/80 group-hover:text-accent transition-colors flex-1">
-                                  {subcategory}
-                                </span>
-                                {filters.subcategories.includes(subcategory) && (
-                                  <motion.div
-                                    initial={{ scale: 0 }}
-                                    animate={{ scale: 1 }}
-                                    className="text-accent"
-                                  >
-                                    <Check size={14} />
-                                  </motion.div>
-                                )}
-                              </motion.div>
-                            ))}
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-
-
-            {/* Price Range */}
-            <div className="border-t border-border/50 pt-6">
-              <h3 className="font-bold text-primary mb-4 text-lg">Price Range</h3>
-              <div className="space-y-4">
-                <div>
-                  <div className="flex justify-between items-center mb-2">
-                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
-                      Min Price
-                    </label>
-                    <span className="text-sm font-bold text-accent">{formatPrice(filters.priceRange[0])}</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="40000"
-                    value={filters.priceRange[0]}
-                    onChange={(e) => handlePriceChange('min', parseInt(e.target.value))}
-                    className="w-full h-2 bg-secondary rounded-lg appearance-none cursor-pointer accent-accent"
-                  />
-                </div>
-                <div>
-                  <div className="flex justify-between items-center mb-2">
-                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
-                      Max Price
-                    </label>
-                    <span className="text-sm font-bold text-accent">{formatPrice(filters.priceRange[1])}</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="40000"
-                    value={filters.priceRange[1]}
-                    onChange={(e) => handlePriceChange('max', parseInt(e.target.value))}
-                    className="w-full h-2 bg-secondary rounded-lg appearance-none cursor-pointer accent-accent"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Price Range */}
-            <div className="border-t border-border/50 pt-6">
-              <h3 className="font-bold text-foreground mb-4 text-lg">Price Range</h3>
-              <div className="space-y-4">
-                <div>
-                  <div className="flex justify-between items-center mb-2">
-                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
-                      Min Price
-                    </label>
-                    <span className="text-sm font-bold text-accent">{formatPrice(filters.priceRange[0])}</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="40000"
-                    value={filters.priceRange[0]}
-                    onChange={(e) => handlePriceChange('min', parseInt(e.target.value))}
-                    className="w-full h-2 bg-secondary rounded-lg appearance-none cursor-pointer accent-accent"
-                  />
-                </div>
-                <div>
-                  <div className="flex justify-between items-center mb-2">
-                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
-                      Max Price
-                    </label>
-                    <span className="text-sm font-bold text-accent">{formatPrice(filters.priceRange[1])}</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="40000"
-                    value={filters.priceRange[1]}
-                    onChange={(e) => handlePriceChange('max', parseInt(e.target.value))}
-                    className="w-full h-2 bg-secondary rounded-lg appearance-none cursor-pointer accent-accent"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Clear Filters */}
-            {(filters.categories.length > 0 || filters.subcategories.length > 0 || filters.priceRange[0] !== 0 || filters.priceRange[1] !== 40000) && (
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() =>
-                  setFilters((prev) => ({
-                    ...prev,
-                    categories: [],
-                    subcategories: [],
-                    priceRange: [0, 40000],
-                  }))
-                }
-                className="w-full bg-secondary text-foreground font-bold py-3 rounded-xl hover:bg-accent hover:text-white transition-all"
-              >
-                Clear All Filters
-              </motion.button>
-            )}
-          </div>
-        </motion.div>
-
-        {/* Products Grid */}
-        <div className="md:col-span-4">
-          {filteredProducts.length > 0 ? (
-            <motion.div
-              layout
-              className={`grid gap-6 ${
-                filters.gridSize === 2
-                  ? 'grid-cols-1 sm:grid-cols-2'
-                  : filters.gridSize === 3
-                    ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'
-                    : filters.gridSize === 4
-                      ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4'
-                      : filters.gridSize === 5
-                        ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-5'
-                        : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-6'
-              }`}
-              style={{
-                gridAutoRows: 'max-content',
-              }}
+      <div className="flex gap-6">
+        {/* Retractable Sidebar Filters */}
+        <AnimatePresence>
+          {sidebarOpen && (
+            <motion.aside
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: 280, opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+              className="flex-shrink-0 overflow-hidden"
             >
-              {filteredProducts.map((product, index) => (
-                <ProductCard key={product.id} product={product} index={index} />
+              <div className="w-[280px] sticky top-24 space-y-6 bg-card rounded-lg p-5 border border-border shadow-sm">
+                {/* Sidebar Header */}
+                <div className="flex items-center justify-between">
+                  <h3 className="font-bold text-primary text-lg">Filters</h3>
+                  <button
+                    onClick={() => setSidebarOpen(false)}
+                    className="p-1 hover:bg-muted rounded transition-colors md:hidden"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+
+                {/* Categories */}
+                <div>
+                  <h4 className="font-bold text-primary mb-3 text-sm uppercase tracking-wider">Categories</h4>
+                  <div className="space-y-1.5">
+                    {CATEGORIES.map((category) => {
+                      const isExpanded = expandedCategories.includes(category);
+                      const hasSubcategories = category !== 'All' && getSubcategoriesForCategory(category).length > 0;
+                      const isSelected = category === 'All' ? filters.categories.length === 0 : filters.categories.includes(category);
+
+                      return (
+                        <div key={category}>
+                          <motion.div
+                            className="flex items-center gap-2 group"
+                            whileHover={{ x: 2 }}
+                          >
+                            {hasSubcategories && (
+                              <motion.button
+                                onClick={() =>
+                                  setExpandedCategories((prev) =>
+                                    prev.includes(category)
+                                      ? prev.filter((c) => c !== category)
+                                      : [...prev, category]
+                                  )
+                                }
+                                className="flex-shrink-0 p-1 hover:bg-primary/10 rounded transition-colors"
+                                whileHover={{ scale: 1.1 }}
+                                whileTap={{ scale: 0.95 }}
+                              >
+                                <motion.div
+                                  animate={{ rotate: isExpanded ? 90 : 0 }}
+                                  transition={{ duration: 0.2 }}
+                                >
+                                  <ChevronDown size={14} className="text-primary" />
+                                </motion.div>
+                              </motion.button>
+                            )}
+
+                            {!hasSubcategories && <div className="w-6" />}
+
+                            <label className="flex items-center gap-2 cursor-pointer flex-1 group py-1">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => handleCategoryToggle(category)}
+                                className="w-4 h-4 rounded border-2 border-border cursor-pointer accent-primary hover:border-primary transition-colors"
+                              />
+                              <span className="text-sm font-medium text-foreground group-hover:text-primary transition-colors">
+                                {category}
+                              </span>
+                            </label>
+                          </motion.div>
+
+                          {/* Nested Subcategories */}
+                          <AnimatePresence>
+                            {hasSubcategories && isExpanded && (
+                              <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: 'auto' }}
+                                exit={{ opacity: 0, height: 0 }}
+                                transition={{ duration: 0.2 }}
+                                className="ml-6 mt-1 space-y-1 pl-3 border-l-2 border-primary/30"
+                              >
+                                {getSubcategoriesForCategory(category).sort().map((subcategory) => (
+                                  <motion.div
+                                    key={subcategory}
+                                    initial={{ opacity: 0, x: -10 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    exit={{ opacity: 0, x: -10 }}
+                                    whileHover={{ x: 4 }}
+                                    className="flex items-center gap-2 p-1.5 rounded hover:bg-primary/5 transition-colors group cursor-pointer"
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={filters.subcategories.includes(subcategory)}
+                                      onChange={() => handleSubcategoryToggle(subcategory)}
+                                      className="w-3.5 h-3.5 rounded border-2 border-primary/40 cursor-pointer accent-primary hover:border-primary transition-colors"
+                                    />
+                                    <span className="text-xs font-medium text-foreground/80 group-hover:text-primary transition-colors flex-1">
+                                      {subcategory}
+                                    </span>
+                                    {filters.subcategories.includes(subcategory) && (
+                                      <motion.div
+                                        initial={{ scale: 0 }}
+                                        animate={{ scale: 1 }}
+                                        className="text-primary"
+                                      >
+                                        <Check size={12} />
+                                      </motion.div>
+                                    )}
+                                  </motion.div>
+                                ))}
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Price Range */}
+                <div className="border-t border-border pt-5">
+                  <h4 className="font-bold text-primary mb-3 text-sm uppercase tracking-wider">Price Range</h4>
+                  <div className="space-y-4">
+                    <div>
+                      <div className="flex justify-between items-center mb-1.5">
+                        <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">
+                          Min Price
+                        </label>
+                        <span className="text-xs font-bold text-primary">{formatPrice(filters.priceRange[0])}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="40000"
+                        value={filters.priceRange[0]}
+                        onChange={(e) => handlePriceChange('min', parseInt(e.target.value))}
+                        className="w-full h-1.5 bg-secondary rounded-lg appearance-none cursor-pointer accent-primary"
+                      />
+                    </div>
+                    <div>
+                      <div className="flex justify-between items-center mb-1.5">
+                        <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">
+                          Max Price
+                        </label>
+                        <span className="text-xs font-bold text-primary">{formatPrice(filters.priceRange[1])}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="40000"
+                        value={filters.priceRange[1]}
+                        onChange={(e) => handlePriceChange('max', parseInt(e.target.value))}
+                        className="w-full h-1.5 bg-secondary rounded-lg appearance-none cursor-pointer accent-primary"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Clear Filters */}
+                {(filters.categories.length > 0 || filters.subcategories.length > 0 || filters.priceRange[0] !== 0 || filters.priceRange[1] !== 40000) && (
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() =>
+                      setFilters((prev) => ({
+                        ...prev,
+                        categories: [],
+                        subcategories: [],
+                        priceRange: [0, 40000],
+                      }))
+                    }
+                    className="w-full bg-primary text-white font-bold py-2.5 rounded-lg hover:bg-primary/90 transition-all text-sm"
+                  >
+                    Clear All Filters
+                  </motion.button>
+                )}
+              </div>
+            </motion.aside>
+          )}
+        </AnimatePresence>
+
+        {/* Main Products Content - Category Grouped */}
+        <div className="flex-1 min-w-0">
+          {filteredProducts.length > 0 ? (
+            <div className="space-y-10">
+              {Object.entries(groupedProducts).map(([category, products], categoryIndex) => (
+                <motion.section
+                  key={category}
+                  initial={{ opacity: 0, y: 30 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4, delay: categoryIndex * 0.1 }}
+                >
+                  {/* Category Banner - like the reference */}
+                  <div className="bg-primary rounded-t-lg px-6 py-4 flex items-center justify-between shadow-sm">
+                    <h2 className="text-xl sm:text-2xl font-bold text-white tracking-wide">
+                      {category}
+                    </h2>
+                    <span className="text-white/70 text-sm font-medium">
+                      {products.length} {products.length === 1 ? 'product' : 'products'}
+                    </span>
+                  </div>
+
+                  {/* Products Grid */}
+                  <div className="bg-card border border-t-0 border-border rounded-b-lg p-5">
+                    <motion.div
+                      layout
+                      className={`grid gap-5 ${gridClass}`}
+                      style={{ gridAutoRows: 'max-content' }}
+                    >
+                      {products.map((product, index) => (
+                        <ProductCard key={product.id} product={product} index={index} />
+                      ))}
+                    </motion.div>
+                  </div>
+                </motion.section>
               ))}
-            </motion.div>
+            </div>
           ) : (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -431,7 +442,7 @@ export default function ProductGallery({ searchQuery, onFilterChange }: ProductG
               <div className="text-6xl mb-4">🔍</div>
               <p className="text-2xl font-bold text-foreground mb-2">No products found</p>
               <p className="text-lg text-muted-foreground max-w-md">
-                Try adjusting your search terms or filters to find what you're looking for
+                Try adjusting your search terms or filters to find what you&apos;re looking for
               </p>
             </motion.div>
           )}
