@@ -37,115 +37,68 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
         whileInView={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: index * 0.05 }}
         viewport={{ once: true }}
-        whileHover={{ y: -8 }}
-        className="group h-full min-w-0"
+        whileHover={{ y: -5 }}
+        className="group h-full min-w-0 flex flex-col"
       >
-        <div className="relative overflow-hidden border border-white/40 hover:border-white/80 transition-all duration-300 h-full shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] hover:shadow-[0_8px_32px_0_rgba(31,38,135,0.15)] flex flex-col bg-white/40 backdrop-blur-xl text-gray-900 rounded-2xl before:absolute before:inset-0 before:bg-gradient-to-br before:from-white/40 before:to-transparent before:opacity-0 hover:before:opacity-100 before:transition-opacity before:duration-500">
+        <div className="relative bg-white rounded-[2rem] p-4 sm:p-5 shadow-[0_15px_40px_-15px_rgba(0,0,0,0.08)] hover:shadow-[0_20px_50px_-15px_rgba(0,0,0,0.12)] transition-all duration-300 h-full flex flex-col border border-gray-50">
+          
           {/* Image Container */}
-          <div className="relative w-full h-56 sm:h-72 overflow-hidden bg-white/20 p-4 border-b border-white/30 z-10">
-            <div className="absolute inset-0 bg-gradient-to-t from-black/5 to-transparent z-10 pointer-events-none"></div>
+          <div className="relative w-full h-56 sm:h-64 rounded-[1.5rem] overflow-hidden bg-[#f8f9fc] flex items-center justify-center p-4">
             <Image
               src={product.image}
               alt={product.name}
               fill
-              className="object-cover w-full h-full group-hover:scale-110 transition-transform duration-500"
+              className="object-contain w-full h-full p-4 group-hover:scale-105 transition-transform duration-700 ease-out mix-blend-multiply"
               sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
             />
 
-            {/* Badge */}
-            {product.inStock && (
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                className="absolute top-4 right-4 bg-gradient-to-r from-accent to-accent/80 text-white px-3 py-1.5 rounded-full text-xs font-bold shadow-lg"
+            {/* Quick Actions overlaying image (subtle) */}
+            <div className="absolute top-3 right-3 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+               <button
+                onClick={handleFavorite}
+                className="w-10 h-10 bg-white/80 backdrop-blur-md rounded-full shadow-sm flex items-center justify-center text-gray-600 hover:text-red-500 hover:bg-white transition-all"
               >
-                In Stock
-              </motion.div>
-            )}
-
-            {/* Overlay Actions */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              whileHover={{ opacity: 1 }}
-              className="absolute inset-0 bg-black/30 backdrop-blur-sm flex items-end justify-between p-4 opacity-0 transition-opacity duration-300"
-            >
-              <motion.button
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.95 }}
+                <Heart size={18} fill={isFavorite ? 'currentColor' : 'none'} className={isFavorite ? 'text-red-500' : ''} />
+              </button>
+               <button
                 onClick={handleQuickAdd}
-                className="bg-white text-foreground px-6 py-3 rounded-full font-semibold flex items-center gap-2 shadow-lg hover:bg-accent hover:text-white transition-colors"
+                className="w-10 h-10 bg-white/80 backdrop-blur-md rounded-full shadow-sm flex items-center justify-center text-gray-600 hover:text-[#0f172a] hover:bg-white transition-all"
               >
                 <ShoppingCart size={18} />
-                Quick Add
-              </motion.button>
-              <motion.button
-                whileHover={{ scale: 1.15 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={handleFavorite}
-                className={`p-3 rounded-full shadow-lg transition-all ${
-                  isFavorite
-                    ? 'bg-red-500 text-white'
-                    : 'bg-white/90 text-foreground hover:bg-red-500 hover:text-white'
-                }`}
-              >
-                <Heart size={20} fill={isFavorite ? 'currentColor' : 'none'} />
-              </motion.button>
-            </motion.div>
+              </button>
+            </div>
           </div>
 
-          {/* Content */}
-          <div className="p-5 flex flex-col h-48">
-            {/* Title */}
-            <Link href={`/product/${product.id}`} className="group/link block">
-              <h3 className="font-bold text-primary text-base sm:text-lg leading-tight line-clamp-2 mb-2 group-hover/link:text-accent transition-colors">
+          {/* Content Area */}
+          <div className="pt-6 pb-2 px-2 flex flex-col flex-1">
+            <Link href={`/product/${product.id}`} className="block">
+              <h3 className="font-extrabold text-[#0f172a] text-lg sm:text-xl leading-tight line-clamp-1 group-hover:text-[#1e3a8a] transition-colors">
                 {product.name}
               </h3>
             </Link>
 
-            {/* Rating */}
-            <div className="flex items-center gap-2 mb-3">
-              <div className="flex gap-0.5">
-                {[...Array(5)].map((_, i) => (
-                  <Star
-                    key={i}
-                    size={14}
-                    className={`${
-                      i < Math.floor(product.rating)
-                        ? 'fill-yellow-400 text-yellow-400'
-                        : 'text-gray-300'
-                    }`}
-                  />
-                ))}
+            {/* SKU and Colors Row */}
+            <div className="flex items-center justify-between mt-2 mb-6">
+              <span className="text-gray-400 font-medium text-sm">
+                 {product.id.startsWith('MAT') ? product.id : `MAT-${1000 + parseInt(product.id)}`}-N
+              </span>
+              
+              {/* Fake color swatches to match design */}
+              <div className="flex items-center gap-1.5">
+                <div className="w-5 h-5 rounded-full bg-[#1e293b] border-2 border-white outline outline-1 outline-gray-200 shadow-sm"></div>
+                <div className="w-5 h-5 rounded-full bg-[#94a3b8] border-2 border-white shadow-sm"></div>
+                <div className="w-5 h-5 rounded-full bg-[#333333] border-2 border-white shadow-sm"></div>
               </div>
-              <span className="text-xs font-semibold text-muted-foreground">{product.rating}</span>
-              <span className="text-xs text-muted-foreground">({product.reviews})</span>
             </div>
 
-            {/* Category & Subcategory */}
-            <div className="flex items-center gap-2 mb-auto">
-              <p className="text-xs font-medium text-accent/70 uppercase tracking-widest">
-                {product.category}
-              </p>
-              {product.subcategory && (
-                <>
-                  <span className="text-accent/40">•</span>
-                  <p className="text-xs font-medium text-accent/60 uppercase tracking-widest">
-                    {product.subcategory}
-                  </p>
-                </>
-              )}
-            </div>
-
-            {/* Footer */}
-            <div className="flex items-center justify-between pt-4 border-t border-border/50 mt-4">
-              <div>
-                <p className="text-lg font-black text-accent">{formatPrice(product.price)}</p>
-              </div>
+            {/* Footer / Action */}
+            <div className="mt-auto flex items-center justify-between">
+              <span className="text-xl font-black text-[#0f172a]">{formatPrice(product.price)}</span>
               <Link
                 href={`/product/${product.id}`}
-                className="p-2 hover:bg-secondary rounded-lg transition-colors text-muted-foreground hover:text-accent"
+                className="bg-[#0f172a] text-white px-5 py-2.5 rounded-full text-sm font-semibold hover:bg-[#1e293b] hover:shadow-md transition-all active:scale-95"
               >
-                <Eye size={20} />
+                View Details
               </Link>
             </div>
           </div>

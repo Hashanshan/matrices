@@ -145,7 +145,7 @@ export default function ProductGallery({ searchQuery, onFilterChange }: ProductG
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-card rounded-lg p-4 border border-border shadow-sm"
+        className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 bg-white rounded-[2rem] p-4 px-6 border border-gray-50 shadow-[0_8px_30px_-12px_rgba(0,0,0,0.06)]"
       >
         {/* Left: Sidebar Toggle + Sort */}
         <div className="flex items-center gap-3">
@@ -153,7 +153,7 @@ export default function ProductGallery({ searchQuery, onFilterChange }: ProductG
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="hidden md:flex items-center gap-2 px-3 py-2.5 bg-primary text-white rounded-lg font-semibold text-sm hover:bg-primary/90 transition-colors"
+            className="hidden md:flex items-center gap-2 px-5 py-2.5 bg-[#0f172a] text-white rounded-full font-semibold text-sm hover:bg-[#1e293b] shadow-sm transition-all"
           >
             {sidebarOpen ? <PanelLeftClose size={18} /> : <PanelLeftOpen size={18} />}
             {sidebarOpen ? 'Hide Filters' : 'Show Filters'}
@@ -167,7 +167,7 @@ export default function ProductGallery({ searchQuery, onFilterChange }: ProductG
                 sortBy: e.target.value as any,
               }))
             }
-            className="px-4 py-2.5 border border-border rounded-lg bg-background text-foreground font-medium focus:outline-none focus:ring-2 focus:ring-primary transition-all text-sm"
+            className="px-5 py-2.5 border border-gray-200 rounded-full bg-gray-50 text-gray-700 font-semibold focus:outline-none focus:ring-2 focus:ring-[#0f172a] transition-all text-sm shadow-sm hover:bg-white"
           >
             <option value="newest">Sort by: Newest</option>
             <option value="price-low">Sort by: Price (Low to High)</option>
@@ -186,7 +186,7 @@ export default function ProductGallery({ searchQuery, onFilterChange }: ProductG
                 gridSize: parseInt(e.target.value),
               }))
             }
-            className="px-4 py-2.5 border border-border rounded-lg bg-background text-foreground font-medium focus:outline-none focus:ring-2 focus:ring-primary transition-all text-sm"
+            className="px-5 py-2.5 border border-gray-200 rounded-full bg-gray-50 text-gray-700 font-semibold focus:outline-none focus:ring-2 focus:ring-[#0f172a] transition-all text-sm shadow-sm hover:bg-white"
           >
             <option value="2">Grid: 2 Columns</option>
             <option value="3">Grid: 3 Columns</option>
@@ -197,15 +197,14 @@ export default function ProductGallery({ searchQuery, onFilterChange }: ProductG
 
           <Button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="md:hidden bg-primary text-white hover:bg-primary/90 rounded-lg py-2.5 font-semibold text-sm"
+            className="md:hidden bg-[#0f172a] text-white hover:bg-[#1e293b] rounded-full py-2.5 px-6 font-semibold text-sm shadow-sm"
           >
             <Filter size={18} />
             Filters
           </Button>
         </div>
 
-        {/* Results count */}
-        <div className="text-sm text-muted-foreground font-medium">
+        <div className="text-sm text-gray-500 font-semibold">
           {searchQuery
             ? `${filteredProducts.length} results for "${searchQuery}"`
             : `${filteredProducts.length} products`}
@@ -223,10 +222,10 @@ export default function ProductGallery({ searchQuery, onFilterChange }: ProductG
               transition={{ type: 'spring', stiffness: 300, damping: 30 }}
               className="w-full md:w-auto md:flex-shrink-0 overflow-hidden origin-top"
             >
-              <div className="w-full md:w-[280px] sticky top-24 space-y-6 bg-card rounded-lg p-5 border border-border shadow-sm">
+              <div className="w-full md:w-[280px] sticky top-24 space-y-6 bg-white rounded-[2rem] p-6 border border-gray-50 shadow-[0_8px_30px_-12px_rgba(0,0,0,0.06)]">
                 {/* Sidebar Header */}
-                <div className="flex items-center justify-between">
-                  <h3 className="font-bold text-primary text-lg">Filters</h3>
+                <div className="flex items-center justify-between pb-4 border-b border-gray-100">
+                  <h3 className="font-black text-[#0f172a] text-xl">Filters</h3>
                   <button
                     onClick={() => setSidebarOpen(false)}
                     className="p-1 hover:bg-muted rounded transition-colors md:hidden"
@@ -237,7 +236,7 @@ export default function ProductGallery({ searchQuery, onFilterChange }: ProductG
 
                 {/* Categories */}
                 <div>
-                  <h4 className="font-bold text-primary mb-3 text-sm uppercase tracking-wider">Categories</h4>
+                  <h4 className="font-bold text-[#0f172a] mb-4 text-xs uppercase tracking-widest">Categories</h4>
                   <div className="space-y-1.5">
                     {CATEGORIES.map((category) => {
                       const isExpanded = expandedCategories.includes(category);
@@ -267,7 +266,7 @@ export default function ProductGallery({ searchQuery, onFilterChange }: ProductG
                                   animate={{ rotate: isExpanded ? 90 : 0 }}
                                   transition={{ duration: 0.2 }}
                                 >
-                                  <ChevronDown size={14} className="text-primary" />
+                                  <ChevronDown size={16} className="text-[#0f172a]" />
                                 </motion.div>
                               </motion.button>
                             )}
@@ -279,9 +278,9 @@ export default function ProductGallery({ searchQuery, onFilterChange }: ProductG
                                 type="checkbox"
                                 checked={isSelected}
                                 onChange={() => handleCategoryToggle(category)}
-                                className="w-4 h-4 rounded border-2 border-border cursor-pointer accent-primary hover:border-primary transition-colors"
+                                className="w-4 h-4 rounded border border-gray-300 cursor-pointer accent-[#0f172a] hover:border-[#0f172a] transition-colors"
                               />
-                              <span className="text-sm font-medium text-foreground group-hover:text-primary transition-colors">
+                              <span className="text-[15px] font-semibold text-gray-600 group-hover:text-[#0f172a] transition-colors">
                                 {category}
                               </span>
                             </label>
@@ -310,9 +309,9 @@ export default function ProductGallery({ searchQuery, onFilterChange }: ProductG
                                       type="checkbox"
                                       checked={filters.subcategories.includes(subcategory)}
                                       onChange={() => handleSubcategoryToggle(subcategory)}
-                                      className="w-3.5 h-3.5 rounded border-2 border-primary/40 cursor-pointer accent-primary hover:border-primary transition-colors"
+                                      className="w-3.5 h-3.5 rounded border border-gray-300 cursor-pointer accent-[#0f172a] hover:border-[#0f172a] transition-colors"
                                     />
-                                    <span className="text-xs font-medium text-foreground/80 group-hover:text-primary transition-colors flex-1">
+                                    <span className="text-[13px] font-semibold text-gray-500 group-hover:text-[#0f172a] transition-colors flex-1">
                                       {subcategory}
                                     </span>
                                     {filters.subcategories.includes(subcategory) && (
@@ -336,15 +335,15 @@ export default function ProductGallery({ searchQuery, onFilterChange }: ProductG
                 </div>
 
                 {/* Price Range */}
-                <div className="border-t border-border pt-5">
-                  <h4 className="font-bold text-primary mb-3 text-sm uppercase tracking-wider">Price Range</h4>
+                <div className="border-t border-gray-100 pt-5">
+                  <h4 className="font-bold text-[#0f172a] mb-4 text-xs uppercase tracking-widest">Price Range</h4>
                   <div className="space-y-4">
                     <div>
-                      <div className="flex justify-between items-center mb-1.5">
-                        <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">
+                      <div className="flex justify-between items-center mb-2">
+                        <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">
                           Min Price
                         </label>
-                        <span className="text-xs font-bold text-primary">{formatPrice(filters.priceRange[0])}</span>
+                        <span className="text-sm font-black text-[#0f172a]">{formatPrice(filters.priceRange[0])}</span>
                       </div>
                       <input
                         type="range"
@@ -356,11 +355,11 @@ export default function ProductGallery({ searchQuery, onFilterChange }: ProductG
                       />
                     </div>
                     <div>
-                      <div className="flex justify-between items-center mb-1.5">
-                        <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">
+                      <div className="flex justify-between items-center mb-2">
+                        <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">
                           Max Price
                         </label>
-                        <span className="text-xs font-bold text-primary">{formatPrice(filters.priceRange[1])}</span>
+                        <span className="text-sm font-black text-[#0f172a]">{formatPrice(filters.priceRange[1])}</span>
                       </div>
                       <input
                         type="range"
@@ -387,7 +386,7 @@ export default function ProductGallery({ searchQuery, onFilterChange }: ProductG
                         priceRange: [0, 40000],
                       }))
                     }
-                    className="w-full bg-primary text-white font-bold py-2.5 rounded-lg hover:bg-primary/90 transition-all text-sm"
+                    className="w-full bg-[#0f172a] text-white font-bold py-3 rounded-full hover:bg-[#1e293b] hover:shadow-md transition-all text-sm mt-4"
                   >
                     Clear All Filters
                   </motion.button>
@@ -408,21 +407,21 @@ export default function ProductGallery({ searchQuery, onFilterChange }: ProductG
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.4, delay: categoryIndex * 0.1 }}
                 >
-                  {/* Category Banner - like the reference */}
-                  <div className="bg-primary rounded-t-lg px-6 py-4 flex items-center justify-between shadow-sm">
-                    <h2 className="text-xl sm:text-2xl font-bold text-white tracking-wide">
+                  {/* Category Banner */}
+                  <div className="bg-white rounded-[1.5rem] shadow-[0_8px_30px_-12px_rgba(0,0,0,0.06)] border border-gray-50 flex items-center justify-between p-6 mb-6">
+                    <h2 className="text-2xl font-black text-[#0f172a] tracking-wide uppercase">
                       {category}
                     </h2>
-                    <span className="text-white/70 text-sm font-medium">
-                      {products.length} {products.length === 1 ? 'product' : 'products'}
+                    <span className="text-sm font-semibold text-gray-400">
+                      {products.length} {products.length === 1 ? 'Product' : 'Products'}
                     </span>
                   </div>
 
                   {/* Products Grid */}
-                  <div className="bg-card border border-t-0 border-border rounded-b-lg p-5">
+                  <div className="pb-8">
                     <motion.div
                       layout
-                      className={`grid gap-5 ${gridClass}`}
+                      className={`grid gap-6 ${gridClass}`}
                       style={{ gridAutoRows: 'max-content' }}
                     >
                       {products.map((product, index) => (

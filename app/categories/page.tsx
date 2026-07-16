@@ -105,22 +105,17 @@ export default function CategoriesPage() {
   return (
     <>
       <Header showSearch={false} />
-      <main className="min-h-screen bg-gradient-to-br from-[#e2e8f0] via-[#f1f5f9] to-[#cbd5e1] py-8 relative">
-        {/* Decorative background blobs for glass effect */}
-        <div className="absolute top-20 left-10 w-72 h-72 bg-blue-400 rounded-full mix-blend-multiply filter blur-[80px] opacity-20 animate-blob pointer-events-none"></div>
-        <div className="absolute top-40 right-10 w-72 h-72 bg-purple-400 rounded-full mix-blend-multiply filter blur-[80px] opacity-20 animate-blob animation-delay-2000 pointer-events-none"></div>
-        <div className="absolute -bottom-8 left-40 w-72 h-72 bg-pink-400 rounded-full mix-blend-multiply filter blur-[80px] opacity-20 animate-blob animation-delay-4000 pointer-events-none"></div>
-        
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+      <main className="min-h-screen bg-[#f8f9fc] py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           
           {/* Search Bar */}
           <div className="relative mb-6">
-            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none z-10">
-              <Search className="h-5 w-5 text-gray-500" />
+            <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
+              <Search className="h-5 w-5 text-gray-400" />
             </div>
             <input
               type="text"
-              className="block w-full pl-11 pr-4 py-3 border border-white/40 rounded-xl leading-5 bg-white/40 backdrop-blur-md placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-2 focus:ring-white/60 focus:border-white sm:text-sm shadow-[0_4px_12px_0_rgba(31,38,135,0.05)] transition-all"
+              className="block w-full pl-12 pr-4 py-4 border-0 rounded-2xl leading-5 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#0f172a] sm:text-sm shadow-[0_8px_30px_-12px_rgba(0,0,0,0.06)] transition-all placeholder:text-gray-400"
               placeholder="Search categories..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -133,10 +128,10 @@ export default function CategoriesPage() {
               <button
                 key={group}
                 onClick={() => setActiveGroup(group)}
-                className={`whitespace-nowrap px-4 py-2 rounded-full text-sm font-semibold transition-all ${
+                className={`whitespace-nowrap px-6 py-2.5 rounded-full text-sm font-semibold transition-all ${
                   activeGroup === group
-                    ? 'bg-white/70 backdrop-blur-md text-[#1e3a8a] shadow-[0_4px_12px_0_rgba(31,38,135,0.1)] border border-white'
-                    : 'bg-white/20 backdrop-blur-sm text-gray-700 border border-white/30 hover:bg-white/40 hover:border-white/50'
+                    ? 'bg-[#0f172a] text-white shadow-md'
+                    : 'bg-white text-gray-500 hover:text-[#0f172a] shadow-sm hover:shadow-md'
                 }`}
               >
                 {group}
@@ -154,21 +149,21 @@ export default function CategoriesPage() {
                 transition={{ duration: 0.4, delay: index * 0.1 }}
               >
                 <Link href={`/category/${encodeURIComponent(category.name)}`}>
-                  <div className="bg-white/40 backdrop-blur-xl rounded-2xl p-6 shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] border border-white/60 hover:shadow-[0_8px_32px_0_rgba(31,38,135,0.15)] hover:border-white transition-all duration-300 group flex flex-col h-full cursor-pointer relative overflow-hidden before:absolute before:inset-0 before:bg-gradient-to-br before:from-white/40 before:to-transparent before:opacity-0 hover:before:opacity-100 before:transition-opacity before:duration-500">
-                    <div className="w-full h-40 sm:h-48 mb-6 rounded-xl overflow-hidden bg-white/50 backdrop-blur-sm shadow-inner flex items-center justify-center p-4 border border-white/30 relative z-10">
+                  <div className="bg-white rounded-[2rem] p-4 sm:p-5 shadow-[0_15px_40px_-15px_rgba(0,0,0,0.06)] hover:shadow-[0_20px_50px_-15px_rgba(0,0,0,0.1)] transition-all duration-300 group flex flex-col h-full cursor-pointer hover:-translate-y-1">
+                    <div className="w-full h-48 sm:h-56 mb-6 rounded-[1.5rem] overflow-hidden bg-[#f8f9fc] flex items-center justify-center p-6">
                       <img 
                         src={category.image} 
                         alt={category.name} 
-                        className="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform duration-500 mix-blend-multiply drop-shadow-md"
+                        className="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform duration-700 ease-out mix-blend-multiply"
                       />
                     </div>
-                    <div className="flex-1 flex flex-col relative z-10">
-                      <h3 className="text-xl font-extrabold text-gray-900 mb-2 group-hover:text-[#1e3a8a] transition-colors drop-shadow-sm">{category.name}</h3>
-                      <p className="text-sm text-gray-700 font-medium flex-1 mb-4">{category.description}</p>
+                    <div className="flex-1 flex flex-col px-2 pb-2">
+                      <h3 className="text-xl font-black text-[#0f172a] uppercase tracking-wide mb-3 group-hover:text-[#1e3a8a] transition-colors">{category.name}</h3>
+                      <p className="text-[15px] text-gray-500 font-medium flex-1 mb-6 leading-relaxed">{category.description}</p>
                       <div className="flex items-center justify-between mt-auto">
-                        <span className="text-sm font-bold text-[#1e3a8a]">{category.productCount} Products</span>
-                        <div className="text-gray-500 group-hover:text-[#1e3a8a] group-hover:translate-x-1 transition-all">
-                          <ArrowRight size={20} />
+                        <span className="text-[15px] font-semibold text-gray-400">{category.productCount} Products</span>
+                        <div className="w-10 h-10 rounded-full border border-gray-200 flex items-center justify-center text-gray-400 group-hover:bg-[#0f172a] group-hover:text-white group-hover:border-[#0f172a] transition-all">
+                          <ArrowRight size={18} />
                         </div>
                       </div>
                     </div>

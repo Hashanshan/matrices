@@ -82,28 +82,24 @@ export default function CategoryDetailPage() {
   return (
     <>
       <Header showSearch={true} />
-      <main className="min-h-screen bg-gradient-to-br from-[#e8ecf2] via-[#f0f2f5] to-[#f8fafc] pb-16 relative">
-        {/* Decorative background blobs for glass effect */}
-        <div className="absolute top-40 left-20 w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-[100px] opacity-20 pointer-events-none"></div>
-        <div className="absolute top-80 right-20 w-96 h-96 bg-indigo-300 rounded-full mix-blend-multiply filter blur-[100px] opacity-20 pointer-events-none"></div>
-
+      <main className="min-h-screen bg-[#f8f9fc] pb-16 relative">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-12 relative z-10">
           
           {Object.entries(groupedProducts).map(([subcat, products]) => (
             <div key={subcat} className="space-y-6">
               
-              {/* Distinctive Subcategory Banner matching the design (chevron shape) */}
-              <div className="relative h-14 bg-[#1e3a6e] flex items-center shadow-md overflow-hidden pl-8">
-                <h2 className="text-2xl font-bold text-white relative z-10 tracking-wide">
+              {/* Distinctive Subcategory Banner matching the design */}
+              <div className="bg-white rounded-[1.5rem] shadow-[0_8px_30px_-12px_rgba(0,0,0,0.06)] border border-gray-50 flex items-center justify-between p-6 overflow-hidden relative">
+                <h2 className="text-2xl font-black text-[#0f172a] relative z-10 tracking-wide uppercase">
                   {subcat}
                 </h2>
-                {/* Chevron shape cut out on the right using a clip-path or absolute element */}
-                <div className="absolute top-0 right-0 h-full w-12 bg-[#f3f4f6]" style={{ clipPath: 'polygon(100% 0, 100% 100%, 0 100%, 100% 50%, 0 0)' }}></div>
-                <div className="absolute top-0 right-1 h-full w-12 bg-[#1e3a6e]" style={{ clipPath: 'polygon(100% 0, 100% 100%, 0 100%, 100% 50%, 0 0)' }}></div>
+                <div className="text-sm font-semibold text-gray-400">
+                  {products.length} {products.length === 1 ? 'Product' : 'Products'}
+                </div>
               </div>
 
               {/* Product Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 p-6 bg-white/30 backdrop-blur-md rounded-b-xl shadow-inner border border-white/40">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                 {products.map((product, idx) => (
                   <motion.div
                     key={`${product.id}-${idx}`}
@@ -111,43 +107,44 @@ export default function CategoryDetailPage() {
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                     transition={{ duration: 0.4, delay: idx * 0.05 }}
-                    className="flex flex-col group cursor-pointer bg-white/50 backdrop-blur-xl rounded-2xl p-5 shadow-[0_4px_16px_0_rgba(31,38,135,0.05)] border border-white/60 hover:shadow-[0_8px_32px_0_rgba(31,38,135,0.15)] hover:-translate-y-1 transition-all duration-300 relative overflow-hidden before:absolute before:inset-0 before:bg-gradient-to-br before:from-white/50 before:to-transparent before:opacity-0 hover:before:opacity-100 before:transition-opacity before:duration-500"
+                    whileHover={{ y: -5 }}
+                    className="flex flex-col group cursor-pointer bg-white rounded-[2rem] p-4 shadow-[0_15px_40px_-15px_rgba(0,0,0,0.08)] hover:shadow-[0_20px_50px_-15px_rgba(0,0,0,0.12)] border border-gray-50 transition-all duration-300"
                   >
                     {/* Image Area */}
-                    <div className="aspect-[4/3] bg-white/40 backdrop-blur-sm shadow-inner rounded-xl flex items-center justify-center p-4 mb-5 border border-white/50 overflow-hidden relative z-10">
+                    <div className="aspect-[4/3] bg-[#f8f9fc] rounded-[1.5rem] flex items-center justify-center p-4 mb-5 overflow-hidden relative">
                        <img 
                           src={product.image} 
                           alt={product.name}
-                          className="max-h-full max-w-full object-contain mix-blend-multiply group-hover:scale-105 transition-transform duration-300"
+                          className="max-h-full max-w-full object-contain mix-blend-multiply group-hover:scale-105 transition-transform duration-700 ease-out"
                        />
                     </div>
                     
                     {/* Product Details */}
-                    <div className="flex-1 flex flex-col relative z-10">
-                      <h3 className="text-lg font-bold text-gray-900 leading-tight group-hover:text-[#1e3a6e] transition-colors">{product.name}</h3>
-                      <p className="text-xs font-semibold text-[#1e3a6e]/70 uppercase tracking-wider mb-2">
-                        {product.id.startsWith('MAT') ? product.id : `MAT-${1000 + parseInt(product.id)}`}
+                    <div className="flex-1 flex flex-col px-2 pb-2">
+                      <h3 className="text-lg font-extrabold text-[#0f172a] leading-tight group-hover:text-[#1e3a8a] transition-colors">{product.name}</h3>
+                      <p className="text-xs font-semibold text-gray-400 mt-1 mb-2">
+                        {product.id.startsWith('MAT') ? product.id : `MAT-${1000 + parseInt(product.id)}`}-N
                       </p>
                       
-                      <p className="text-xs text-gray-700 font-medium line-clamp-3 mb-4 flex-1">
+                      <p className="text-[13px] text-gray-500 font-medium line-clamp-3 mb-4 flex-1">
                         {product.description}
                       </p>
 
                       {/* Feature Icon Row */}
                       <div className="flex items-center gap-2 mb-4">
-                        <div className="w-7 h-7 rounded-full bg-white/70 shadow-sm border border-white flex items-center justify-center text-[#1e3a6e]">
-                          {idx % 2 === 0 ? <Edit3 size={14} /> : <CheckCircle2 size={14} />}
+                        <div className="w-6 h-6 rounded-full bg-gray-50 border border-gray-100 flex items-center justify-center text-[#0f172a]">
+                          {idx % 2 === 0 ? <Edit3 size={12} /> : <CheckCircle2 size={12} />}
                         </div>
-                        <span className="text-xs font-bold text-gray-800">
+                        <span className="text-[13px] font-bold text-gray-700">
                           {idx % 2 === 0 ? 'Smooth Ink' : 'Ergonomic Grip'}
                         </span>
                       </div>
 
-                      {/* Bottom Row: Price and QR Code */}
-                      <div className="flex items-center justify-between mt-auto border-t border-white/60 pt-4">
-                        <span className="text-xl font-extrabold text-[#1e3a6e] drop-shadow-sm">{formatPrice(product.price)}</span>
-                        <div className="bg-white/80 p-1.5 rounded-lg shadow-sm border border-white">
-                          <QRCodePlaceholder />
+                      {/* Bottom Row: Price and Action */}
+                      <div className="flex items-center justify-between mt-auto pt-2">
+                        <span className="text-xl font-black text-[#0f172a]">{formatPrice(product.price)}</span>
+                        <div className="bg-[#0f172a] text-white px-4 py-2 rounded-full text-xs font-semibold hover:bg-[#1e293b] hover:shadow-md transition-all active:scale-95">
+                          View
                         </div>
                       </div>
                     </div>

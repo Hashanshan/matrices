@@ -117,11 +117,10 @@ export default function FullscreenProductViewer() {
   };
 
   return (
-    <div className="w-full h-screen bg-gradient-to-br from-background via-background to-card overflow-hidden relative">
-      {/* Animated background gradient */}
-      <div className="absolute inset-0 opacity-30">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-accent rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse"></div>
-        <div className="absolute bottom-0 left-0 w-96 h-96 bg-accent rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse" style={{ animationDelay: '2s' }}></div>
+    <div className="w-full h-screen bg-[#f8f9fc] overflow-hidden relative">
+      {/* Subtle background glow */}
+      <div className="absolute inset-0 opacity-40">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-gray-200 rounded-full mix-blend-multiply filter blur-3xl opacity-50 animate-pulse"></div>
       </div>
 
       {/* Full Image Container */}
@@ -156,7 +155,7 @@ export default function FullscreenProductViewer() {
                 className="w-full h-full object-contain rounded-3xl shadow-2xl"
               />
               {/* Zoom hint */}
-              <div className="absolute bottom-4 right-4 bg-black/50 text-white px-3 py-1 rounded-full text-xs backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="absolute bottom-4 right-4 bg-white/80 text-[#0f172a] px-4 py-1.5 rounded-full text-xs font-semibold shadow-sm opacity-0 group-hover:opacity-100 transition-opacity">
                 Click to zoom
               </div>
             </motion.div>
@@ -171,7 +170,7 @@ export default function FullscreenProductViewer() {
           }}
           whileHover={{ scale: 1.1, x: 4 }}
           whileTap={{ scale: 0.95 }}
-          className="absolute left-4 sm:left-8 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white text-foreground p-3 sm:p-4 rounded-full transition-all z-20 hidden sm:flex items-center justify-center shadow-2xl backdrop-blur-sm border border-white/50"
+          className="absolute left-4 sm:left-8 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white text-[#0f172a] p-3 sm:p-4 rounded-full transition-all z-20 hidden sm:flex items-center justify-center shadow-lg backdrop-blur-md border border-white"
         >
           <ChevronLeft size={28} />
         </motion.button>
@@ -183,7 +182,7 @@ export default function FullscreenProductViewer() {
           }}
           whileHover={{ scale: 1.1, x: -4 }}
           whileTap={{ scale: 0.95 }}
-          className="absolute right-4 sm:right-8 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white text-foreground p-3 sm:p-4 rounded-full transition-all z-20 hidden sm:flex items-center justify-center shadow-2xl backdrop-blur-sm border border-white/50"
+          className="absolute right-4 sm:right-8 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white text-[#0f172a] p-3 sm:p-4 rounded-full transition-all z-20 hidden sm:flex items-center justify-center shadow-lg backdrop-blur-md border border-white"
         >
           <ChevronRight size={28} />
         </motion.button>
@@ -192,9 +191,9 @@ export default function FullscreenProductViewer() {
         <motion.div 
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="absolute top-6 left-6 sm:top-8 sm:left-8 backdrop-blur-md bg-white/20 text-white px-4 py-3 rounded-xl border border-white/30 shadow-lg"
+          className="absolute top-6 left-6 sm:top-8 sm:left-8 bg-white/80 backdrop-blur-md text-[#0f172a] px-5 py-2.5 rounded-full shadow-sm border border-white/50"
         >
-          <p className="text-sm font-semibold tracking-wider">{String(currentIndex + 1).padStart(2, '0')} / {String(MOCK_PRODUCTS.length).padStart(2, '0')}</p>
+          <p className="text-sm font-bold tracking-wider">{String(currentIndex + 1).padStart(2, '0')} / {String(MOCK_PRODUCTS.length).padStart(2, '0')}</p>
         </motion.div>
 
         {/* Action Buttons - Top Right */}
@@ -207,17 +206,17 @@ export default function FullscreenProductViewer() {
             onClick={() => setIsLiked(!isLiked)}
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.95 }}
-            className="p-3 rounded-full bg-white/20 backdrop-blur-md hover:bg-white/30 text-white transition-all border border-white/30 shadow-lg"
+            className="p-3.5 rounded-full bg-white/80 backdrop-blur-md hover:bg-white text-[#0f172a] transition-all shadow-sm border border-white/50"
           >
-            <Heart size={22} fill={isLiked ? 'currentColor' : 'none'} />
+            <Heart size={20} fill={isLiked ? 'currentColor' : 'none'} className={isLiked ? 'text-red-500' : ''} />
           </motion.button>
           <motion.button
             onClick={handleShare}
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.95 }}
-            className="p-3 rounded-full bg-white/20 backdrop-blur-md hover:bg-white/30 text-white transition-all border border-white/30 shadow-lg"
+            className="p-3.5 rounded-full bg-white/80 backdrop-blur-md hover:bg-white text-[#0f172a] transition-all shadow-sm border border-white/50"
           >
-            <Share2 size={22} />
+            <Share2 size={20} />
           </motion.button>
         </motion.div>
 
@@ -225,40 +224,40 @@ export default function FullscreenProductViewer() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="absolute bottom-32 sm:bottom-40 left-6 sm:left-8 backdrop-blur-xl bg-white/15 text-white px-6 py-5 rounded-2xl max-w-sm border border-white/30 shadow-2xl"
+          className="absolute bottom-32 sm:bottom-40 left-6 sm:left-8 bg-white/90 backdrop-blur-xl text-[#0f172a] p-6 rounded-[2rem] max-w-sm border border-white shadow-[0_15px_40px_-15px_rgba(0,0,0,0.1)]"
         >
-          <h2 className="text-2xl sm:text-3xl font-bold mb-2 text-white">{currentProduct.name}</h2>
-          <p className="text-sm text-white/90 line-clamp-2 mb-4">{currentProduct.description}</p>
+          <h2 className="text-2xl sm:text-3xl font-black mb-2 leading-tight">{currentProduct.name}</h2>
+          <p className="text-sm text-gray-500 font-medium line-clamp-2 mb-4">{currentProduct.description}</p>
           
           {/* Rating */}
-          <div className="flex items-center gap-2 mb-4">
+          <div className="flex items-center gap-2 mb-5">
             <div className="flex gap-1">
               {[...Array(5)].map((_, i) => (
                 <Star
                   key={i}
                   size={16}
-                  className={i < Math.floor(currentProduct.rating) ? 'fill-yellow-400 text-yellow-400' : 'text-white/30'}
+                  className={i < Math.floor(currentProduct.rating) ? 'fill-yellow-400 text-yellow-400' : 'text-gray-200'}
                 />
               ))}
             </div>
-            <span className="text-sm text-white/80">({currentProduct.reviews} reviews)</span>
+            <span className="text-sm font-semibold text-gray-400">({currentProduct.reviews} reviews)</span>
           </div>
 
           {/* Price & Stock */}
-          <div className="flex items-baseline justify-between">
+          <div className="flex items-baseline justify-between pt-4 border-t border-gray-100">
             <div>
-              <span className="text-4xl font-bold text-white">{formatPrice(currentProduct.price)}</span>
+              <span className="text-3xl font-black text-[#0f172a]">{formatPrice(currentProduct.price)}</span>
               {currentProduct.originalPrice && (
-                <span className="ml-2 text-sm text-white/70 line-through">{formatPrice(currentProduct.originalPrice)}</span>
+                <span className="ml-2 text-sm font-semibold text-gray-400 line-through">{formatPrice(currentProduct.originalPrice)}</span>
               )}
             </div>
             <motion.div
               initial={{ scale: 0.8 }}
               animate={{ scale: 1 }}
-              className={`px-3 py-1 rounded-lg text-xs font-bold ${
+              className={`px-3 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wide ${
                 currentProduct.inStock
-                  ? 'bg-green-500/30 text-green-200 border border-green-400'
-                  : 'bg-red-500/30 text-red-200 border border-red-400'
+                  ? 'bg-green-50 text-green-700'
+                  : 'bg-red-50 text-red-700'
               }`}
             >
               {currentProduct.inStock ? 'In Stock' : 'Out of Stock'}
@@ -272,9 +271,9 @@ export default function FullscreenProductViewer() {
           whileTap={{ scale: 0.95 }}
           onClick={() => setIsModalOpen(true)}
           disabled={!currentProduct.inStock}
-          className="absolute bottom-32 sm:bottom-40 left-1/2 -translate-x-1/2 bg-gradient-to-r from-accent to-accent/90 hover:from-accent/90 hover:to-accent text-white px-8 sm:px-12 py-4 sm:py-5 rounded-full font-bold flex items-center gap-3 shadow-2xl transition-all disabled:opacity-50 disabled:cursor-not-allowed z-30 border border-white/20 backdrop-blur-sm text-lg"
+          className="absolute bottom-32 sm:bottom-40 left-1/2 -translate-x-1/2 bg-[#0f172a] hover:bg-[#1e293b] text-white px-8 sm:px-12 py-4 sm:py-5 rounded-full font-bold flex items-center gap-3 shadow-[0_15px_30px_-10px_rgba(15,23,42,0.4)] transition-all disabled:opacity-50 disabled:cursor-not-allowed z-30 text-lg"
         >
-          <ShoppingCart size={24} />
+          <ShoppingCart size={22} />
           <span>Add to Cart</span>
         </motion.button>
 
