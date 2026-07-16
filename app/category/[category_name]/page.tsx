@@ -82,8 +82,12 @@ export default function CategoryDetailPage() {
   return (
     <>
       <Header showSearch={true} />
-      <main className="min-h-screen bg-[#f3f4f6] pb-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-12">
+      <main className="min-h-screen bg-gradient-to-br from-[#e8ecf2] via-[#f0f2f5] to-[#f8fafc] pb-16 relative">
+        {/* Decorative background blobs for glass effect */}
+        <div className="absolute top-40 left-20 w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-[100px] opacity-20 pointer-events-none"></div>
+        <div className="absolute top-80 right-20 w-96 h-96 bg-indigo-300 rounded-full mix-blend-multiply filter blur-[100px] opacity-20 pointer-events-none"></div>
+
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-12 relative z-10">
           
           {Object.entries(groupedProducts).map(([subcat, products]) => (
             <div key={subcat} className="space-y-6">
@@ -99,7 +103,7 @@ export default function CategoryDetailPage() {
               </div>
 
               {/* Product Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 bg-white p-6 shadow-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 p-6 bg-white/30 backdrop-blur-md rounded-b-xl shadow-inner border border-white/40">
                 {products.map((product, idx) => (
                   <motion.div
                     key={`${product.id}-${idx}`}
@@ -107,10 +111,10 @@ export default function CategoryDetailPage() {
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                     transition={{ duration: 0.4, delay: idx * 0.05 }}
-                    className="flex flex-col group cursor-pointer"
+                    className="flex flex-col group cursor-pointer bg-white/50 backdrop-blur-xl rounded-2xl p-5 shadow-[0_4px_16px_0_rgba(31,38,135,0.05)] border border-white/60 hover:shadow-[0_8px_32px_0_rgba(31,38,135,0.15)] hover:-translate-y-1 transition-all duration-300 relative overflow-hidden before:absolute before:inset-0 before:bg-gradient-to-br before:from-white/50 before:to-transparent before:opacity-0 hover:before:opacity-100 before:transition-opacity before:duration-500"
                   >
                     {/* Image Area */}
-                    <div className="aspect-[4/3] bg-gray-50 flex items-center justify-center p-4 mb-4 border border-gray-100 overflow-hidden relative">
+                    <div className="aspect-[4/3] bg-white/40 backdrop-blur-sm shadow-inner rounded-xl flex items-center justify-center p-4 mb-5 border border-white/50 overflow-hidden relative z-10">
                        <img 
                           src={product.image} 
                           alt={product.name}
@@ -119,30 +123,32 @@ export default function CategoryDetailPage() {
                     </div>
                     
                     {/* Product Details */}
-                    <div className="flex-1 flex flex-col">
-                      <h3 className="text-lg font-bold text-gray-900 leading-tight">{product.name}</h3>
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                    <div className="flex-1 flex flex-col relative z-10">
+                      <h3 className="text-lg font-bold text-gray-900 leading-tight group-hover:text-[#1e3a6e] transition-colors">{product.name}</h3>
+                      <p className="text-xs font-semibold text-[#1e3a6e]/70 uppercase tracking-wider mb-2">
                         {product.id.startsWith('MAT') ? product.id : `MAT-${1000 + parseInt(product.id)}`}
                       </p>
                       
-                      <p className="text-xs text-gray-600 line-clamp-3 mb-3 flex-1">
+                      <p className="text-xs text-gray-700 font-medium line-clamp-3 mb-4 flex-1">
                         {product.description}
                       </p>
 
-                      {/* Feature Icon Row (Simulating the small icon with text) */}
+                      {/* Feature Icon Row */}
                       <div className="flex items-center gap-2 mb-4">
-                        <div className="w-6 h-6 rounded-full bg-[#1e3a6e]/10 flex items-center justify-center text-[#1e3a6e]">
-                          {idx % 2 === 0 ? <Edit3 size={12} /> : <CheckCircle2 size={12} />}
+                        <div className="w-7 h-7 rounded-full bg-white/70 shadow-sm border border-white flex items-center justify-center text-[#1e3a6e]">
+                          {idx % 2 === 0 ? <Edit3 size={14} /> : <CheckCircle2 size={14} />}
                         </div>
-                        <span className="text-xs font-medium text-gray-700">
+                        <span className="text-xs font-bold text-gray-800">
                           {idx % 2 === 0 ? 'Smooth Ink' : 'Ergonomic Grip'}
                         </span>
                       </div>
 
                       {/* Bottom Row: Price and QR Code */}
-                      <div className="flex items-center justify-between mt-auto border-t border-gray-100 pt-3">
-                        <span className="text-lg font-extrabold text-gray-900">{formatPrice(product.price)}</span>
-                        <QRCodePlaceholder />
+                      <div className="flex items-center justify-between mt-auto border-t border-white/60 pt-4">
+                        <span className="text-xl font-extrabold text-[#1e3a6e] drop-shadow-sm">{formatPrice(product.price)}</span>
+                        <div className="bg-white/80 p-1.5 rounded-lg shadow-sm border border-white">
+                          <QRCodePlaceholder />
+                        </div>
                       </div>
                     </div>
                   </motion.div>

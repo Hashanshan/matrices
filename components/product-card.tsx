@@ -40,9 +40,9 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
         whileHover={{ y: -8 }}
         className="group h-full min-w-0"
       >
-        <div className="relative overflow-hidden border border-border hover:border-accent/50 transition-all duration-300 h-full shadow-sm hover:shadow-xl flex flex-col bg-white text-gray-900 rounded-sm">
+        <div className="relative overflow-hidden border border-white/40 hover:border-white/80 transition-all duration-300 h-full shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] hover:shadow-[0_8px_32px_0_rgba(31,38,135,0.15)] flex flex-col bg-white/40 backdrop-blur-xl text-gray-900 rounded-2xl before:absolute before:inset-0 before:bg-gradient-to-br before:from-white/40 before:to-transparent before:opacity-0 hover:before:opacity-100 before:transition-opacity before:duration-500">
           {/* Image Container */}
-          <div className="relative w-full h-56 sm:h-72 overflow-hidden bg-white/80 p-4">
+          <div className="relative w-full h-56 sm:h-72 overflow-hidden bg-white/20 p-4 border-b border-white/30 z-10">
             <div className="absolute inset-0 bg-gradient-to-t from-black/5 to-transparent z-10 pointer-events-none"></div>
             <Image
               src={product.image}
