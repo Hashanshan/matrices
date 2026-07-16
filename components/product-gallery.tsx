@@ -212,18 +212,18 @@ export default function ProductGallery({ searchQuery, onFilterChange }: ProductG
         </div>
       </motion.div>
 
-      <div className="flex gap-6">
+      <div className="flex flex-col md:flex-row gap-6 relative">
         {/* Retractable Sidebar Filters */}
         <AnimatePresence>
           {sidebarOpen && (
             <motion.aside
-              initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 280, opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }}
+              initial={{ opacity: 0, height: 0, width: '100%' }}
+              animate={{ opacity: 1, height: 'auto', width: 'auto' }}
+              exit={{ opacity: 0, height: 0, width: '100%' }}
               transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-              className="flex-shrink-0 overflow-hidden"
+              className="w-full md:w-auto md:flex-shrink-0 overflow-hidden origin-top"
             >
-              <div className="w-[280px] sticky top-24 space-y-6 bg-card rounded-lg p-5 border border-border shadow-sm">
+              <div className="w-full md:w-[280px] sticky top-24 space-y-6 bg-card rounded-lg p-5 border border-border shadow-sm">
                 {/* Sidebar Header */}
                 <div className="flex items-center justify-between">
                   <h3 className="font-bold text-primary text-lg">Filters</h3>
