@@ -51,9 +51,11 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
           {/* Navigation Links */}
           <nav className="hidden lg:flex gap-8 flex-1 justify-center">
             {[
-              { href: '/', label: 'Home' },
-              { href: '/gallery', label: 'Catalog' },
-              { href: '/view', label: 'Product View' },
+              { href: '/gallery', label: 'Catalogue' },
+              { href: '/#categories', label: 'Categories' },
+              { href: '/#new-arrivals', label: 'New Arrivals' },
+              { href: '/#about', label: 'About' },
+              { href: '/#contact', label: 'Contact' },
             ].map((link) => (
               <Link
                 key={link.href}
@@ -179,14 +181,17 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
           {/* Navigation */}
           <nav className="p-4 space-y-2 border-b border-border">
             {[
-              { href: '/', label: 'Home' },
-              { href: '/gallery', label: 'Catalog' },
-              { href: '/view', label: 'Product View' },
+              { href: '/gallery', label: 'Catalogue' },
+              { href: '/#categories', label: 'Categories' },
+              { href: '/#new-arrivals', label: 'New Arrivals' },
+              { href: '/#about', label: 'About' },
+              { href: '/#contact', label: 'Contact' },
             ].map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
                 className="block px-4 py-3 text-foreground font-bold hover:bg-secondary rounded-xl transition-colors"
+                onClick={() => setMobileMenuOpen(false)}
               >
                 {link.label}
               </Link>

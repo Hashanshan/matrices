@@ -5,16 +5,13 @@ import { motion } from 'framer-motion';
 export default function Template({ children }: { children: React.ReactNode }) {
   return (
     <motion.div
-      initial={{ opacity: 0, rotateY: -90, transformOrigin: 'left center' }}
-      animate={{ opacity: 1, rotateY: 0, transformOrigin: 'left center' }}
-      exit={{ opacity: 0, rotateY: 90, transformOrigin: 'right center' }}
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -8 }}
       transition={{
-        type: 'spring',
-        stiffness: 60,
-        damping: 20,
-        duration: 0.6,
+        duration: 0.35,
+        ease: [0.25, 0.46, 0.45, 0.94],
       }}
-      style={{ perspective: '1200px' }}
     >
       {children}
     </motion.div>
