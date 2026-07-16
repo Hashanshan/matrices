@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { Product } from '@/lib/types';
 import { motion } from 'framer-motion';
 import { Star, ShoppingCart, Heart, Eye } from 'lucide-react';
-import Link from 'next/link';
 import Image from 'next/image';
 import QuickAddModal from './quick-add-modal';
 import { formatPrice } from '@/lib/currency';
@@ -43,7 +42,10 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
         <div className="relative bg-white rounded-[2rem] p-4 sm:p-5 shadow-[0_15px_40px_-15px_rgba(0,0,0,0.08)] hover:shadow-[0_20px_50px_-15px_rgba(0,0,0,0.12)] transition-all duration-300 h-full flex flex-col border border-gray-50">
           
           {/* Image Container */}
-          <div className="relative w-full h-56 sm:h-64 rounded-[1.5rem] overflow-hidden bg-[#f8f9fc] flex items-center justify-center p-4">
+          <div 
+            onClick={handleQuickAdd}
+            className="relative w-full h-56 sm:h-64 rounded-[1.5rem] overflow-hidden bg-[#f8f9fc] flex items-center justify-center p-4 cursor-pointer"
+          >
             <Image
               src={product.image}
               alt={product.name}
@@ -71,11 +73,11 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
 
           {/* Content Area */}
           <div className="pt-6 pb-2 px-2 flex flex-col flex-1">
-            <Link href={`/product/${product.id}`} className="block">
+            <button onClick={handleQuickAdd} className="block text-left">
               <h3 className="font-extrabold text-[#0f172a] text-lg sm:text-xl leading-tight line-clamp-1 group-hover:text-[#1e3a8a] transition-colors">
                 {product.name}
               </h3>
-            </Link>
+            </button>
 
             {/* SKU and Colors Row */}
             <div className="flex items-center justify-between mt-2 mb-6">
@@ -92,14 +94,14 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
             </div>
 
             {/* Footer / Action */}
-            <div className="mt-auto flex items-center justify-between">
+            <div className="mt-auto flex items-center justify-between gap-2">
               <span className="text-xl font-black text-[#0f172a]">{formatPrice(product.price)}</span>
-              <Link
-                href={`/product/${product.id}`}
-                className="bg-[#0f172a] text-white px-5 py-2.5 rounded-full text-sm font-semibold hover:bg-[#1e293b] hover:shadow-md transition-all active:scale-95"
+              <button
+                onClick={handleQuickAdd}
+                className="bg-[#0f172a] text-white px-4 sm:px-5 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-semibold hover:bg-[#1e293b] hover:shadow-md transition-all active:scale-95 whitespace-nowrap"
               >
-                View Details
-              </Link>
+                Add to Cart
+              </button>
             </div>
           </div>
         </div>
