@@ -51,11 +51,9 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
           {/* Navigation Links */}
           <nav className="hidden lg:flex gap-8 flex-1 justify-center">
             {[
-              { href: '/gallery', label: 'Catalogue' },
-              { href: '/#categories', label: 'Categories' },
-              { href: '/#new-arrivals', label: 'New Arrivals' },
-              { href: '/#about', label: 'About' },
-              { href: '/#contact', label: 'Contact' },
+              { href: '/', label: 'Home' },
+              { href: '/gallery', label: 'Gallery' },
+              { href: '/view', label: 'Products' },
             ].map((link) => (
               <Link
                 key={link.href}

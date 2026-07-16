@@ -12,9 +12,8 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'Matrices - Premium Tech Products Store',
-  description: 'Matrices: Your gateway to premium tech products with stunning visuals, advanced filtering, and seamless shopping experience',
-  generator: 'v0.app',
+  title: 'Matrices',
+  // description: 'Matrices: Your gateway to premium tech products with stunning visuals, advanced filtering, and seamless shopping experience',
 }
 
 export const viewport: Viewport = {
