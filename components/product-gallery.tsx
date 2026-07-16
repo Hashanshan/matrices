@@ -28,6 +28,14 @@ export default function ProductGallery({ searchQuery, onFilterChange }: ProductG
 
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+
+  const toggleSection = (cat: string) => {
+    setCollapsedSections(prev => ({
+      ...prev,
+      [cat]: !prev[cat]
+    }));
+  };
 
   // Filter and sort products
   const filteredProducts = useMemo(() => {
@@ -228,9 +236,9 @@ export default function ProductGallery({ searchQuery, onFilterChange }: ProductG
               animate={{ opacity: 1, width: 'auto', x: 0 }}
               exit={{ opacity: 0, width: 0, x: -20 }}
               transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-              className="w-full md:w-auto md:flex-shrink-0 overflow-hidden origin-left"
+              className="w-full md:w-auto md:flex-shrink-0 origin-left md:sticky md:top-36 self-start max-h-[calc(100vh-10rem)] overflow-y-auto no-scrollbar"
             >
-              <div className="w-full md:w-[280px] md:sticky md:top-36 space-y-6 bg-white rounded-[2rem] p-6 border border-gray-50 shadow-[0_8px_30px_-12px_rgba(0,0,0,0.06)]">
+              <div className="w-full md:w-[280px] space-y-6 bg-white rounded-[2rem] p-6 border border-gray-50 shadow-[0_8px_30px_-12px_rgba(0,0,0,0.06)]">
                 {/* Sidebar Header */}
                 <div className="flex items-center justify-between pb-4 border-b border-gray-100">
                   <h3 className="font-black text-[#0f172a] text-xl">Filters</h3>
@@ -407,37 +415,65 @@ export default function ProductGallery({ searchQuery, onFilterChange }: ProductG
         <div className="flex-1 min-w-0">
           {filteredProducts.length > 0 ? (
             <div className="space-y-12">
-              {Object.entries(groupedProducts).map(([category, products], categoryIndex) => (
-                <motion.section
-                  key={category}
-                  initial={{ opacity: 0, y: 30 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.4, delay: categoryIndex * 0.1 }}
-                >
-                  {/* Category Banner */}
-                  <div className="bg-white rounded-[1.5rem] shadow-[0_8px_30px_-12px_rgba(0,0,0,0.06)] border border-gray-50 flex items-center justify-between p-6 mb-8">
-                    <h2 className="text-2xl font-black text-[#0f172a] tracking-wide uppercase">
-                      {category}
-                    </h2>
-                    <span className="text-sm font-bold text-gray-500 bg-gray-50 px-4 py-2 rounded-full">
-                      {products.length} {products.length === 1 ? 'Product' : 'Products'}
-                    </span>
-                  </div>
+              {Object.entries(groupedProducts).map(([category, products], categoryIndex) => {
+                const isCollapsed = collapsedSections[category];
 
-                  {/* Products Grid */}
-                  <div className="pb-8">
-                    <motion.div
-                      layout
-                      className={`grid gap-6 sm:gap-8 ${gridClass}`}
-                      style={{ gridAutoRows: 'max-content' }}
+                return (
+                  <motion.section
+                    key={category}
+                    initial={{ opacity: 0, y: 30 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.4, delay: categoryIndex * 0.1 }}
+                  >
+                    {/* Category Banner */}
+                    <div 
+                      className="bg-white rounded-[1.5rem] shadow-[0_8px_30px_-12px_rgba(0,0,0,0.06)] border border-gray-50 flex items-center justify-between p-6 mb-8 cursor-pointer hover:shadow-md transition-shadow"
+                      onClick={() => toggleSection(category)}
                     >
-                      {products.map((product, index) => (
-                        <ProductCard key={product.id} product={product} index={index} />
-                      ))}
-                    </motion.div>
-                  </div>
-                </motion.section>
-              ))}
+                      <div className="flex items-center gap-4">
+                        <motion.div
+                          animate={{ rotate: isCollapsed ? -90 : 0 }}
+                          transition={{ duration: 0.2 }}
+                          className="bg-gray-100 p-2 rounded-full text-gray-500"
+                        >
+                          <ChevronDown size={20} />
+                        </motion.div>
+                        <h2 className="text-2xl font-black text-[#0f172a] tracking-wide uppercase">
+                          {category}
+                        </h2>
+                      </div>
+                      <span className="text-sm font-bold text-gray-500 bg-gray-50 px-4 py-2 rounded-full">
+                        {products.length} {products.length === 1 ? 'Product' : 'Products'}
+                      </span>
+                    </div>
+
+                    <AnimatePresence>
+                      {!isCollapsed && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          transition={{ duration: 0.3 }}
+                          className="overflow-hidden"
+                        >
+                          {/* Products Grid */}
+                          <div className="pb-8">
+                            <motion.div
+                              layout
+                              className={`grid gap-6 sm:gap-8 ${gridClass}`}
+                              style={{ gridAutoRows: 'max-content' }}
+                            >
+                              {products.map((product, index) => (
+                                <ProductCard key={product.id} product={product} index={index} />
+                              ))}
+                            </motion.div>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </motion.section>
+                );
+              })}
             </div>
           ) : (
             <motion.div
