@@ -111,9 +111,9 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
                   whileHover={{ scale: 1.1 }}
                   whileTap={{ scale: 0.95 }}
                   onClick={() => setShowProfileMenu(!showProfileMenu)}
-                  className="p-2 hover:bg-secondary rounded-xl transition-colors"
+                  className="p-2 hover:bg-secondary rounded-full transition-colors"
                 >
-                  <div className="w-8 h-8 bg-gradient-to-br from-accent to-accent/60 rounded-lg flex items-center justify-center text-white font-bold">
+                  <div className="w-8 h-8 bg-gradient-to-br from-accent to-accent/60 rounded-full flex items-center justify-center text-white font-bold">
                     {user.name.charAt(0).toUpperCase()}
                   </div>
                 </motion.button>
@@ -134,7 +134,7 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
                       onClick={handleLogout}
-                      className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-destructive to-destructive/80 hover:from-destructive/90 hover:to-destructive text-white font-bold py-3 rounded-xl transition-all"
+                      className="w-full flex items-center  justify-center gap-2 bg-gradient-to-r from-destructive to-destructive/80 hover:from-destructive/90 hover:to-destructive text-white font-bold py-3 rounded-full transition-all"
                     >
                       <LogOut size={18} />
                       Logout

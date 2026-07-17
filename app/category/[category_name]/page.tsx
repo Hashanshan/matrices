@@ -13,15 +13,18 @@ import { CheckCircle2, Edit3, Type, ChevronDown } from 'lucide-react';
 import Image from 'next/image';
 import QuickAddModal from '@/components/quick-add-modal';
 
+import { useRouter } from "next/navigation";
+
 export default function CategoryDetailPage() {
   const params = useParams();
   const { isLoggedIn } = useAuth();
   const rawCategoryName = params.category_name as string;
   const categoryName = decodeURIComponent(rawCategoryName);
-  
+  const router = useRouter();
+
   // Accordion state - default true for all
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
-  
+
   // Modal state
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
@@ -94,11 +97,11 @@ export default function CategoryDetailPage() {
 
           {Object.entries(groupedProducts).map(([subcat, products]) => {
             const isCollapsed = collapsedSections[subcat];
-            
+
             return (
               <div key={subcat} className="space-y-6">
                 {/* Distinctive Subcategory Banner matching the design */}
-                <div 
+                <div
                   className="bg-white rounded-[1.5rem] shadow-[0_8px_30px_-12px_rgba(0,0,0,0.06)] border border-gray-50 flex items-center justify-between p-6 overflow-hidden relative cursor-pointer hover:shadow-md transition-shadow"
                   onClick={() => toggleSection(subcat)}
                 >
@@ -138,11 +141,12 @@ export default function CategoryDetailPage() {
                             viewport={{ once: true }}
                             transition={{ duration: 0.4, delay: idx * 0.05 }}
                             whileHover={{ y: -5 }}
-                            onClick={() => setSelectedProduct(product)}
+                            onClick={() => router.push(`/view?productId=${product.id}`)}
+
                             className="flex flex-col group cursor-pointer bg-white rounded-[2rem] p-4 shadow-[0_15px_40px_-15px_rgba(0,0,0,0.08)] hover:shadow-[0_20px_50px_-15px_rgba(0,0,0,0.12)] border border-gray-50 transition-all duration-300 min-w-0"
                           >
                             {/* Image Area */}
-                            <div className="aspect-[4/3] bg-[#f8f9fc] rounded-[1.5rem] flex items-center justify-center p-4 mb-5 overflow-hidden relative">
+                            <div className="aspect-[3/4] bg-[#f8f9fc] rounded-[1.5rem] flex items-center justify-center p-4 mb-5 overflow-hidden relative">
                               <img
                                 src={product.image}
                                 alt={product.name}
@@ -153,7 +157,7 @@ export default function CategoryDetailPage() {
                             {/* Product Details */}
                             <div className="flex-1 flex flex-col px-2 pb-2">
                               <h3 className="text-lg font-extrabold text-[#0f172a] leading-tight group-hover:text-[#1e3a8a] transition-colors truncate">{product.name}</h3>
-                              
+
                               {/* Bottom Row: Price and Action */}
                               <div className="flex items-center justify-between mt-auto pt-4 gap-2">
                                 <span className="text-lg font-black text-[#0f172a] truncate">{formatPrice(product.price)}</span>

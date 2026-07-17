@@ -426,7 +426,7 @@ export default function ProductGallery({ searchQuery, onFilterChange }: ProductG
                     transition={{ duration: 0.4, delay: categoryIndex * 0.1 }}
                   >
                     {/* Category Banner */}
-                    <div 
+                    <div
                       className="bg-white rounded-[1.5rem] shadow-[0_8px_30px_-12px_rgba(0,0,0,0.06)] border border-gray-50 flex items-center justify-between p-6 mb-8 cursor-pointer hover:shadow-md transition-shadow"
                       onClick={() => toggleSection(category)}
                     >

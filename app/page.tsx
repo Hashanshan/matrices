@@ -17,7 +17,7 @@ const CATEGORIES_DATA = [
     name: 'Belts',
     description: 'Quality accessories for attire.',
     productCount: 110,
-    image: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=400&h=400&fit=crop',
+    image: '/46134.png',
     group: 'Fashion Accessories'
   },
   {
@@ -25,7 +25,7 @@ const CATEGORIES_DATA = [
     name: 'Wallets',
     description: 'Compact organization for daily use.',
     productCount: 125,
-    image: 'https://images.unsplash.com/photo-1627123424574-724758594e93?w=400&h=400&fit=crop',
+    image: '/46135.png',
     group: 'Fashion Accessories'
   },
   {
@@ -149,7 +149,7 @@ export default function CategoriesPage() {
               >
                 <Link href={`/category/${encodeURIComponent(category.name)}`}>
                   <div className="bg-white rounded-[2rem] p-4 sm:p-5 shadow-[0_15px_40px_-15px_rgba(0,0,0,0.06)] hover:shadow-[0_20px_50px_-15px_rgba(0,0,0,0.1)] transition-all duration-300 group flex flex-col h-full cursor-pointer hover:-translate-y-1">
-                    <div className="w-full h-48 sm:h-56 mb-6 rounded-[1.5rem] overflow-hidden bg-[#f8f9fc] flex items-center justify-center p-6">
+                    <div className="aspect-[3/4] mb-6 rounded-[1.5rem] overflow-hidden bg-[#f8f9fc] flex items-center justify-center p-6">
                       <img
                         src={category.image}
                         alt={category.name}

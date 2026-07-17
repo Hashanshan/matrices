@@ -7,6 +7,7 @@ import { Star, ShoppingCart, Heart, Eye } from 'lucide-react';
 import Image from 'next/image';
 import QuickAddModal from './quick-add-modal';
 import { formatPrice } from '@/lib/currency';
+import { useRouter } from "next/navigation";
 
 interface ProductCardProps {
   product: Product;
@@ -16,6 +17,7 @@ interface ProductCardProps {
 export default function ProductCard({ product, index = 0 }: ProductCardProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isFavorite, setIsFavorite] = useState(false);
+  const router = useRouter();
 
   const handleQuickAdd = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -39,12 +41,13 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
         whileHover={{ y: -5 }}
         className="group h-full min-w-0 flex flex-col"
       >
-        <div className="relative bg-white rounded-[2rem] p-4 sm:p-5 shadow-[0_15px_40px_-15px_rgba(0,0,0,0.08)] hover:shadow-[0_20px_50px_-15px_rgba(0,0,0,0.12)] transition-all duration-300 h-full flex flex-col border border-gray-50">
-          
+        <div className="relative bg-white rounded-[2rem] p-2 sm:p-5 shadow-[0_15px_40px_-15px_rgba(0,0,0,0.08)] hover:shadow-[0_20px_50px_-15px_rgba(0,0,0,0.12)] transition-all duration-300 h-full flex flex-col border border-gray-50">
+
           {/* Image Container */}
-          <div 
-            onClick={handleQuickAdd}
-            className="relative w-full h-56 sm:h-64 rounded-[1.5rem] overflow-hidden bg-[#f8f9fc] flex items-center justify-center p-4 cursor-pointer"
+          <div
+            // onclick navigate to product view page 
+            onClick={() => router.push(`/view?productId=${product.id}`)}
+            className="relative aspect-[3/4] rounded-[1.5rem] overflow-hidden bg-[#f8f9fc] flex items-center justify-center p-4 cursor-pointer"
           >
             <Image
               src={product.image}
@@ -56,13 +59,13 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
 
             {/* Quick Actions overlaying image (subtle) */}
             <div className="absolute top-3 right-3 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-               <button
+              <button
                 onClick={handleFavorite}
                 className="w-10 h-10 bg-white/80 backdrop-blur-md rounded-full shadow-sm flex items-center justify-center text-gray-600 hover:text-red-500 hover:bg-white transition-all"
               >
                 <Heart size={18} fill={isFavorite ? 'currentColor' : 'none'} className={isFavorite ? 'text-red-500' : ''} />
               </button>
-               <button
+              <button
                 onClick={handleQuickAdd}
                 className="w-10 h-10 bg-white/80 backdrop-blur-md rounded-full shadow-sm flex items-center justify-center text-gray-600 hover:text-[#0f172a] hover:bg-white transition-all"
               >
@@ -82,9 +85,9 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
             {/* SKU and Colors Row */}
             <div className="flex items-center justify-between mt-2 mb-6">
               <span className="text-gray-400 font-medium text-sm">
-                 {product.id.startsWith('MAT') ? product.id : `MAT-${1000 + parseInt(product.id)}`}-N
+                {product.id.startsWith('MAT') ? product.id : `MAT-${1000 + parseInt(product.id)}`}-N
               </span>
-              
+
               {/* Fake color swatches to match design */}
               <div className="flex items-center gap-1.5">
                 <div className="w-5 h-5 rounded-full bg-[#1e293b] border-2 border-white outline outline-1 outline-gray-200 shadow-sm"></div>
