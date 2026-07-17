@@ -33,14 +33,32 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} bg-background`}>
-      <body className="font-sans antialiased bg-background text-foreground">
-        <AuthProvider>
-          <CartProvider>
-            {children}
-            {process.env.NODE_ENV === 'production' && <Analytics />}
-          </CartProvider>
-        </AuthProvider>
+    <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
+      <body className="font-sans antialiased text-foreground min-h-screen bg-[#f8fafc] relative">
+        
+        {/* Background elements mimicking the exact sample design */}
+        <div className="fixed inset-0 -z-50 overflow-hidden pointer-events-none bg-[#f4f7fa]">
+          {/* Main Diagonal dark blue shape (Top Right) */}
+          <div className="absolute top-[0%] right-[-10%] w-[100%] h-[150%] bg-[#1c2c4d] origin-top-right -rotate-[35deg] transform translate-x-[20%] translate-y-[-40%]" />
+          
+          {/* Diagonal lighter shape (Middle/Left overlapping) */}
+          <div className="absolute bottom-[0%] left-[-20%] w-[100%] h-[100%] bg-gradient-to-t from-[#8da0bd] to-[#b3c1d6] origin-bottom-left -rotate-[35deg] transform -translate-x-[10%] translate-y-[20%] opacity-20" />
+          
+          {/* Bottom left dark blue shape */}
+          <div className="absolute bottom-[-20%] left-[-20%] w-[80%] h-[100%] bg-[#1c2c4d] origin-bottom-left -rotate-[35deg] transform -translate-x-[20%] translate-y-[30%]" />
+
+          {/* Subtle overlay */}
+          <div className="absolute inset-0 bg-white/20 backdrop-blur-sm" />
+        </div>
+
+        <div className="relative z-0 min-h-screen">
+          <AuthProvider>
+            <CartProvider>
+              {children}
+              {process.env.NODE_ENV === 'production' && <Analytics />}
+            </CartProvider>
+          </AuthProvider>
+        </div>
       </body>
     </html>
   )

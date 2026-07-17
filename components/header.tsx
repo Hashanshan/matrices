@@ -28,7 +28,7 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
   };
 
   return (
-    <header className="sticky top-0 z-50 bg-card/95 backdrop-blur-lg border-b border-border shadow-lg">
+    <header className="sticky top-0 z-50 bg-white/30 backdrop-blur-2xl border-b border-white/40 shadow-[0_8px_32px_0_rgba(31,38,135,0.05)]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Desktop Header */}
         <div className="flex items-center justify-between h-20 gap-6">

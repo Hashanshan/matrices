@@ -153,7 +153,7 @@ export default function ProductGallery({ searchQuery, onFilterChange }: ProductG
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4 bg-white/80 backdrop-blur-xl rounded-[2rem] p-4 px-6 border border-white/40 shadow-[0_8px_30px_-12px_rgba(0,0,0,0.06)] sticky top-[80px] z-30"
+        className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4 bg-white/30 backdrop-blur-2xl rounded-[2rem] p-4 px-6 border border-white/60 shadow-[0_8px_32px_0_rgba(31,38,135,0.05)] sticky top-[80px] z-30"
       >
         {/* Left: Sidebar Toggle */}
         <div className="flex items-center justify-between w-full lg:w-auto">
@@ -238,7 +238,7 @@ export default function ProductGallery({ searchQuery, onFilterChange }: ProductG
               transition={{ type: 'spring', stiffness: 300, damping: 30 }}
               className="w-full md:w-auto md:flex-shrink-0 origin-left md:sticky md:top-36 self-start max-h-[calc(100vh-10rem)] overflow-y-auto no-scrollbar"
             >
-              <div className="w-full md:w-[280px] space-y-6 bg-white rounded-[2rem] p-6 border border-gray-50 shadow-[0_8px_30px_-12px_rgba(0,0,0,0.06)]">
+              <div className="w-full md:w-[280px] space-y-6 bg-white/40 backdrop-blur-2xl rounded-[2rem] p-6 border border-white/60 shadow-[0_8px_32px_0_rgba(31,38,135,0.07)]">
                 {/* Sidebar Header */}
                 <div className="flex items-center justify-between pb-4 border-b border-gray-100">
                   <h3 className="font-black text-[#0f172a] text-xl">Filters</h3>
@@ -427,7 +427,7 @@ export default function ProductGallery({ searchQuery, onFilterChange }: ProductG
                   >
                     {/* Category Banner */}
                     <div
-                      className="bg-white rounded-[1.5rem] shadow-[0_8px_30px_-12px_rgba(0,0,0,0.06)] border border-gray-50 flex items-center justify-between p-6 mb-8 cursor-pointer hover:shadow-md transition-shadow"
+                      className="bg-white/40 backdrop-blur-xl rounded-[1.5rem] shadow-[0_8px_32px_0_rgba(31,38,135,0.05)] border border-white/60 flex items-center justify-between p-6 mb-8 cursor-pointer hover:shadow-md transition-shadow"
                       onClick={() => toggleSection(category)}
                     >
                       <div className="flex items-center gap-4">
@@ -479,7 +479,7 @@ export default function ProductGallery({ searchQuery, onFilterChange }: ProductG
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="flex flex-col items-center justify-center py-32 text-center bg-white rounded-[3rem] border border-gray-50 shadow-sm"
+              className="flex flex-col items-center justify-center py-32 text-center bg-white/30 backdrop-blur-2xl rounded-[3rem] border border-white/60 shadow-[0_8px_32px_0_rgba(31,38,135,0.07)]"
             >
               <div className="w-24 h-24 bg-gray-50 rounded-full flex items-center justify-center mb-6">
                 <span className="text-4xl">🔍</span>

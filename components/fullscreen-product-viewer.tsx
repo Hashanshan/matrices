@@ -92,20 +92,26 @@ export default function FullscreenProductViewer() {
     }, 1500);
   };
 
-  const slideVariants = {
+  const pageFlipVariants = {
     enter: (dir: 'left' | 'right') => ({
-      x: dir === 'left' ? 1000 : -1000,
+      rotateY: dir === 'left' ? -90 : 90,
       opacity: 0,
+      scale: 0.95,
+      filter: 'brightness(0.8)',
     }),
     center: {
       zIndex: 1,
-      x: 0,
+      rotateY: 0,
       opacity: 1,
+      scale: 1,
+      filter: 'brightness(1)',
     },
     exit: (dir: 'left' | 'right') => ({
       zIndex: 0,
-      x: dir === 'left' ? -1000 : 1000,
+      rotateY: dir === 'left' ? 45 : -45,
       opacity: 0,
+      scale: 0.95,
+      filter: 'brightness(0.8)',
     }),
   };
 
@@ -122,31 +128,33 @@ export default function FullscreenProductViewer() {
   };
 
   return (
-    <div className="w-full h-screen bg-[#f8f9fc] overflow-hidden relative max-w-full">
-      {/* Subtle background glow */}
-      <div className="absolute inset-0 opacity-40">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-gray-200 rounded-full mix-blend-multiply filter blur-3xl opacity-50 animate-pulse"></div>
-      </div>
-
+    <div className="w-full h-screen bg-transparent overflow-hidden relative max-w-full">
       {/* Full Image Container */}
       <div
         className="w-full h-full flex items-center justify-center relative cursor-move group"
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
+        style={{ perspective: 1800, perspectiveOrigin: '50% 50%' }}
       >
         <AnimatePresence initial={false} custom={direction} mode="wait">
           <motion.div
             key={currentIndex}
             custom={direction}
-            variants={slideVariants}
+            variants={pageFlipVariants}
             initial="enter"
             animate="center"
             exit="exit"
             transition={{
-              x: { type: 'spring', stiffness: 300, damping: 30 },
-              opacity: { duration: 0.2 },
+              type: 'tween',
+              ease: [0.25, 0.46, 0.45, 0.94],
+              duration: 0.6,
             }}
             className="absolute inset-0 flex items-center justify-center p-4 sm:p-8"
+            style={{
+              transformStyle: 'preserve-3d',
+              transformOrigin: 'left center',
+              backfaceVisibility: 'hidden',
+            }}
             onClick={() => setImageZoomed(!imageZoomed)}
           >
             <motion.div
@@ -175,7 +183,7 @@ export default function FullscreenProductViewer() {
           }}
           whileHover={{ scale: 1.1, x: 4 }}
           whileTap={{ scale: 0.95 }}
-          className="absolute left-4 sm:left-8 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white text-[#0f172a] p-3 sm:p-4 rounded-full transition-all z-20 hidden sm:flex items-center justify-center shadow-lg backdrop-blur-md border border-white"
+          className="absolute left-4 sm:left-8 top-1/2 -translate-y-1/2 bg-white/30 hover:bg-white/60 backdrop-blur-2xl text-[#0f172a] p-3 sm:p-4 rounded-full transition-all z-20 hidden sm:flex items-center justify-center shadow-[0_8px_32px_0_rgba(31,38,135,0.1)] border border-white/60"
         >
           <ChevronLeft size={28} />
         </motion.button>
@@ -187,7 +195,7 @@ export default function FullscreenProductViewer() {
           }}
           whileHover={{ scale: 1.1, x: -4 }}
           whileTap={{ scale: 0.95 }}
-          className="absolute right-4 sm:right-8 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white text-[#0f172a] p-3 sm:p-4 rounded-full transition-all z-20 hidden sm:flex items-center justify-center shadow-lg backdrop-blur-md border border-white"
+          className="absolute right-4 sm:right-8 top-1/2 -translate-y-1/2 bg-white/30 hover:bg-white/60 backdrop-blur-2xl text-[#0f172a] p-3 sm:p-4 rounded-full transition-all z-20 hidden sm:flex items-center justify-center shadow-[0_8px_32px_0_rgba(31,38,135,0.1)] border border-white/60"
         >
           <ChevronRight size={28} />
         </motion.button>
@@ -196,7 +204,7 @@ export default function FullscreenProductViewer() {
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="absolute top-6 left-6 sm:top-8 sm:left-8 bg-white/80 backdrop-blur-md text-[#0f172a] px-5 py-2.5 rounded-full shadow-sm border border-white/50"
+          className="absolute top-6 left-6 sm:top-8 sm:left-8 bg-white/30 backdrop-blur-2xl text-[#0f172a] px-5 py-2.5 rounded-full shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] border border-white/60"
         >
           <p className="text-sm font-bold tracking-wider">{String(currentIndex + 1).padStart(2, '0')} / {String(MOCK_PRODUCTS.length).padStart(2, '0')}</p>
         </motion.div>
@@ -211,7 +219,7 @@ export default function FullscreenProductViewer() {
             onClick={() => setIsLiked(!isLiked)}
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.95 }}
-            className="p-3.5 rounded-full bg-white/80 backdrop-blur-md hover:bg-white text-[#0f172a] transition-all shadow-sm border border-white/50"
+            className="p-3.5 rounded-full bg-white/30 backdrop-blur-2xl hover:bg-white/60 text-[#0f172a] transition-all shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] border border-white/60"
           >
             <Heart size={20} fill={isLiked ? 'currentColor' : 'none'} className={isLiked ? 'text-red-500' : ''} />
           </motion.button>
@@ -219,7 +227,7 @@ export default function FullscreenProductViewer() {
             onClick={handleShare}
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.95 }}
-            className="p-3.5 rounded-full bg-white/80 backdrop-blur-md hover:bg-white text-[#0f172a] transition-all shadow-sm border border-white/50"
+            className="p-3.5 rounded-full bg-white/30 backdrop-blur-2xl hover:bg-white/60 text-[#0f172a] transition-all shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] border border-white/60"
           >
             <Share2 size={20} />
           </motion.button>
@@ -228,7 +236,7 @@ export default function FullscreenProductViewer() {
               onClick={() => setMenuOpen(!menuOpen)}
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.95 }}
-              className="p-3.5 rounded-full bg-white/80 backdrop-blur-md hover:bg-white text-[#0f172a] transition-all shadow-sm border border-white/50"
+              className="p-3.5 rounded-full bg-white/30 backdrop-blur-2xl hover:bg-white/60 text-[#0f172a] transition-all shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] border border-white/60"
             >
               {menuOpen ? <X size={24} /> : <Menu size={24} />}
             </motion.button>
@@ -240,7 +248,7 @@ export default function FullscreenProductViewer() {
                   initial={{ opacity: 0, scale: 0.9, y: -20, originX: 1, originY: 0 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.9, y: -20 }}
-                  className="absolute top-16 right-0 bg-white/90 backdrop-blur-xl border border-white/50 rounded-2xl shadow-2xl p-4 w-48 flex flex-col gap-2 overflow-hidden"
+                  className="absolute top-16 right-0 bg-white/40 backdrop-blur-2xl border border-white/60 rounded-2xl shadow-[0_8px_32px_0_rgba(31,38,135,0.1)] p-4 w-48 flex flex-col gap-2 overflow-hidden"
                 >
                   {[
                     { href: '/', label: 'Home', icon: Home },
@@ -271,7 +279,7 @@ export default function FullscreenProductViewer() {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="absolute bottom-32 sm:bottom-40 left-6 sm:left-8 bg-white/90 backdrop-blur-xl text-[#0f172a] p-6 rounded-[2rem] max-w-sm border border-white shadow-[0_15px_40px_-15px_rgba(0,0,0,0.1)]"
+            className="absolute bottom-32 sm:bottom-40 left-6 sm:left-8 bg-white/40 backdrop-blur-2xl text-[#0f172a] p-6 rounded-[2rem] max-w-sm border border-white/60 shadow-[0_8px_32px_0_rgba(31,38,135,0.07)]"
           >
             <h2 className="text-2xl sm:text-3xl font-black mb-2 leading-tight">{currentProduct.name}</h2>
             <p className="text-sm text-gray-500 font-medium line-clamp-2 mb-4">{currentProduct.category}</p>
