@@ -75,7 +75,7 @@ export default function FullscreenProductViewer() {
     });
 
     setAddedSuccess(true);
-    
+
     // Reset modal after success
     setTimeout(() => {
       setIsModalOpen(false);
@@ -146,7 +146,7 @@ export default function FullscreenProductViewer() {
           >
             <motion.div
               className="relative w-full h-full"
-              animate={imageZoomed ? { scale: 1.2 } : { scale: 1 }}
+              animate={imageZoomed ? { scale: 1 } : { scale: 0.8 }}
               transition={{ duration: 0.3 }}
             >
               <img
@@ -188,7 +188,7 @@ export default function FullscreenProductViewer() {
         </motion.button>
 
         {/* Product Counter - Enhanced */}
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           className="absolute top-6 left-6 sm:top-8 sm:left-8 bg-white/80 backdrop-blur-md text-[#0f172a] px-5 py-2.5 rounded-full shadow-sm border border-white/50"
@@ -197,7 +197,7 @@ export default function FullscreenProductViewer() {
         </motion.div>
 
         {/* Action Buttons - Top Right */}
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           className="absolute top-6 sm:top-8 right-6 sm:right-8 flex gap-3 z-20"
@@ -221,94 +221,101 @@ export default function FullscreenProductViewer() {
         </motion.div>
 
         {/* Product Info Overlay - Premium */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="absolute bottom-32 sm:bottom-40 left-6 sm:left-8 bg-white/90 backdrop-blur-xl text-[#0f172a] p-6 rounded-[2rem] max-w-sm border border-white shadow-[0_15px_40px_-15px_rgba(0,0,0,0.1)]"
-        >
-          <h2 className="text-2xl sm:text-3xl font-black mb-2 leading-tight">{currentProduct.name}</h2>
-          <p className="text-sm text-gray-500 font-medium line-clamp-2 mb-4">{currentProduct.description}</p>
-          
-          {/* Rating */}
-          <div className="flex items-center gap-2 mb-5">
-            <div className="flex gap-1">
-              {[...Array(5)].map((_, i) => (
-                <Star
-                  key={i}
-                  size={16}
-                  className={i < Math.floor(currentProduct.rating) ? 'fill-yellow-400 text-yellow-400' : 'text-gray-200'}
-                />
-              ))}
-            </div>
-            <span className="text-sm font-semibold text-gray-400">({currentProduct.reviews} reviews)</span>
-          </div>
+        {!imageZoomed && (
 
-          {/* Price & Stock */}
-          <div className="flex items-baseline justify-between pt-4 border-t border-gray-100">
-            <div>
-              <span className="text-3xl font-black text-[#0f172a]">{formatPrice(currentProduct.price)}</span>
-              {currentProduct.originalPrice && (
-                <span className="ml-2 text-sm font-semibold text-gray-400 line-through">{formatPrice(currentProduct.originalPrice)}</span>
-              )}
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="absolute bottom-32 sm:bottom-40 left-6 sm:left-8 bg-white/90 backdrop-blur-xl text-[#0f172a] p-6 rounded-[2rem] max-w-sm border border-white shadow-[0_15px_40px_-15px_rgba(0,0,0,0.1)]"
+          >
+            <h2 className="text-2xl sm:text-3xl font-black mb-2 leading-tight">{currentProduct.name}</h2>
+            <p className="text-sm text-gray-500 font-medium line-clamp-2 mb-4">{currentProduct.description}</p>
+
+            {/* Rating */}
+            <div className="flex items-center gap-2 mb-5">
+              <div className="flex gap-1">
+                {[...Array(5)].map((_, i) => (
+                  <Star
+                    key={i}
+                    size={16}
+                    className={i < Math.floor(currentProduct.rating) ? 'fill-yellow-400 text-yellow-400' : 'text-gray-200'}
+                  />
+                ))}
+              </div>
+              <span className="text-sm font-semibold text-gray-400">({currentProduct.reviews} reviews)</span>
             </div>
-            <motion.div
-              initial={{ scale: 0.8 }}
-              animate={{ scale: 1 }}
-              className={`px-3 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wide ${
-                currentProduct.inStock
+
+            {/* Price & Stock */}
+            <div className="flex items-baseline justify-between pt-4 border-t border-gray-100">
+              <div>
+                <span className="text-3xl font-black text-[#0f172a]">{formatPrice(currentProduct.price)}</span>
+                {currentProduct.originalPrice && (
+                  <span className="ml-2 text-sm font-semibold text-gray-400 line-through">{formatPrice(currentProduct.originalPrice)}</span>
+                )}
+              </div>
+              <motion.div
+                initial={{ scale: 0.8 }}
+                animate={{ scale: 1 }}
+                className={`px-3 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wide ${currentProduct.inStock
                   ? 'bg-green-50 text-green-700'
                   : 'bg-red-50 text-red-700'
-              }`}
-            >
-              {currentProduct.inStock ? 'In Stock' : 'Out of Stock'}
-            </motion.div>
-          </div>
-        </motion.div>
+                  }`}
+              >
+                {currentProduct.inStock ? 'In Stock' : 'Out of Stock'}
+              </motion.div>
+            </div>
+          </motion.div>
+
+        )}
 
         {/* Add to Cart Button - Enhanced */}
-        <motion.button
-          whileHover={{ scale: 1.05, y: -4 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={() => setIsModalOpen(true)}
-          disabled={!currentProduct.inStock}
-          className="absolute bottom-32 sm:bottom-40 left-1/2 -translate-x-1/2 bg-[#0f172a] hover:bg-[#1e293b] text-white px-8 sm:px-12 py-4 sm:py-5 rounded-full font-bold flex items-center gap-3 shadow-[0_15px_30px_-10px_rgba(15,23,42,0.4)] transition-all disabled:opacity-50 disabled:cursor-not-allowed z-30 text-lg"
-        >
-          <ShoppingCart size={22} />
-          <span>Add to Cart</span>
-        </motion.button>
+        {!imageZoomed && (
+          <motion.button
+            whileHover={{ scale: 1.05, y: -4 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setIsModalOpen(true)}
+            disabled={!currentProduct.inStock}
+            className="absolute bottom-32 sm:bottom-40 left-1/2 -translate-x-1/2 bg-[#0f172a] hover:bg-[#1e293b] text-white px-8 sm:px-12 py-4 sm:py-5 rounded-full font-bold flex items-center gap-3 shadow-[0_15px_30px_-10px_rgba(15,23,42,0.4)] transition-all disabled:opacity-50 disabled:cursor-not-allowed z-30 text-lg"
+          >
+            <ShoppingCart size={22} />
+            <span>Add to Cart</span>
+          </motion.button>
+        )}
 
         {/* Thumbnail Navigation - Bottom */}
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="absolute bottom-6 sm:bottom-8 left-1/2 -translate-x-1/2 flex gap-2 overflow-x-auto px-4 max-w-xs sm:max-w-2xl justify-center z-20 hidden sm:flex pb-2"
-        >
-          {MOCK_PRODUCTS.map((product, idx) => (
-            <motion.button
-              key={product.id}
-              onClick={() => {
-                setDirection(idx > currentIndex ? 'left' : 'right');
-                setCurrentIndex(idx);
-              }}
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.95 }}
-              className={`flex-shrink-0 w-14 h-14 rounded-xl overflow-hidden border-2 transition-all backdrop-blur-sm ${
-                idx === currentIndex
+        {!imageZoomed && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="absolute bottom-6 sm:bottom-8 left-1/2 -translate-x-1/2 flex gap-2 overflow-x-auto px-4 max-w-xs sm:max-w-2xl justify-center z-20 hidden sm:flex pb-2"
+          >
+            {MOCK_PRODUCTS.map((product, idx) => (
+              <motion.button
+                key={product.id}
+                onClick={() => {
+                  setDirection(idx > currentIndex ? 'left' : 'right');
+                  setCurrentIndex(idx);
+                }}
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.95 }}
+                className={`flex-shrink-0 w-14 h-14 rounded-xl overflow-hidden border-2 transition-all backdrop-blur-sm ${idx === currentIndex
                   ? 'border-white shadow-xl ring-2 ring-white/50 scale-110'
                   : 'border-white/40 hover:border-white/80'
-              }`}
-            >
-              <img
-                src={product.image}
-                alt={product.name}
-                className="w-full h-full object-cover"
-              />
-            </motion.button>
-          ))}
-        </motion.div>
+                  }`}
+              >
+                <img
+                  src={product.image}
+                  alt={product.name}
+                  className="w-full h-full object-cover"
+                />
+              </motion.button>
+            ))}
+          </motion.div>
+        )}
 
         {/* Swipe Hint - Mobile */}
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 1 }}
@@ -352,7 +359,7 @@ export default function FullscreenProductViewer() {
               {/* Modal Content */}
               <div className="p-6 space-y-6">
                 {/* Product Preview */}
-                <motion.div 
+                <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   className="bg-gradient-to-br from-card to-card/50 rounded-2xl overflow-hidden aspect-square border border-border/50 shadow-lg"
@@ -372,10 +379,10 @@ export default function FullscreenProductViewer() {
                 >
                   <h4 className="text-2xl font-bold text-foreground mb-2">{currentProduct.name}</h4>
                   <div className="flex items-baseline gap-3">
-              <span className="text-4xl font-bold text-accent">{formatPrice(currentProduct.price)}</span>
-              {currentProduct.originalPrice && (
-                <span className="text-sm text-muted-foreground line-through">{formatPrice(currentProduct.originalPrice)}</span>
-              )}
+                    <span className="text-4xl font-bold text-accent">{formatPrice(currentProduct.price)}</span>
+                    {currentProduct.originalPrice && (
+                      <span className="text-sm text-muted-foreground line-through">{formatPrice(currentProduct.originalPrice)}</span>
+                    )}
                   </div>
                 </motion.div>
 
@@ -396,11 +403,10 @@ export default function FullscreenProductViewer() {
                           onClick={() => setSelectedColor(color.name)}
                           whileHover={{ scale: 1.08 }}
                           whileTap={{ scale: 0.95 }}
-                          className={`px-5 py-3 rounded-xl border-2 font-medium transition-all ${
-                            selectedColor === color.name
-                              ? 'border-accent bg-accent/20 text-accent shadow-lg'
-                              : 'border-border text-foreground hover:border-accent/50 hover:bg-card'
-                          }`}
+                          className={`px-5 py-3 rounded-xl border-2 font-medium transition-all ${selectedColor === color.name
+                            ? 'border-accent bg-accent/20 text-accent shadow-lg'
+                            : 'border-border text-foreground hover:border-accent/50 hover:bg-card'
+                            }`}
                         >
                           {selectedColor === color.name && <span className="mr-2">✓</span>}
                           {color.name}
@@ -427,11 +433,10 @@ export default function FullscreenProductViewer() {
                           onClick={() => setSelectedSize(size.name)}
                           whileHover={{ scale: 1.08 }}
                           whileTap={{ scale: 0.95 }}
-                          className={`px-5 py-3 rounded-xl border-2 font-medium transition-all ${
-                            selectedSize === size.name
-                              ? 'border-accent bg-accent/20 text-accent shadow-lg'
-                              : 'border-border text-foreground hover:border-accent/50 hover:bg-card'
-                          }`}
+                          className={`px-5 py-3 rounded-xl border-2 font-medium transition-all ${selectedSize === size.name
+                            ? 'border-accent bg-accent/20 text-accent shadow-lg'
+                            : 'border-border text-foreground hover:border-accent/50 hover:bg-card'
+                            }`}
                         >
                           {selectedSize === size.name && <span className="mr-2">✓</span>}
                           {size.name}
