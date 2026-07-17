@@ -179,11 +179,9 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
           {/* Navigation */}
           <nav className="p-4 space-y-2 border-b border-border">
             {[
-              { href: '/gallery', label: 'Catalogue' },
-              { href: '/#categories', label: 'Categories' },
-              { href: '/#new-arrivals', label: 'New Arrivals' },
-              { href: '/#about', label: 'About' },
-              { href: '/#contact', label: 'Contact' },
+              { href: '/', label: 'Home' },
+              { href: '/gallery', label: 'Gallery' },
+              { href: '/view', label: 'Products' },
             ].map((link) => (
               <Link
                 key={link.href}

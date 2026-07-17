@@ -27,7 +27,7 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
 
   const handleAddToCart = async () => {
     setIsSubmitting(true);
-    
+
     const cartItem = {
       id: `${product.id}-${Date.now()}`,
       ...product,
@@ -73,7 +73,7 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
             className="fixed inset-4 md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 w-auto md:w-full md:max-w-4xl z-50 flex items-center justify-center pointer-events-none"
           >
             <div className="bg-card w-full max-h-full rounded-2xl md:rounded-3xl border border-border overflow-hidden shadow-2xl flex flex-col md:flex-row pointer-events-auto">
-              
+
               {/* Left Side: Large Image */}
               <div className="w-full md:w-1/2 bg-[#f8f9fc] relative p-8 flex items-center justify-center min-h-[300px] md:min-h-[500px] cursor-zoom-in group" onClick={() => setIsZoomed(true)}>
                 {/* Close Button for Mobile (when stacked) */}
@@ -85,7 +85,7 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
                 >
                   <X size={20} className="text-gray-800" />
                 </motion.button>
-                
+
                 <Image
                   src={product.image}
                   alt={product.name}
@@ -93,7 +93,7 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
                   className="object-contain p-8 mix-blend-multiply group-hover:scale-105 transition-transform duration-500"
                   sizes="(max-width: 768px) 100vw, 50vw"
                 />
-                
+
                 <div className="absolute bottom-4 right-4 bg-white/80 backdrop-blur px-3 py-1.5 rounded-full text-xs font-semibold text-gray-600 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                   <ZoomIn size={14} /> Click to zoom
                 </div>
@@ -120,9 +120,9 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
                   <div className="text-sm text-gray-400 font-bold mb-2 uppercase tracking-wider">{product.category}</div>
                   <h3 className="text-2xl md:text-3xl font-black text-[#0f172a] mb-3 leading-tight">{product.name}</h3>
                   <p className="text-3xl md:text-4xl font-black text-accent">{formatPrice(product.price)}</p>
-                  
+
                   {product.description && (
-                     <p className="text-gray-500 mt-4 text-sm leading-relaxed">{product.description}</p>
+                    <p className="text-gray-500 mt-4 text-sm leading-relaxed">{product.description}</p>
                   )}
                 </motion.div>
 
@@ -138,11 +138,10 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
                           <button
                             key={color.id}
                             onClick={() => setSelectedColor(color.name)}
-                            className={`px-4 py-2.5 rounded-xl border-2 font-bold text-sm transition-all ${
-                              selectedColor === color.name
+                            className={`px-4 py-2.5 rounded-xl border-2 font-bold text-sm transition-all ${selectedColor === color.name
                                 ? 'border-[#0f172a] bg-[#0f172a] text-white'
                                 : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
-                            }`}
+                              }`}
                           >
                             {selectedColor === color.name && (
                               <Check size={16} className="inline mr-2" />
@@ -165,11 +164,10 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
                           <button
                             key={size.id}
                             onClick={() => setSelectedSize(size.name)}
-                            className={`px-4 py-2.5 rounded-xl border-2 font-bold text-sm transition-all ${
-                              selectedSize === size.name
+                            className={`px-4 py-2.5 rounded-xl border-2 font-bold text-sm transition-all ${selectedSize === size.name
                                 ? 'border-[#0f172a] bg-[#0f172a] text-white'
                                 : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
-                            }`}
+                              }`}
                           >
                             {selectedSize === size.name && (
                               <Check size={16} className="inline mr-2" />
@@ -261,31 +259,31 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
 
           {/* Full Screen Image Zoom */}
           <AnimatePresence>
-             {isZoomed && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="fixed inset-0 z-[60] bg-white/95 backdrop-blur-md flex items-center justify-center p-4 sm:p-8 cursor-zoom-out"
+            {isZoomed && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 z-[60] bg-white/95 backdrop-blur-md flex items-center justify-center p-4 sm:p-8 cursor-zoom-out"
+                onClick={() => setIsZoomed(false)}
+              >
+                <button
                   onClick={() => setIsZoomed(false)}
+                  className="absolute top-6 right-6 p-4 bg-gray-100 hover:bg-gray-200 rounded-full transition-colors z-[70]"
                 >
-                   <button 
-                     onClick={() => setIsZoomed(false)}
-                     className="absolute top-6 right-6 p-4 bg-gray-100 hover:bg-gray-200 rounded-full transition-colors z-[70]"
-                   >
-                     <X size={24} className="text-gray-800" />
-                   </button>
-                   <div className="relative w-full h-full max-w-6xl max-h-full">
-                     <Image
-                       src={product.image}
-                       alt={product.name}
-                       fill
-                       className="object-contain"
-                       sizes="100vw"
-                     />
-                   </div>
-                </motion.div>
-             )}
+                  <X size={24} className="text-gray-800" />
+                </button>
+                <div className="relative w-full h-full max-w-6xl max-h-full">
+                  <Image
+                    src={product.image}
+                    alt={product.name}
+                    fill
+                    className="object-contain"
+                    sizes="100vw"
+                  />
+                </div>
+              </motion.div>
+            )}
           </AnimatePresence>
         </>
       )}

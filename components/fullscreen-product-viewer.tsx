@@ -7,6 +7,9 @@ import { useCart } from '@/lib/contexts/cart-context';
 import { Button } from '@/components/ui/button';
 import { MOCK_PRODUCTS } from '@/lib/mock-data';
 import { formatPrice } from '@/lib/currency';
+import QuickAddModal from './quick-add-modal';
+import Link from 'next/link';
+import { Menu, Home, Grid, BookOpen } from 'lucide-react';
 
 export default function FullscreenProductViewer() {
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -21,6 +24,8 @@ export default function FullscreenProductViewer() {
   const [imageZoomed, setImageZoomed] = useState(false);
   const touchStartX = useRef(0);
   const { addToCart } = useCart();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const { cart } = useCart();
 
   const currentProduct = MOCK_PRODUCTS[currentIndex];
 
@@ -117,7 +122,7 @@ export default function FullscreenProductViewer() {
   };
 
   return (
-    <div className="w-full h-screen bg-[#f8f9fc] overflow-hidden relative">
+    <div className="w-full h-screen bg-[#f8f9fc] overflow-hidden relative max-w-full">
       {/* Subtle background glow */}
       <div className="absolute inset-0 opacity-40">
         <div className="absolute top-0 right-0 w-96 h-96 bg-gray-200 rounded-full mix-blend-multiply filter blur-3xl opacity-50 animate-pulse"></div>
@@ -146,7 +151,7 @@ export default function FullscreenProductViewer() {
           >
             <motion.div
               className="relative w-full h-full"
-              animate={imageZoomed ? { scale: 1 } : { scale: 0.8 }}
+              animate={imageZoomed ? { scale: 1.1 } : { scale: 1 }}
               transition={{ duration: 0.3 }}
             >
               <img
@@ -200,7 +205,7 @@ export default function FullscreenProductViewer() {
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="absolute top-6 sm:top-8 right-6 sm:right-8 flex gap-3 z-20"
+          className="absolute top-6 sm:top-8 right-6 sm:right-8 flex gap-3 z-20 "
         >
           <motion.button
             onClick={() => setIsLiked(!isLiked)}
@@ -218,6 +223,45 @@ export default function FullscreenProductViewer() {
           >
             <Share2 size={20} />
           </motion.button>
+          <motion.div className="relative">
+            <motion.button
+              onClick={() => setMenuOpen(!menuOpen)}
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.95 }}
+              className="p-3.5 rounded-full bg-white/80 backdrop-blur-md hover:bg-white text-[#0f172a] transition-all shadow-sm border border-white/50"
+            >
+              {menuOpen ? <X size={24} /> : <Menu size={24} />}
+            </motion.button>
+
+            {/* Expanded Menu */}
+            <AnimatePresence>
+              {menuOpen && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9, y: -20, originX: 1, originY: 0 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.9, y: -20 }}
+                  className="absolute top-16 right-0 bg-white/90 backdrop-blur-xl border border-white/50 rounded-2xl shadow-2xl p-4 w-48 flex flex-col gap-2 overflow-hidden"
+                >
+                  {[
+                    { href: '/', label: 'Home', icon: Home },
+                    { href: '/gallery', label: 'Catalogue', icon: BookOpen },
+                    { href: '/view', label: 'Products', icon: Grid },
+                    { href: '/cart', label: `Cart (${cart.itemCount})`, icon: ShoppingCart },
+                  ].map((item) => (
+                    <Link href={item.href} key={item.label} onClick={() => setMenuOpen(false)}>
+                      <motion.div
+                        whileHover={{ x: 4, backgroundColor: 'rgba(0,0,0,0.05)' }}
+                        className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-800 font-semibold text-sm transition-colors cursor-pointer"
+                      >
+                        <item.icon size={18} />
+                        {item.label}
+                      </motion.div>
+                    </Link>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.div>
         </motion.div>
 
         {/* Product Info Overlay - Premium */}
@@ -230,10 +274,10 @@ export default function FullscreenProductViewer() {
             className="absolute bottom-32 sm:bottom-40 left-6 sm:left-8 bg-white/90 backdrop-blur-xl text-[#0f172a] p-6 rounded-[2rem] max-w-sm border border-white shadow-[0_15px_40px_-15px_rgba(0,0,0,0.1)]"
           >
             <h2 className="text-2xl sm:text-3xl font-black mb-2 leading-tight">{currentProduct.name}</h2>
-            <p className="text-sm text-gray-500 font-medium line-clamp-2 mb-4">{currentProduct.description}</p>
+            <p className="text-sm text-gray-500 font-medium line-clamp-2 mb-4">{currentProduct.category}</p>
 
             {/* Rating */}
-            <div className="flex items-center gap-2 mb-5">
+            {/* <div className="flex items-center gap-2 mb-5">
               <div className="flex gap-1">
                 {[...Array(5)].map((_, i) => (
                   <Star
@@ -244,7 +288,7 @@ export default function FullscreenProductViewer() {
                 ))}
               </div>
               <span className="text-sm font-semibold text-gray-400">({currentProduct.reviews} reviews)</span>
-            </div>
+            </div> */}
 
             {/* Price & Stock */}
             <div className="flex items-baseline justify-between pt-4 border-t border-gray-100">
@@ -254,7 +298,7 @@ export default function FullscreenProductViewer() {
                   <span className="ml-2 text-sm font-semibold text-gray-400 line-through">{formatPrice(currentProduct.originalPrice)}</span>
                 )}
               </div>
-              <motion.div
+              {/* <motion.div
                 initial={{ scale: 0.8 }}
                 animate={{ scale: 1 }}
                 className={`px-3 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wide ${currentProduct.inStock
@@ -263,7 +307,7 @@ export default function FullscreenProductViewer() {
                   }`}
               >
                 {currentProduct.inStock ? 'In Stock' : 'Out of Stock'}
-              </motion.div>
+              </motion.div> */}
             </div>
           </motion.div>
 
@@ -325,225 +369,16 @@ export default function FullscreenProductViewer() {
         </motion.div>
       </div>
 
-      {/* Add to Cart Modal - Premium */}
-      <AnimatePresence>
-        {isModalOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-50 p-4"
-            onClick={() => setIsModalOpen(false)}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9, y: 30 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 30 }}
-              transition={{ type: 'spring', damping: 25 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-gradient-to-br from-background to-card rounded-3xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto border border-border/50"
-            >
-              {/* Modal Header */}
-              <div className="sticky top-0 bg-gradient-to-r from-accent/20 to-accent/10 border-b border-border px-6 py-6 flex items-center justify-between backdrop-blur-sm">
-                <h3 className="text-2xl font-bold text-foreground">Customize Your Order</h3>
-                <motion.button
-                  onClick={() => setIsModalOpen(false)}
-                  whileHover={{ scale: 1.1, rotate: 90 }}
-                  whileTap={{ scale: 0.95 }}
-                  className="text-muted-foreground hover:text-foreground transition-colors p-2"
-                >
-                  <X size={24} />
-                </motion.button>
-              </div>
 
-              {/* Modal Content */}
-              <div className="p-6 space-y-6">
-                {/* Product Preview */}
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="bg-gradient-to-br from-card to-card/50 rounded-2xl overflow-hidden aspect-square border border-border/50 shadow-lg"
-                >
-                  <img
-                    src={currentProduct.image}
-                    alt={currentProduct.name}
-                    className="w-full h-full object-cover"
-                  />
-                </motion.div>
+      {/* </AnimatePresence> */}
 
-                {/* Product Name & Price */}
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.1 }}
-                >
-                  <h4 className="text-2xl font-bold text-foreground mb-2">{currentProduct.name}</h4>
-                  <div className="flex items-baseline gap-3">
-                    <span className="text-4xl font-bold text-accent">{formatPrice(currentProduct.price)}</span>
-                    {currentProduct.originalPrice && (
-                      <span className="text-sm text-muted-foreground line-through">{formatPrice(currentProduct.originalPrice)}</span>
-                    )}
-                  </div>
-                </motion.div>
-
-                {/* Colors */}
-                {currentProduct.variants?.colors && currentProduct.variants.colors.length > 0 && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.2 }}
-                  >
-                    <label className="block text-sm font-bold text-foreground mb-3 uppercase tracking-wide">
-                      Color
-                    </label>
-                    <div className="flex flex-wrap gap-3">
-                      {currentProduct.variants.colors.map((color) => (
-                        <motion.button
-                          key={color.id}
-                          onClick={() => setSelectedColor(color.name)}
-                          whileHover={{ scale: 1.08 }}
-                          whileTap={{ scale: 0.95 }}
-                          className={`px-5 py-3 rounded-xl border-2 font-medium transition-all ${selectedColor === color.name
-                            ? 'border-accent bg-accent/20 text-accent shadow-lg'
-                            : 'border-border text-foreground hover:border-accent/50 hover:bg-card'
-                            }`}
-                        >
-                          {selectedColor === color.name && <span className="mr-2">✓</span>}
-                          {color.name}
-                        </motion.button>
-                      ))}
-                    </div>
-                  </motion.div>
-                )}
-
-                {/* Sizes */}
-                {currentProduct.variants?.sizes && currentProduct.variants.sizes.length > 0 && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.3 }}
-                  >
-                    <label className="block text-sm font-bold text-foreground mb-3 uppercase tracking-wide">
-                      Size
-                    </label>
-                    <div className="flex flex-wrap gap-3">
-                      {currentProduct.variants.sizes.map((size) => (
-                        <motion.button
-                          key={size.id}
-                          onClick={() => setSelectedSize(size.name)}
-                          whileHover={{ scale: 1.08 }}
-                          whileTap={{ scale: 0.95 }}
-                          className={`px-5 py-3 rounded-xl border-2 font-medium transition-all ${selectedSize === size.name
-                            ? 'border-accent bg-accent/20 text-accent shadow-lg'
-                            : 'border-border text-foreground hover:border-accent/50 hover:bg-card'
-                            }`}
-                        >
-                          {selectedSize === size.name && <span className="mr-2">✓</span>}
-                          {size.name}
-                        </motion.button>
-                      ))}
-                    </div>
-                  </motion.div>
-                )}
-
-                {/* Quantity */}
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.4 }}
-                >
-                  <label className="block text-sm font-bold text-foreground mb-3 uppercase tracking-wide">
-                    Quantity
-                  </label>
-                  <div className="flex items-center gap-4 bg-gradient-to-r from-card to-card/50 p-4 rounded-xl w-fit border border-border/50">
-                    <motion.button
-                      onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.9 }}
-                      className="p-2 hover:bg-secondary rounded-lg transition-colors"
-                    >
-                      <Minus size={20} className="text-accent" />
-                    </motion.button>
-                    <span className="text-2xl font-bold w-12 text-center text-foreground">
-                      {quantity}
-                    </span>
-                    <motion.button
-                      onClick={() => setQuantity(quantity + 1)}
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.9 }}
-                      className="p-2 hover:bg-secondary rounded-lg transition-colors"
-                    >
-                      <Plus size={20} className="text-accent" />
-                    </motion.button>
-                  </div>
-                </motion.div>
-
-                {/* Special Notes */}
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.5 }}
-                >
-                  <label className="block text-sm font-bold text-foreground mb-2 uppercase tracking-wide">
-                    Special Notes (Optional)
-                  </label>
-                  <textarea
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    placeholder="Add any special requirements or preferences..."
-                    className="w-full px-4 py-3 rounded-xl border-2 border-border bg-card text-foreground placeholder-muted-foreground focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/30 text-sm transition-all"
-                    rows={3}
-                  />
-                </motion.div>
-
-                {/* Success Message */}
-                <AnimatePresence>
-                  {addedSuccess && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -10 }}
-                      className="flex items-center gap-2 bg-green-500/20 border border-green-500/50 text-green-200 px-4 py-3 rounded-xl"
-                    >
-                      <Check size={20} />
-                      <span className="font-semibold">Added to cart successfully!</span>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
-                {/* Action Buttons */}
-                <div className="flex gap-3 pt-4">
-                  <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="flex-1">
-                    <Button
-                      onClick={() => setIsModalOpen(false)}
-                      variant="outline"
-                      className="w-full h-12 rounded-xl border-2 font-bold text-lg"
-                    >
-                      Cancel
-                    </Button>
-                  </motion.div>
-                  <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="flex-1">
-                    <Button
-                      onClick={handleAddToCart}
-                      disabled={addedSuccess}
-                      className="w-full h-12 bg-gradient-to-r from-accent to-accent/90 hover:from-accent/90 hover:to-accent text-white font-bold rounded-xl text-lg"
-                    >
-                      {addedSuccess ? (
-                        <motion.div className="flex items-center gap-2">
-                          <Check size={20} />
-                          <span>Added!</span>
-                        </motion.div>
-                      ) : (
-                        'Add to Cart'
-                      )}
-                    </Button>
-                  </motion.div>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {isModalOpen && (
+        <QuickAddModal
+          isOpen={isModalOpen}
+          product={currentProduct}
+          onClose={() => setIsModalOpen(false)}
+        />
+      )}
     </div>
   );
 }

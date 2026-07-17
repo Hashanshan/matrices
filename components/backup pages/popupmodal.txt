@@ -1,0 +1,218 @@
+{/* Add to Cart Modal - Premium */}
+      {/* <AnimatePresence> */}
+      {isModalOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-50 p-4"
+          onClick={() => setIsModalOpen(false)}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9, y: 30 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9, y: 30 }}
+            transition={{ type: 'spring', damping: 25 }}
+            onClick={(e) => e.stopPropagation()}
+            className="bg-gradient-to-br from-background to-card rounded-3xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto border border-border/50"
+          >
+            {/* Modal Header */}
+            <div className="sticky top-0 bg-gradient-to-r from-accent/20 to-accent/10 border-b border-border px-6 py-6 flex items-center justify-between backdrop-blur-sm">
+              <h3 className="text-2xl font-bold text-foreground">Customize Your Order</h3>
+              <motion.button
+                onClick={() => setIsModalOpen(false)}
+                whileHover={{ scale: 1.1, rotate: 90 }}
+                whileTap={{ scale: 0.95 }}
+                className="text-muted-foreground hover:text-foreground transition-colors p-2"
+              >
+                <X size={24} />
+              </motion.button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 space-y-6">
+              {/* Product Preview */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-gradient-to-br from-card to-card/50 rounded-2xl overflow-hidden aspect-square border border-border/50 shadow-lg"
+              >
+                <img
+                  src={currentProduct.image}
+                  alt={currentProduct.name}
+                  className="w-full h-full object-cover"
+                />
+              </motion.div>
+
+              {/* Product Name & Price */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+              >
+                <h4 className="text-2xl font-bold text-foreground mb-2">{currentProduct.name}</h4>
+                <div className="flex items-baseline gap-3">
+                  <span className="text-4xl font-bold text-accent">{formatPrice(currentProduct.price)}</span>
+                  {currentProduct.originalPrice && (
+                    <span className="text-sm text-muted-foreground line-through">{formatPrice(currentProduct.originalPrice)}</span>
+                  )}
+                </div>
+              </motion.div>
+
+              {/* Colors */}
+              {currentProduct.variants?.colors && currentProduct.variants.colors.length > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 }}
+                >
+                  <label className="block text-sm font-bold text-foreground mb-3 uppercase tracking-wide">
+                    Color
+                  </label>
+                  <div className="flex flex-wrap gap-3">
+                    {currentProduct.variants.colors.map((color) => (
+                      <motion.button
+                        key={color.id}
+                        onClick={() => setSelectedColor(color.name)}
+                        whileHover={{ scale: 1.08 }}
+                        whileTap={{ scale: 0.95 }}
+                        className={`px-5 py-3 rounded-xl border-2 font-medium transition-all ${selectedColor === color.name
+                          ? 'border-accent bg-accent/20 text-accent shadow-lg'
+                          : 'border-border text-foreground hover:border-accent/50 hover:bg-card'
+                          }`}
+                      >
+                        {selectedColor === color.name && <span className="mr-2">✓</span>}
+                        {color.name}
+                      </motion.button>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Sizes */}
+              {currentProduct.variants?.sizes && currentProduct.variants.sizes.length > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 }}
+                >
+                  <label className="block text-sm font-bold text-foreground mb-3 uppercase tracking-wide">
+                    Size
+                  </label>
+                  <div className="flex flex-wrap gap-3">
+                    {currentProduct.variants.sizes.map((size) => (
+                      <motion.button
+                        key={size.id}
+                        onClick={() => setSelectedSize(size.name)}
+                        whileHover={{ scale: 1.08 }}
+                        whileTap={{ scale: 0.95 }}
+                        className={`px-5 py-3 rounded-xl border-2 font-medium transition-all ${selectedSize === size.name
+                          ? 'border-accent bg-accent/20 text-accent shadow-lg'
+                          : 'border-border text-foreground hover:border-accent/50 hover:bg-card'
+                          }`}
+                      >
+                        {selectedSize === size.name && <span className="mr-2">✓</span>}
+                        {size.name}
+                      </motion.button>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Quantity */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 }}
+              >
+                <label className="block text-sm font-bold text-foreground mb-3 uppercase tracking-wide">
+                  Quantity
+                </label>
+                <div className="flex items-center gap-4 bg-gradient-to-r from-card to-card/50 p-4 rounded-xl w-fit border border-border/50">
+                  <motion.button
+                    onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
+                    className="p-2 hover:bg-secondary rounded-lg transition-colors"
+                  >
+                    <Minus size={20} className="text-accent" />
+                  </motion.button>
+                  <span className="text-2xl font-bold w-12 text-center text-foreground">
+                    {quantity}
+                  </span>
+                  <motion.button
+                    onClick={() => setQuantity(quantity + 1)}
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
+                    className="p-2 hover:bg-secondary rounded-lg transition-colors"
+                  >
+                    <Plus size={20} className="text-accent" />
+                  </motion.button>
+                </div>
+              </motion.div>
+
+              {/* Special Notes */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.5 }}
+              >
+                <label className="block text-sm font-bold text-foreground mb-2 uppercase tracking-wide">
+                  Special Notes (Optional)
+                </label>
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Add any special requirements or preferences..."
+                  className="w-full px-4 py-3 rounded-xl border-2 border-border bg-card text-foreground placeholder-muted-foreground focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/30 text-sm transition-all"
+                  rows={3}
+                />
+              </motion.div>
+
+              {/* Success Message */}
+              <AnimatePresence>
+                {addedSuccess && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="flex items-center gap-2 bg-green-500/20 border border-green-500/50 text-green-200 px-4 py-3 rounded-xl"
+                  >
+                    <Check size={20} />
+                    <span className="font-semibold">Added to cart successfully!</span>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-4">
+                <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="flex-1">
+                  <Button
+                    onClick={() => setIsModalOpen(false)}
+                    variant="outline"
+                    className="w-full h-12 rounded-xl border-2 font-bold text-lg"
+                  >
+                    Cancel
+                  </Button>
+                </motion.div>
+                <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="flex-1">
+                  <Button
+                    onClick={handleAddToCart}
+                    disabled={addedSuccess}
+                    className="w-full h-12 bg-gradient-to-r from-accent to-accent/90 hover:from-accent/90 hover:to-accent text-white font-bold rounded-xl text-lg"
+                  >
+                    {addedSuccess ? (
+                      <motion.div className="flex items-center gap-2">
+                        <Check size={20} />
+                        <span>Added!</span>
+                      </motion.div>
+                    ) : (
+                      'Add to Cart'
+                    )}
+                  </Button>
+                </motion.div>
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
