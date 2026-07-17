@@ -8,7 +8,7 @@ export const MOCK_PRODUCTS: Product[] = [
     price: 23999,
     category: 'Electronics',
     subcategory: 'Audio',
-    image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500&h=500&fit=crop',
+    image: '/46134.png',
     images: [
       'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&h=800&fit=crop',
       'https://images.unsplash.com/photo-1484704849700-f032a568e944?w=800&h=800&fit=crop',
@@ -33,7 +33,7 @@ export const MOCK_PRODUCTS: Product[] = [
     price: 31999,
     category: 'Electronics',
     subcategory: 'Wearables',
-    image: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500&h=500&fit=crop',
+    image: '/46135.png',
     images: [
       'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800&h=800&fit=crop',
       'https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=800&h=800&fit=crop',
