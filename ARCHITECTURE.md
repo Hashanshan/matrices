@@ -41,15 +41,18 @@ When modifying the authentication flow, ensure that the `AuthContext` (`lib/cont
 - **Response**: Includes `nextCursor` (string or null) and `hasNextPage` (boolean).
 - **Frontend**: The `ProductGallery` component uses `useSWRInfinite` with an `IntersectionObserver` sentinel to automatically load the next page when the user scrolls to the bottom.
 
-### Image URL Filtering
-- The backend only returns products whose `image` field matches a valid URL pattern (`/^https?:\/\/.+/i`).
-- Products without a valid image URL are completely excluded from the catalogue.
+### Image Proxy (Bucket URL Hiding)
+- **Problem**: Directly loading images exposes the S3/storage bucket URL to the client.
+- **Solution**: The `app/api/image/route.ts` proxy intercepts image requests.
+- **Mechanism**: The backend/SSR proxy transforms all valid image URLs into a base64 encoded URL format: `/api/image?url=<base64_encoded_url>`. The Next.js image proxy fetches and streams the image to the browser, completely masking the original storage bucket.
 
-### Field Projection (Security)
-The backend projects only the following non-confidential fields:
-- `name`, `productCode`, `productId`, `image`, `sellPrice`, `description`
-- `category` → mapped to `categories` in the response
-- `subCategory` → mapped to `subcategories` in the response
+### Server-Side Rendering (SSR) & SWR Caching
+- **Hybrid Approach**: The app combines Server-Side Rendering (SSR) for instantaneous initial page loads, and SWR for client-side caching and background mutations.
+- **Mechanism**:
+  1. On login, the JWT is stored in an HTTP Cookie (`token`) as well as `localStorage`.
+  2. The Next.js Server Components (`app/catalogue/page.tsx` and `app/view/page.tsx`) read this cookie via `cookies().get('token')` to securely fetch the initial product data on the server during the initial page request.
+  3. This pre-fetched data is passed to the client components as `fallbackData` for SWR.
+  4. SWR takes over on the client, providing instant caching, background revalidation, and pagination.
 - **Excluded**: `buyPrice`, `stocks`, `history`, and all other internal fields.
 
 ### Sorting

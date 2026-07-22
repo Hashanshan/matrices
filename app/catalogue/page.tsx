@@ -1,169 +1,59 @@
-'use client';
-
-import { useState, useMemo } from 'react';
+import { cookies } from 'next/headers';
+import CatalogueClient from './catalogue-client';
 import Header from '@/components/header';
-import { Search } from 'lucide-react';
-import { motion } from 'framer-motion';
-import Link from 'next/link';
-import { useAllProducts } from '@/lib/hooks/use-products';
 
-export default function CategoriesPage() {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [activeGroup, setActiveGroup] = useState('All Categories (Active)');
+export const dynamic = 'force-dynamic';
 
-  // SWR-cached fetch — instant on revisit, revalidates in background
-  const { products, isLoading, isValidating } = useAllProducts();
+async function getInitialProducts() {
+  const cookieStore = cookies();
+  const token = cookieStore.get('token')?.value;
 
-  // Dynamically generate category groups and items from fetched products
-  const { CATEGORY_GROUPS, CATEGORIES_DATA } = useMemo(() => {
-    const groups = new Set<string>();
-    groups.add('All Categories (Active)');
+  if (!token) {
+    return { data: [] }; // The client-side AuthGuard will redirect them to login anyway
+  }
 
-    const catsMap = new Map<string, { id: string; name: string; description: string; productCount: number; image: string; group: string }>();
+  try {
+    const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || process.env.BACKEND_API_URL || 'http://localhost:5000';
+    const basePath = BACKEND_URL.endsWith('/api') ? '/catelogue/products' : '/api/catelogue/products';
 
-    products.forEach(p => {
-      const groupName = p.categories || 'Uncategorized';
-      const itemName = p.subcategories || groupName;
-      groups.add(groupName);
-
-      if (!catsMap.has(itemName)) {
-        catsMap.set(itemName, {
-          id: itemName.toLowerCase().replace(/\s+/g, '-'),
-          name: itemName,
-          description: `Explore products in ${itemName}`,
-          productCount: 1,
-          image: p.image || '/placeholder.png',
-          group: groupName,
-        });
-      } else {
-        catsMap.get(itemName)!.productCount += 1;
-      }
+    const res = await fetch(`${BACKEND_URL}${basePath}?limit=500&sort=view`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      cache: 'no-store',
     });
 
-    return {
-      CATEGORY_GROUPS: Array.from(groups),
-      CATEGORIES_DATA: Array.from(catsMap.values()),
-    };
-  }, [products]);
+    if (!res.ok) {
+      return { data: [] };
+    }
 
-  const filteredCategories = CATEGORIES_DATA.filter((cat) => {
-    const matchesSearch =
-      cat.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      cat.description.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesGroup = activeGroup === 'All Categories (Active)' || cat.group === activeGroup;
-    return matchesSearch && matchesGroup;
-  });
+    const data = await res.json();
+    
+    // Reform image URLs to hide bucket URL using our image proxy
+    if (data && data.data && Array.isArray(data.data)) {
+      data.data = data.data.map((product: any) => {
+        if (product.image && product.image.startsWith('http')) {
+          const encodedUrl = Buffer.from(product.image).toString('base64');
+          product.image = `/api/image?url=${encodedUrl}`;
+        }
+        return product;
+      });
+    }
 
-  // Show spinner ONLY on the very first load (no cached data yet)
-  if (isLoading && products.length === 0) {
-    return (
-      <>
-        <Header showSearch={false} />
-        <main className="min-h-screen bg-transparent py-8 flex justify-center items-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#0f172a]"></div>
-        </main>
-      </>
-    );
+    return data;
+  } catch (error) {
+    console.error('[SSR] Error fetching products:', error);
+    return { data: [] };
   }
+}
+
+export default async function CataloguePage() {
+  const fallbackData = await getInitialProducts();
 
   return (
     <>
-      <Header showSearch={false} />
-      <main className="min-h-screen bg-transparent py-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          {/* Subtle revalidation indicator */}
-          {isValidating && products.length > 0 && (
-            <div className="fixed top-4 right-4 z-50">
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[#0f172a]/30"></div>
-            </div>
-          )}
-
-          {/* Search Bar */}
-          <div className="relative mb-6">
-            <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
-              <Search className="h-5 w-5 text-gray-400" />
-            </div>
-            <input
-              type="text"
-              className="block w-full pl-12 pr-4 py-4 border border-white/60 rounded-2xl leading-5 bg-white/40 backdrop-blur-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#0f172a] sm:text-sm shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] transition-all placeholder:text-gray-500"
-              placeholder="Search categories..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
-
-          {/* Group Pills */}
-          <div className="flex overflow-x-auto gap-3 pb-4 mb-4 no-scrollbar">
-            {CATEGORY_GROUPS.map((group) => (
-              <button
-                key={group}
-                onClick={() => setActiveGroup(group)}
-                className={`whitespace-nowrap px-6 py-2.5 rounded-full text-sm font-bold transition-all border ${
-                  activeGroup === group
-                    ? 'bg-white/70 text-[#0f172a] shadow-md border-white/80'
-                    : 'bg-white/30 backdrop-blur-md text-gray-600 hover:text-[#0f172a] shadow-sm hover:shadow-md border-white/40'
-                }`}
-              >
-                {group}
-              </button>
-            ))}
-          </div>
-
-          {/* Categories Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-            {filteredCategories.map((category, index) => (
-              <motion.div
-                key={category.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4, delay: index * 0.1 }}
-                whileHover={{ y: -5 }}
-                className="relative group"
-              >
-                <Link href={`/gallery?category=${encodeURIComponent(category.name)}`}>
-                  <div className="relative rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.1)] transition-all duration-300 flex flex-col bg-white/20 backdrop-blur-2xl overflow-hidden border border-white/60 h-full cursor-pointer">
-                    <div className="p-3 sm:p-4 pb-0 flex flex-col z-0">
-                      <div className="aspect-[3/4] rounded-[1.5rem] overflow-hidden bg-[#eef1f6] flex items-center justify-center p-6 shadow-inner border border-black/5">
-                        <img
-                          src={category.image}
-                          alt={category.name}
-                          className="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform duration-700 ease-out mix-blend-multiply drop-shadow-xl"
-                        />
-                      </div>
-                    </div>
-                    <div className="rounded-[2rem] relative mx-3 mt-2 mb-3 p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-white/60 to-white/30 backdrop-blur-3xl border border-white/60 shadow-[0_8px_64px_rgba(0,0,0,0.1)] flex flex-col flex-1 z-10">
-                      <div className="flex items-start justify-between gap-2 mb-1">
-                        <h3 className="text-xl font-extrabold text-[#0f172a] uppercase tracking-wide group-hover:text-[#1e3a8a] transition-colors drop-shadow-sm">
-                          {category.name}
-                        </h3>
-                        <span className="text-[0.65rem] font-bold tracking-wider uppercase bg-[#eef1f6] text-gray-600 px-2 py-1 rounded-full border border-black/5 shadow-inner whitespace-nowrap">
-                          {category.group}
-                        </span>
-                      </div>
-                      <p className="text-xs text-gray-500 font-medium mb-3">{category.description}</p>
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <span className="text-[#0f172a] font-bold text-sm block">{category.productCount} Products</span>
-                          <span className="text-xs text-gray-500 font-medium">Available Items</span>
-                        </div>
-                        <div className="flex items-center gap-1 text-sm font-bold text-[#0f172a] group-hover:text-[#1e3a8a] transition-colors">
-                          View Details <span className="group-hover:translate-x-1 transition-transform">→</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </Link>
-              </motion.div>
-            ))}
-          </div>
-
-          {filteredCategories.length === 0 && (
-            <div className="text-center py-20">
-              <p className="text-xl text-gray-500 font-medium">No categories found.</p>
-            </div>
-          )}
-        </div>
-      </main>
+      <CatalogueClient fallbackData={fallbackData} />
     </>
   );
 }

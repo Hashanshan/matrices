@@ -47,6 +47,8 @@ export default function LoginPage() {
 
         // Ensure token is also stored if we are relying on it elsewhere
         localStorage.setItem('token', data.token);
+        // Set token in a cookie to enable SSR fetching on protected routes
+        document.cookie = `token=${data.token}; path=/; max-age=86400; SameSite=Lax`;
 
         // Redirect to catalogue
         router.push('/catalogue');

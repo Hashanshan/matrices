@@ -41,6 +41,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
     setIsLoggedIn(false);
     localStorage.removeItem('user');
+    localStorage.removeItem('token');
+    document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
   };
 
   const updateProfile = (profile: UserProfile) => {

@@ -143,8 +143,8 @@ export function useProducts(options: UseProductsOptions = {}) {
  * Uses a high limit to get everything in one shot with the 'view' sort order.
  * SWR handles caching and background revalidation.
  */
-export function useAllProducts(options: Omit<UseProductsOptions, 'limit'> = {}) {
-  const { sort = 'view', category, subcategory, search } = options;
+export function useAllProducts(options: Omit<UseProductsOptions, 'limit'> & { fallbackData?: ProductsResponse } = {}) {
+  const { sort = 'view', category, subcategory, search, fallbackData } = options;
 
   const params = new URLSearchParams();
   params.set('sort', sort);
@@ -156,6 +156,7 @@ export function useAllProducts(options: Omit<UseProductsOptions, 'limit'> = {}) 
   const key = `/api/products?${params.toString()}`;
 
   const { data, error, isLoading, isValidating, mutate } = useSWR<ProductsResponse>(key, fetcher, {
+    fallbackData,
     revalidateOnFocus: true,
     revalidateOnReconnect: true,
     dedupingInterval: 5000,
