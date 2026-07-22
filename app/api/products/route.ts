@@ -10,7 +10,7 @@ import { NextRequest, NextResponse } from 'next/server';
  * The auth token is forwarded from the client's Authorization header.
  */
 
-const BACKEND_URL = process.env.BACKEND_API_URL || 'http://localhost:5000';
+const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || process.env.BACKEND_API_URL || 'http://localhost:5000';
 
 export async function GET(request: NextRequest) {
   try {
@@ -21,8 +21,11 @@ export async function GET(request: NextRequest) {
     // Forward the Authorization header from the client
     const authHeader = request.headers.get('Authorization') || '';
 
+    // Handle vercel app url which might already include /api or not
+    const basePath = BACKEND_URL.endsWith('/api') ? '/catelogue/products' : '/api/catelogue/products';
+    
     const backendRes = await fetch(
-      `${BACKEND_URL}/api/catelogue/products${queryString ? `?${queryString}` : ''}`,
+      `${BACKEND_URL}${basePath}${queryString ? `?${queryString}` : ''}`,
       {
         headers: {
           'Authorization': authHeader,
@@ -39,6 +42,18 @@ export async function GET(request: NextRequest) {
     }
 
     const data = await backendRes.json();
+    
+    // Reform image URLs to hide bucket URL using our image proxy
+    if (data && data.data && Array.isArray(data.data)) {
+      data.data = data.data.map((product: any) => {
+        if (product.image && product.image.startsWith('http')) {
+          const encodedUrl = Buffer.from(product.image).toString('base64');
+          product.image = `/api/image?url=${encodedUrl}`;
+        }
+        return product;
+      });
+    }
+
     return NextResponse.json(data);
   } catch (err) {
     console.error('[API Proxy] Error forwarding to backend:', err);
