@@ -150,12 +150,12 @@ export default function CategoriesPage() {
                 className="relative group"
               >
                 {/* Stacked glass layers behind the card */}
-                <div className="absolute -bottom-4 inset-x-6 h-10 bg-white/30 backdrop-blur-md rounded-b-[2rem] border-b border-white/40 -z-20 shadow-md" />
-                <div className="absolute -bottom-2 inset-x-3 h-10 bg-white/40 backdrop-blur-xl rounded-b-[2rem] border-b border-white/50 -z-10 shadow-lg" />
+                {/* <div className="absolute -bottom-4 inset-x-6 h-10 bg-white/30 backdrop-blur-md rounded-b-[2rem] border-b border-white/40 -z-20 shadow-md" /> */}
+                {/* <div className="absolute -bottom-2 inset-x-3 h-10 bg-white/40 backdrop-blur-xl rounded-b-[2rem] border-b border-white/50 -z-10 shadow-lg" /> */}
 
                 <Link href={`/category/${encodeURIComponent(category.name)}`}>
                   <div className="relative rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.1)] transition-all duration-300 flex flex-col bg-white/20 backdrop-blur-2xl overflow-hidden border border-white/60 h-full cursor-pointer">
-                    
+
                     <div className="p-3 sm:p-4 pb-0 flex flex-col z-0">
                       {/* Image Container (solid off-white) */}
                       <div className="aspect-[3/4] rounded-[1.5rem] overflow-hidden bg-[#eef1f6] flex items-center justify-center p-6 shadow-inner border border-black/5">
@@ -168,14 +168,14 @@ export default function CategoriesPage() {
                     </div>
 
                     {/* Glass Text Container */}
-                    <div className="relative mx-3 mt-2 mb-3 p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-white/60 to-white/30 backdrop-blur-3xl border border-white/60 shadow-[0_8px_32px_rgba(0,0,0,0.05)] flex flex-col flex-1 z-10">
+                    <div className="rounded-[2rem] relative mx-3 mt-2 mb-3 p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-white/60 to-white/30 backdrop-blur-3xl border border-white/60 shadow-[0_8px_64px_rgba(0,0,0,0.1)] flex flex-col flex-1 z-10">
                       <div className="flex items-start justify-between gap-2 mb-1">
                         <h3 className="text-xl font-extrabold text-[#0f172a] uppercase tracking-wide group-hover:text-[#1e3a8a] transition-colors drop-shadow-sm">{category.name}</h3>
                         <span className="text-[0.65rem] font-bold tracking-wider uppercase bg-[#eef1f6] text-gray-600 px-2 py-1 rounded-full border border-black/5 shadow-inner whitespace-nowrap">
                           {category.group}
                         </span>
                       </div>
-                      
+
                       <p className="text-xs text-gray-500 font-medium mb-3">{category.description}</p>
 
                       <div className="flex items-center justify-between">
@@ -183,7 +183,7 @@ export default function CategoriesPage() {
                           <span className="text-[#0f172a] font-bold text-sm block">{category.productCount} Products</span>
                           <span className="text-xs text-gray-500 font-medium">Available Items</span>
                         </div>
-                        
+
                         <div className="flex items-center gap-1 text-sm font-bold text-[#0f172a] group-hover:text-[#1e3a8a] transition-colors">
                           View Details <span className="group-hover:translate-x-1 transition-transform">→</span>
                         </div>

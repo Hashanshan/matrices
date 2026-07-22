@@ -42,13 +42,13 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
         className="group h-full min-w-0 flex flex-col relative"
       >
         {/* Layer 2 (Bottom stacked edge) */}
-        <div className="absolute -bottom-4 inset-x-6 h-10 bg-white/30 backdrop-blur-md rounded-b-[2rem] border-b border-white/40 -z-20 shadow-md" />
+        {/* <div className="absolute -bottom-4 inset-x-6 h-10 bg-white/30 backdrop-blur-md rounded-b-[2rem] border-b border-white/40 -z-20 shadow-md" /> */}
         {/* Layer 1 (Middle stacked edge) */}
-        <div className="absolute -bottom-2 inset-x-3 h-10 bg-white/40 backdrop-blur-xl rounded-b-[2rem] border-b border-white/50 -z-10 shadow-lg" />
+        {/* <div className="absolute -bottom-2 inset-x-3 h-10 bg-white/40 backdrop-blur-xl rounded-b-[2rem] border-b border-white/50 -z-10 shadow-lg" /> */}
 
         {/* Main Card */}
         <div className="relative rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.1)] transition-all duration-300 h-full flex flex-col bg-white/20 backdrop-blur-2xl overflow-hidden border border-white/60">
-          
+
           <div className="p-3 sm:p-4 pb-0 flex flex-col z-0">
             {/* Image Container (solid off-white, not glass) */}
             <div
@@ -82,7 +82,7 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
           </div>
 
           {/* Glass Text Container (Overlaying bottom) */}
-          <div className="relative mx-3 mt-2 mb-3 p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-white/60 to-white/30 backdrop-blur-3xl border border-white/60 shadow-[0_8px_32px_rgba(0,0,0,0.05)] flex flex-col flex-1 z-10 before:absolute before:inset-0 before:bg-gradient-to-b before:from-white/40 before:to-transparent before:rounded-2xl before:-z-10">
+          <div className="rounded-[2rem] relative mx-3 mt-2 mb-3 p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-white/60 to-white/30 backdrop-blur-3xl border border-white/60 shadow-[0_8px_32px_rgba(0,0,0,0.05)] flex flex-col flex-1 z-10 before:absolute before:inset-0 before:bg-gradient-to-b before:from-white/40 before:to-transparent before:rounded-2xl before:-z-10">
             <div className="flex items-start justify-between gap-2 mb-1">
               <button onClick={handleQuickAdd} className="block text-left flex-1">
                 <h3 className="font-extrabold text-[#0f172a] text-lg sm:text-xl leading-tight line-clamp-1 group-hover:text-[#1e3a8a] transition-colors drop-shadow-sm">
@@ -93,7 +93,7 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
                 {product.category || 'HOROLOGY'}
               </span>
             </div>
-            
+
             <p className="text-xs text-gray-500 font-medium mb-3">Product Name</p>
 
             {/* SKU Row */}
@@ -104,7 +104,7 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
                 </span>
                 <span className="text-xs text-gray-500 font-medium">Product Code</span>
               </div>
-              
+
               <button
                 onClick={() => router.push(`/view?productId=${product.id}`)}
                 className="flex items-center gap-1 text-sm font-bold text-[#0f172a] hover:text-[#1e3a8a] transition-colors group/btn"
