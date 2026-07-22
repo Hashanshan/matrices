@@ -1,22 +1,22 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { Product, FilterState } from '@/lib/types';
+import { useProducts } from '@/lib/hooks/use-products';
 import ProductCard from './product-card';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronDown, X, Check, PanelLeftClose, PanelLeftOpen, Filter, SortDesc, LayoutGrid } from 'lucide-react';
+import { ChevronDown, X, Check, PanelLeftClose, PanelLeftOpen, Filter, SortDesc, LayoutGrid, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { formatPrice } from '@/lib/currency';
 import CustomSelect from './custom-select';
 
 interface ProductGalleryProps {
-  products: Product[];
   searchQuery: string;
   initialCategory?: string;
   onFilterChange?: (filters: FilterState) => void;
 }
 
-export default function ProductGallery({ products, searchQuery, initialCategory, onFilterChange }: ProductGalleryProps) {
+export default function ProductGallery({ searchQuery, initialCategory, onFilterChange }: ProductGalleryProps) {
   const [filters, setFilters] = useState<FilterState>({
     searchQuery,
     categories: initialCategory ? [initialCategory] : [],
@@ -30,6 +30,41 @@ export default function ProductGallery({ products, searchQuery, initialCategory,
   const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
 
+  // Map frontend sortBy to backend sort param
+  const backendSort = filters.sortBy === 'price-low' ? 'price-low'
+    : filters.sortBy === 'price-high' ? 'price-high'
+    : undefined; // default = newest
+
+  // Use SWR paginated hook — cached, instant on revisit
+  const {
+    products,
+    isLoading,
+    isLoadingMore,
+    isValidating,
+    hasMore,
+    loadMore,
+    error,
+  } = useProducts({
+    sort: backendSort,
+    limit: 20,
+  });
+
+  // Infinite scroll: observe a sentinel element at the bottom
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!sentinelRef.current) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !isLoadingMore) {
+          loadMore();
+        }
+      },
+      { threshold: 0.1 }
+    );
+    observer.observe(sentinelRef.current);
+    return () => observer.disconnect();
+  }, [hasMore, isLoadingMore, loadMore]);
+
   const toggleSection = (cat: string) => {
     setCollapsedSections(prev => ({
       ...prev,
@@ -37,14 +72,14 @@ export default function ProductGallery({ products, searchQuery, initialCategory,
     }));
   };
 
-  // Filter and sort products
+  // Client-side filtering on already-fetched data
   const filteredProducts = useMemo(() => {
-    let results = products.filter((product) => {
+    let results = products.filter((product: any) => {
       // Search
       if (
         searchQuery &&
         !product.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
-        !product.description.toLowerCase().includes(searchQuery.toLowerCase())
+        !(product.description || '').toLowerCase().includes(searchQuery.toLowerCase())
       ) {
         return false;
       }
@@ -54,7 +89,7 @@ export default function ProductGallery({ products, searchQuery, initialCategory,
         return false;
       }
 
-      // Subcategory (if any are selected)
+      // Subcategory
       if (filters.subcategories.length > 0 && !filters.subcategories.includes(product.subcategories || '')) {
         return false;
       }
@@ -67,44 +102,44 @@ export default function ProductGallery({ products, searchQuery, initialCategory,
       return true;
     });
 
-    // Sort
+    // Client-side sort (the backend also sorts, but if user changes sort dynamically we handle it here too)
     switch (filters.sortBy) {
       case 'price-low':
-        results.sort((a, b) => a.price - b.price);
+        results.sort((a: any, b: any) => a.price - b.price);
         break;
       case 'price-high':
-        results.sort((a, b) => b.price - a.price);
+        results.sort((a: any, b: any) => b.price - a.price);
         break;
       case 'rating':
-        results.sort((a, b) => b.rating - a.rating);
+        results.sort((a: any, b: any) => (b.rating || 0) - (a.rating || 0));
         break;
       case 'newest':
       default:
-        results.sort((a, b) => parseInt(b.id) - parseInt(a.id));
+        // Already sorted by backend
+        break;
     }
 
     return results;
-  }, [searchQuery, filters]);
+  }, [searchQuery, filters, products]);
 
   // Extract unique categories from products
   const CATEGORIES = useMemo(() => {
     const cats = new Set<string>();
-    products.forEach(p => {
+    products.forEach((p: any) => {
       if (p.categories) cats.add(p.categories);
     });
     return ['All', ...Array.from(cats)];
   }, [products]);
 
-  // Extract subcategories dynamically
-  const getSubcategoriesForCategory = (category: string) => {
+  const getSubcategoriesForCategory = useCallback((category: string) => {
     const subcats = new Set<string>();
-    products.forEach(p => {
+    products.forEach((p: any) => {
       if (p.categories === category && p.subcategories) {
         subcats.add(p.subcategories);
       }
     });
     return Array.from(subcats);
-  };
+  }, [products]);
 
   // Group products by category
   const groupedProducts = useMemo(() => {
@@ -112,7 +147,7 @@ export default function ProductGallery({ products, searchQuery, initialCategory,
     const categoryNames = CATEGORIES.filter(c => c !== 'All');
 
     categoryNames.forEach((cat) => {
-      const productsInCategory = filteredProducts.filter((p) => p.categories === cat);
+      const productsInCategory = filteredProducts.filter((p: any) => p.categories === cat);
       if (productsInCategory.length > 0) {
         groups[cat] = productsInCategory;
       }
@@ -131,8 +166,6 @@ export default function ProductGallery({ products, searchQuery, initialCategory,
           ? prev.categories.filter((c) => c !== category)
           : [...prev.categories, category];
       }
-
-      // Clear subcategories when categories change
       return {
         ...prev,
         categories: newCategories,
@@ -158,24 +191,45 @@ export default function ProductGallery({ products, searchQuery, initialCategory,
     }));
   };
 
-  // Cap grid size based on sidebar state (3 max if open, 4 max if closed)
   const actualGridSize = sidebarOpen ? Math.min(filters.gridSize, 3) : Math.min(filters.gridSize, 4);
-
   const gridClass = actualGridSize === 2
     ? 'grid-cols-1 sm:grid-cols-2'
     : actualGridSize === 3
       ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'
       : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4';
 
+  // Show full spinner only on initial load with no cached data
+  if (isLoading && products.length === 0) {
+    return (
+      <div className="flex justify-center items-center py-32">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#0f172a]"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex justify-center items-center py-32">
+        <div className="text-red-500 font-bold">{error.message}</div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8">
+      {/* Subtle revalidation indicator */}
+      {isValidating && products.length > 0 && (
+        <div className="fixed top-4 right-4 z-50">
+          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[#0f172a]/30"></div>
+        </div>
+      )}
+
       {/* Premium Controls Bar */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4 bg-white/30 backdrop-blur-2xl rounded-[2rem] p-4 px-6 border border-white/60 shadow-[0_8px_32px_0_rgba(31,38,135,0.05)] sticky top-[80px] z-30"
       >
-        {/* Left: Sidebar Toggle */}
         <div className="flex items-center justify-between w-full lg:w-auto">
           <motion.button
             whileHover={{ scale: 1.02 }}
@@ -195,16 +249,12 @@ export default function ProductGallery({ products, searchQuery, initialCategory,
             Filters
           </Button>
 
-          {/* Results count (Mobile) */}
           <div className="lg:hidden text-sm text-gray-500 font-black px-4 bg-gray-50 py-2 rounded-full">
             {filteredProducts.length} <span className="font-semibold">Items</span>
           </div>
         </div>
 
-        {/* Right: Selects & Count */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
-
-          {/* Custom styled select wrapper for Sort By */}
           <div className="w-full sm:w-56">
             <CustomSelect
               value={filters.sortBy}
@@ -219,7 +269,6 @@ export default function ProductGallery({ products, searchQuery, initialCategory,
             />
           </div>
 
-          {/* Custom styled select wrapper for Grid Size */}
           <div className="w-full sm:w-40">
             <CustomSelect
               value={filters.gridSize.toString()}
@@ -240,7 +289,6 @@ export default function ProductGallery({ products, searchQuery, initialCategory,
             />
           </div>
 
-          {/* Results count (Desktop) */}
           <div className="hidden lg:flex items-center justify-center px-6 py-3.5 bg-gray-50 border-2 border-gray-100 rounded-full text-sm text-[#0f172a] font-black min-w-[120px]">
             {filteredProducts.length} <span className="font-semibold text-gray-500 ml-1">Products</span>
           </div>
@@ -259,7 +307,6 @@ export default function ProductGallery({ products, searchQuery, initialCategory,
               className="w-full md:w-auto md:flex-shrink-0 origin-left md:sticky md:top-36 self-start max-h-[calc(100vh-10rem)] overflow-y-auto no-scrollbar"
             >
               <div className="w-full md:w-[280px] space-y-6 bg-white/40 backdrop-blur-2xl rounded-[2rem] p-6 border border-white/60 shadow-[0_8px_32px_0_rgba(31,38,135,0.07)]">
-                {/* Sidebar Header */}
                 <div className="flex items-center justify-between pb-4 border-b border-gray-100">
                   <h3 className="font-black text-[#0f172a] text-xl">Filters</h3>
                   <button
@@ -281,22 +328,12 @@ export default function ProductGallery({ products, searchQuery, initialCategory,
 
                       return (
                         <div key={category}>
-                          <motion.div
-                            className="flex items-center gap-2 group"
-                            whileHover={{ x: 2 }}
-                          >
-
-
+                          <motion.div className="flex items-center gap-2 group" whileHover={{ x: 2 }}>
                             <label className="flex items-center gap-3 cursor-pointer flex-1 group py-1">
                               <div className={`w-5 h-5 rounded flex items-center justify-center border-2 transition-colors ${isSelected ? 'bg-[#0f172a] border-[#0f172a]' : 'border-gray-300 group-hover:border-[#0f172a]'}`}>
                                 {isSelected && <Check size={12} className="text-white" />}
                               </div>
-                              <input
-                                type="checkbox"
-                                checked={isSelected}
-                                onChange={() => handleCategoryToggle(category)}
-                                className="hidden"
-                              />
+                              <input type="checkbox" checked={isSelected} onChange={() => handleCategoryToggle(category)} className="hidden" />
                               <span className={`text-[15px] font-semibold transition-colors ${isSelected ? 'text-[#0f172a]' : 'text-gray-600 group-hover:text-[#0f172a]'}`}>
                                 {category}
                               </span>
@@ -305,28 +342,21 @@ export default function ProductGallery({ products, searchQuery, initialCategory,
                               <motion.button
                                 onClick={() =>
                                   setExpandedCategories((prev) =>
-                                    prev.includes(category)
-                                      ? prev.filter((c) => c !== category)
-                                      : [...prev, category]
+                                    prev.includes(category) ? prev.filter((c) => c !== category) : [...prev, category]
                                   )
                                 }
                                 className="flex-shrink-0 p-1 hover:bg-gray-100 rounded-full transition-colors"
                                 whileHover={{ scale: 1.1 }}
                                 whileTap={{ scale: 0.95 }}
                               >
-                                <motion.div
-                                  animate={{ rotate: isExpanded ? 180 : 0 }}
-                                  transition={{ duration: 0.2 }}
-                                >
+                                <motion.div animate={{ rotate: isExpanded ? 180 : 0 }} transition={{ duration: 0.2 }}>
                                   <ChevronDown size={16} className="text-[#0f172a]" />
                                 </motion.div>
                               </motion.button>
                             )}
-
                             {!hasSubcategories && <div className="w-6" />}
                           </motion.div>
 
-                          {/* Nested Subcategories */}
                           <AnimatePresence>
                             {hasSubcategories && isExpanded && (
                               <motion.div
@@ -348,12 +378,7 @@ export default function ProductGallery({ products, searchQuery, initialCategory,
                                       <div className={`w-4 h-4 rounded flex items-center justify-center border-2 transition-colors ${filters.subcategories.includes(subcategory) ? 'bg-[#0f172a] border-[#0f172a]' : 'border-gray-300 group-hover:border-[#0f172a]'}`}>
                                         {filters.subcategories.includes(subcategory) && <Check size={10} className="text-white" />}
                                       </div>
-                                      <input
-                                        type="checkbox"
-                                        checked={filters.subcategories.includes(subcategory)}
-                                        onChange={() => handleSubcategoryToggle(subcategory)}
-                                        className="hidden"
-                                      />
+                                      <input type="checkbox" checked={filters.subcategories.includes(subcategory)} onChange={() => handleSubcategoryToggle(subcategory)} className="hidden" />
                                       <span className={`text-[13px] font-semibold flex-1 transition-colors ${filters.subcategories.includes(subcategory) ? 'text-[#0f172a]' : 'text-gray-500 group-hover:text-[#0f172a]'}`}>
                                         {subcategory}
                                       </span>
@@ -375,35 +400,17 @@ export default function ProductGallery({ products, searchQuery, initialCategory,
                   <div className="space-y-4">
                     <div>
                       <div className="flex justify-between items-center mb-2">
-                        <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">
-                          Min Price
-                        </label>
+                        <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Min Price</label>
                         <span className="text-sm font-black text-[#0f172a]">{formatPrice(filters.priceRange[0])}</span>
                       </div>
-                      <input
-                        type="range"
-                        min="0"
-                        max="40000"
-                        value={filters.priceRange[0]}
-                        onChange={(e) => handlePriceChange('min', parseInt(e.target.value))}
-                        className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#0f172a]"
-                      />
+                      <input type="range" min="0" max="40000" value={filters.priceRange[0]} onChange={(e) => handlePriceChange('min', parseInt(e.target.value))} className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#0f172a]" />
                     </div>
                     <div>
                       <div className="flex justify-between items-center mb-2">
-                        <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">
-                          Max Price
-                        </label>
+                        <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Max Price</label>
                         <span className="text-sm font-black text-[#0f172a]">{formatPrice(filters.priceRange[1])}</span>
                       </div>
-                      <input
-                        type="range"
-                        min="0"
-                        max="40000"
-                        value={filters.priceRange[1]}
-                        onChange={(e) => handlePriceChange('max', parseInt(e.target.value))}
-                        className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#0f172a]"
-                      />
+                      <input type="range" min="0" max="40000" value={filters.priceRange[1]} onChange={(e) => handlePriceChange('max', parseInt(e.target.value))} className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#0f172a]" />
                     </div>
                   </div>
                 </div>
@@ -431,11 +438,11 @@ export default function ProductGallery({ products, searchQuery, initialCategory,
           )}
         </AnimatePresence>
 
-        {/* Main Products Content - Category Grouped */}
+        {/* Main Products Content */}
         <div className="flex-1 min-w-0">
           {filteredProducts.length > 0 ? (
             <div className="space-y-12">
-              {Object.entries(groupedProducts).map(([category, products], categoryIndex) => {
+              {Object.entries(groupedProducts).map(([category, categoryProducts], categoryIndex) => {
                 const isCollapsed = collapsedSections[category];
 
                 return (
@@ -445,25 +452,18 @@ export default function ProductGallery({ products, searchQuery, initialCategory,
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.4, delay: categoryIndex * 0.1 }}
                   >
-                    {/* Category Banner */}
                     <div
                       className="bg-white/40 backdrop-blur-xl rounded-[1.5rem] shadow-[0_8px_32px_0_rgba(31,38,135,0.05)] border border-white/60 flex items-center justify-between p-6 mb-8 cursor-pointer hover:shadow-md transition-shadow"
                       onClick={() => toggleSection(category)}
                     >
                       <div className="flex items-center gap-4">
-                        <motion.div
-                          animate={{ rotate: isCollapsed ? -90 : 0 }}
-                          transition={{ duration: 0.2 }}
-                          className="bg-gray-100 p-2 rounded-full text-gray-500"
-                        >
+                        <motion.div animate={{ rotate: isCollapsed ? -90 : 0 }} transition={{ duration: 0.2 }} className="bg-gray-100 p-2 rounded-full text-gray-500">
                           <ChevronDown size={20} />
                         </motion.div>
-                        <h2 className="text-2xl font-black text-[#0f172a] tracking-wide uppercase">
-                          {category}
-                        </h2>
+                        <h2 className="text-2xl font-black text-[#0f172a] tracking-wide uppercase">{category}</h2>
                       </div>
                       <span className="text-sm font-bold text-gray-500 bg-gray-50 px-4 py-2 rounded-full">
-                        {products.length} {products.length === 1 ? 'Product' : 'Products'}
+                        {categoryProducts.length} {categoryProducts.length === 1 ? 'Product' : 'Products'}
                       </span>
                     </div>
 
@@ -476,14 +476,9 @@ export default function ProductGallery({ products, searchQuery, initialCategory,
                           transition={{ duration: 0.3 }}
                           className="overflow-hidden"
                         >
-                          {/* Products Grid */}
                           <div className="pb-8">
-                            <motion.div
-                              layout
-                              className={`grid gap-6 sm:gap-8 ${gridClass}`}
-                              style={{ gridAutoRows: 'max-content' }}
-                            >
-                              {products.map((product, index) => (
+                            <motion.div layout className={`grid gap-6 sm:gap-8 ${gridClass}`} style={{ gridAutoRows: 'max-content' }}>
+                              {categoryProducts.map((product, index) => (
                                 <ProductCard key={product.id} product={product} index={index} />
                               ))}
                             </motion.div>
@@ -494,6 +489,19 @@ export default function ProductGallery({ products, searchQuery, initialCategory,
                   </motion.section>
                 );
               })}
+
+              {/* Infinite scroll sentinel + Load More */}
+              <div ref={sentinelRef} className="flex justify-center py-8">
+                {isLoadingMore && (
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-3 px-6 py-3 bg-white/40 backdrop-blur-xl rounded-full border border-white/60 shadow-sm">
+                    <Loader2 size={18} className="animate-spin text-[#0f172a]" />
+                    <span className="text-sm font-bold text-gray-600">Loading more products...</span>
+                  </motion.div>
+                )}
+                {!hasMore && products.length > 0 && (
+                  <span className="text-sm font-medium text-gray-400">You&apos;ve reached the end</span>
+                )}
+              </div>
             </div>
           ) : (
             <motion.div

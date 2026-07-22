@@ -1,56 +1,25 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import Header from '@/components/header';
-import { useAuth } from '@/lib/contexts/auth-context';
-import { Search, ArrowRight } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
-import { Product } from '@/lib/types';
+import { useAllProducts } from '@/lib/hooks/use-products';
 
 export default function CategoriesPage() {
-  const { isLoggedIn, user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeGroup, setActiveGroup] = useState('All Categories (Active)');
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
 
-  useEffect(() => {
-    if (!isLoggedIn) return;
+  // SWR-cached fetch — instant on revisit, revalidates in background
+  const { products, isLoading, isValidating } = useAllProducts();
 
-    const fetchProducts = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        const res = await fetch('http://localhost:5000/api/catelogue/products', {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
-        
-        if (!res.ok) {
-          throw new Error('Failed to fetch catalogue data');
-        }
-
-        const data = await res.json();
-        setProducts(data.data || []);
-      } catch (err: any) {
-        console.error('Error fetching products:', err);
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchProducts();
-  }, [isLoggedIn]);
-
-  // Dynamically generate category groups (backend 'categories') and items (backend 'subcategories')
+  // Dynamically generate category groups and items from fetched products
   const { CATEGORY_GROUPS, CATEGORIES_DATA } = useMemo(() => {
     const groups = new Set<string>();
     groups.add('All Categories (Active)');
-    
-    const catsMap = new Map<string, { id: string, name: string, description: string, productCount: number, image: string, group: string }>();
+
+    const catsMap = new Map<string, { id: string; name: string; description: string; productCount: number; image: string; group: string }>();
 
     products.forEach(p => {
       const groupName = p.categories || 'Uncategorized';
@@ -63,30 +32,30 @@ export default function CategoriesPage() {
           name: itemName,
           description: `Explore products in ${itemName}`,
           productCount: 1,
-          image: p.image || '/placeholder.png', // Use first product's image
-          group: groupName
+          image: p.image || '/placeholder.png',
+          group: groupName,
         });
       } else {
-        const existing = catsMap.get(itemName)!;
-        existing.productCount += 1;
-        // Optionally update image if placeholder
+        catsMap.get(itemName)!.productCount += 1;
       }
     });
 
     return {
       CATEGORY_GROUPS: Array.from(groups),
-      CATEGORIES_DATA: Array.from(catsMap.values())
+      CATEGORIES_DATA: Array.from(catsMap.values()),
     };
   }, [products]);
 
   const filteredCategories = CATEGORIES_DATA.filter((cat) => {
-    const matchesSearch = cat.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    const matchesSearch =
+      cat.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       cat.description.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesGroup = activeGroup === 'All Categories (Active)' || cat.group === activeGroup;
     return matchesSearch && matchesGroup;
   });
 
-  if (loading) {
+  // Show spinner ONLY on the very first load (no cached data yet)
+  if (isLoading && products.length === 0) {
     return (
       <>
         <Header showSearch={false} />
@@ -97,22 +66,17 @@ export default function CategoriesPage() {
     );
   }
 
-  if (error) {
-    return (
-      <>
-        <Header showSearch={false} />
-        <main className="min-h-screen bg-transparent py-8 flex justify-center items-center">
-          <div className="text-red-500 font-bold">{error}</div>
-        </main>
-      </>
-    );
-  }
-
   return (
     <>
       <Header showSearch={false} />
       <main className="min-h-screen bg-transparent py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          {/* Subtle revalidation indicator */}
+          {isValidating && products.length > 0 && (
+            <div className="fixed top-4 right-4 z-50">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[#0f172a]/30"></div>
+            </div>
+          )}
 
           {/* Search Bar */}
           <div className="relative mb-6">
@@ -134,10 +98,11 @@ export default function CategoriesPage() {
               <button
                 key={group}
                 onClick={() => setActiveGroup(group)}
-                className={`whitespace-nowrap px-6 py-2.5 rounded-full text-sm font-bold transition-all border ${activeGroup === group
-                  ? 'bg-white/70 text-[#0f172a] shadow-md border-white/80'
-                  : 'bg-white/30 backdrop-blur-md text-gray-600 hover:text-[#0f172a] shadow-sm hover:shadow-md border-white/40'
-                  }`}
+                className={`whitespace-nowrap px-6 py-2.5 rounded-full text-sm font-bold transition-all border ${
+                  activeGroup === group
+                    ? 'bg-white/70 text-[#0f172a] shadow-md border-white/80'
+                    : 'bg-white/30 backdrop-blur-md text-gray-600 hover:text-[#0f172a] shadow-sm hover:shadow-md border-white/40'
+                }`}
               >
                 {group}
               </button>
@@ -157,9 +122,7 @@ export default function CategoriesPage() {
               >
                 <Link href={`/gallery?category=${encodeURIComponent(category.name)}`}>
                   <div className="relative rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.1)] transition-all duration-300 flex flex-col bg-white/20 backdrop-blur-2xl overflow-hidden border border-white/60 h-full cursor-pointer">
-
                     <div className="p-3 sm:p-4 pb-0 flex flex-col z-0">
-                      {/* Image Container */}
                       <div className="aspect-[3/4] rounded-[1.5rem] overflow-hidden bg-[#eef1f6] flex items-center justify-center p-6 shadow-inner border border-black/5">
                         <img
                           src={category.image}
@@ -168,24 +131,21 @@ export default function CategoriesPage() {
                         />
                       </div>
                     </div>
-
-                    {/* Glass Text Container */}
                     <div className="rounded-[2rem] relative mx-3 mt-2 mb-3 p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-white/60 to-white/30 backdrop-blur-3xl border border-white/60 shadow-[0_8px_64px_rgba(0,0,0,0.1)] flex flex-col flex-1 z-10">
                       <div className="flex items-start justify-between gap-2 mb-1">
-                        <h3 className="text-xl font-extrabold text-[#0f172a] uppercase tracking-wide group-hover:text-[#1e3a8a] transition-colors drop-shadow-sm">{category.name}</h3>
+                        <h3 className="text-xl font-extrabold text-[#0f172a] uppercase tracking-wide group-hover:text-[#1e3a8a] transition-colors drop-shadow-sm">
+                          {category.name}
+                        </h3>
                         <span className="text-[0.65rem] font-bold tracking-wider uppercase bg-[#eef1f6] text-gray-600 px-2 py-1 rounded-full border border-black/5 shadow-inner whitespace-nowrap">
                           {category.group}
                         </span>
                       </div>
-
                       <p className="text-xs text-gray-500 font-medium mb-3">{category.description}</p>
-
                       <div className="flex items-center justify-between">
                         <div>
                           <span className="text-[#0f172a] font-bold text-sm block">{category.productCount} Products</span>
                           <span className="text-xs text-gray-500 font-medium">Available Items</span>
                         </div>
-
                         <div className="flex items-center gap-1 text-sm font-bold text-[#0f172a] group-hover:text-[#1e3a8a] transition-colors">
                           View Details <span className="group-hover:translate-x-1 transition-transform">→</span>
                         </div>
@@ -202,7 +162,6 @@ export default function CategoriesPage() {
               <p className="text-xl text-gray-500 font-medium">No categories found.</p>
             </div>
           )}
-
         </div>
       </main>
     </>

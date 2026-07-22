@@ -21,18 +21,24 @@ export interface Product {
   id: string;
   name: string;
   price: number;
-  category: string;
+  category?: string;
   subcategory?: string;
+  categories?: string;       // Mapped from backend `category`
+  subcategories?: string;    // Mapped from backend `subCategory`
   image: string;
-  images: string[];
+  images?: string[];
   description: string;
-  rating: number;
-  reviews: number;
-  variants: {
+  rating?: number;
+  reviews?: number;
+  productCode?: string;
+  productId?: string;
+  sellPrice?: number;
+  originalPrice?: number;
+  variants?: {
     colors: ProductVariant[];
     sizes: ProductVariant[];
   };
-  inStock: boolean;
+  inStock?: boolean;
 }
 
 // Cart & Orders
