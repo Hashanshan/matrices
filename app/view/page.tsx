@@ -1,49 +1,83 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/contexts/auth-context';
-import { useCart } from '@/lib/contexts/cart-context';
 import FullscreenProductViewer from '@/components/fullscreen-product-viewer';
-import LoginForm from '@/components/login-form';
-import { motion, AnimatePresence } from 'framer-motion';
+import { Product } from '@/lib/types';
+import Header from '@/components/header';
 
 export default function SingleViewPage() {
   const { isLoggedIn } = useAuth();
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
+  useEffect(() => {
+    if (!isLoggedIn) return;
 
+    const fetchProducts = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        // Fetch products sorted for view mode: subCategory -> category -> name
+        const res = await fetch('http://localhost:5000/api/catelogue/products?sort=view', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        if (!res.ok) {
+          throw new Error('Failed to fetch catalogue data');
+        }
 
-  if (!isLoggedIn) {
+        const data = await res.json();
+        setProducts(data.data || []);
+      } catch (err: any) {
+        console.error('Error fetching products:', err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProducts();
+  }, [isLoggedIn]);
+
+  if (loading) {
     return (
-      <main className="min-h-screen bg-background">
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.5 }}
-          className="flex items-center justify-center min-h-screen px-4"
-        >
-          <div className="w-full max-w-2xl">
-            <motion.div
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.2 }}
-              className="text-center mb-12"
-            >
-              <h1 className="text-5xl font-bold text-foreground mb-4">Welcome to Matrices</h1>
-              <p className="text-xl text-muted-foreground">
-                Login to explore our premium tech collection
-              </p>
-            </motion.div>
-            <LoginForm />
-          </div>
-        </motion.div>
-      </main>
+      <>
+        <Header showSearch={false} />
+        <main className="min-h-screen bg-transparent py-8 flex justify-center items-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#0f172a]"></div>
+        </main>
+      </>
+    );
+  }
+
+  if (error) {
+    return (
+      <>
+        <Header showSearch={false} />
+        <main className="min-h-screen bg-transparent py-8 flex justify-center items-center">
+          <div className="text-red-500 font-bold">{error}</div>
+        </main>
+      </>
+    );
+  }
+
+  if (products.length === 0) {
+    return (
+      <>
+        <Header showSearch={false} />
+        <main className="min-h-screen bg-transparent py-8 flex justify-center items-center">
+          <div className="text-gray-500 font-bold">No products found.</div>
+        </main>
+      </>
     );
   }
 
   return (
     <>
-
-      <FullscreenProductViewer />
+      <FullscreenProductViewer products={products} />
     </>
   );
 }

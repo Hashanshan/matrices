@@ -1,208 +1,136 @@
 'use client';
 
 import { useState } from 'react';
-import Header from '@/components/header';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/contexts/auth-context';
-import LoginForm from '@/components/login-form';
-import { Search, ArrowRight } from 'lucide-react';
-import { motion } from 'framer-motion';
-import Link from 'next/link';
 
-// Mock category data to match the design provided
-const CATEGORY_GROUPS = ['All Categories (Active)', 'Fashion Accessories', 'Office Essentials', 'School Supplies', 'New Collection'];
+export default function LoginPage() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const router = useRouter();
+  const { login } = useAuth();
 
-const CATEGORIES_DATA = [
-  {
-    id: 'belts',
-    name: 'Belts',
-    description: 'Quality accessories for attire.',
-    productCount: 110,
-    image: '/46134.png',
-    group: 'Fashion Accessories'
-  },
-  {
-    id: 'wallets',
-    name: 'Wallets',
-    description: 'Compact organization for daily use.',
-    productCount: 125,
-    image: '/46135.png',
-    group: 'Fashion Accessories'
-  },
-  {
-    id: 'office-supplies',
-    name: 'Office Supplies',
-    description: 'Equipping professional environments.',
-    productCount: 220,
-    image: 'https://images.unsplash.com/photo-1586281380349-632531db7ed4?w=400&h=400&fit=crop',
-    group: 'Office Essentials'
-  },
-  {
-    id: 'school-supplies',
-    name: 'School Supplies',
-    description: 'Gear for learning and growth.',
-    productCount: 250,
-    image: 'https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=400&h=400&fit=crop',
-    group: 'School Supplies'
-  },
-  {
-    id: 'files-folders',
-    name: 'Files & Folders',
-    description: 'Efficient document management solutions.',
-    productCount: 190,
-    image: 'https://images.unsplash.com/photo-1513364776144-60967b0f800f?w=400&h=400&fit=crop',
-    group: 'Office Essentials'
-  },
-  {
-    id: 'gift-items',
-    name: 'Gift Items',
-    description: 'Unique and thoughtful presents.',
-    productCount: 105,
-    image: 'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=400&h=400&fit=crop',
-    group: 'New Collection'
-  }
-];
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
 
-export default function CategoriesPage() {
-  const { isLoggedIn } = useAuth();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [activeGroup, setActiveGroup] = useState('All Categories (Active)');
+    try {
+      const res = await fetch('http://localhost:5000/api/catelogue/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      });
 
-  if (!isLoggedIn) {
-    return (
-      <main className="min-h-screen bg-background">
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.5 }}
-          className="flex items-center justify-center min-h-screen px-4"
-        >
-          <div className="w-full max-w-2xl">
-            <motion.div
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.2 }}
-              className="text-center mb-12"
-            >
-              <h1 className="text-5xl font-bold text-foreground mb-4">Welcome to Matrices</h1>
-              <p className="text-xl text-muted-foreground">
-                Please log in to view categories
-              </p>
-            </motion.div>
-            <LoginForm />
-          </div>
-        </motion.div>
-      </main>
-    );
-  }
+      const data = await res.json();
 
-  const filteredCategories = CATEGORIES_DATA.filter((cat) => {
-    const matchesSearch = cat.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      cat.description.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesGroup = activeGroup === 'All Categories (Active)' || cat.group === activeGroup;
-    return matchesSearch && matchesGroup;
-  });
+      if (res.ok) {
+        // Handle successful login using AuthContext
+        // We will create a UserProfile object as expected by the context. 
+        // Token is not explicitly in UserProfile based on existing types? Let's check context.
+        // The previous logic just saved token to localStorage. AuthContext saves the `user` object.
+        const userObj = {
+          id: data.id || email,
+          name: data.name,
+          email: data.email,
+          role: data.role,
+          token: data.token
+        };
+        
+        login(userObj as any);
+        
+        // Ensure token is also stored if we are relying on it elsewhere
+        localStorage.setItem('token', data.token);
+
+        // Redirect to catalogue
+        router.push('/catalogue');
+      } else {
+        setError(data.msg || 'Login failed. Please try again.');
+      }
+    } catch (err) {
+      console.error('Login error:', err);
+      setError('A network error occurred. Please try again later.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <>
-      <Header showSearch={false} />
-      <main className="min-h-screen bg-transparent py-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-
-          {/* Search Bar */}
-          <div className="relative mb-6">
-            <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
-              <Search className="h-5 w-5 text-gray-400" />
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full space-y-8 bg-white dark:bg-gray-800 p-8 sm:p-10 rounded-2xl shadow-xl transition-all duration-300 hover:shadow-2xl">
+        <div>
+          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900 dark:text-white tracking-tight">
+            Sales Representative Login
+          </h2>
+          <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
+            Sign in to access the product catalogue
+          </p>
+        </div>
+        <form className="mt-8 space-y-6" onSubmit={handleLogin}>
+          <div className="rounded-md shadow-sm -space-y-px">
+            <div className="mb-4">
+              <label htmlFor="email-address" className="sr-only">Email address</label>
+              <input
+                id="email-address"
+                name="email"
+                type="email"
+                autoComplete="email"
+                required
+                className="appearance-none rounded-t-lg relative block w-full px-3 py-3 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white bg-white dark:bg-gray-700 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm transition-colors duration-200"
+                placeholder="Email address"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
             </div>
-            <input
-              type="text"
-              className="block w-full pl-12 pr-4 py-4 border border-white/60 rounded-2xl leading-5 bg-white/40 backdrop-blur-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#0f172a] sm:text-sm shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] transition-all placeholder:text-gray-500"
-              placeholder="Search categories..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
+            <div>
+              <label htmlFor="password" className="sr-only">Password</label>
+              <input
+                id="password"
+                name="password"
+                type="password"
+                autoComplete="current-password"
+                required
+                className="appearance-none rounded-b-lg relative block w-full px-3 py-3 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white bg-white dark:bg-gray-700 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm transition-colors duration-200"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </div>
           </div>
 
-          {/* Group Pills */}
-          <div className="flex overflow-x-auto gap-3 pb-4 mb-4 no-scrollbar">
-            {CATEGORY_GROUPS.map((group) => (
-              <button
-                key={group}
-                onClick={() => setActiveGroup(group)}
-                className={`whitespace-nowrap px-6 py-2.5 rounded-full text-sm font-bold transition-all border ${activeGroup === group
-                  ? 'bg-white/70 text-[#0f172a] shadow-md border-white/80'
-                  : 'bg-white/30 backdrop-blur-md text-gray-600 hover:text-[#0f172a] shadow-sm hover:shadow-md border-white/40'
-                  }`}
-              >
-                {group}
-              </button>
-            ))}
-          </div>
-
-          {/* Categories Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-            {filteredCategories.map((category, index) => (
-              <motion.div
-                key={category.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4, delay: index * 0.1 }}
-                whileHover={{ y: -5 }}
-                className="relative group"
-              >
-                {/* Stacked glass layers behind the card */}
-                {/* <div className="absolute -bottom-4 inset-x-6 h-10 bg-white/30 backdrop-blur-md rounded-b-[2rem] border-b border-white/40 -z-20 shadow-md" /> */}
-                {/* <div className="absolute -bottom-2 inset-x-3 h-10 bg-white/40 backdrop-blur-xl rounded-b-[2rem] border-b border-white/50 -z-10 shadow-lg" /> */}
-
-                <Link href={`/category/${encodeURIComponent(category.name)}`}>
-                  <div className="relative rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.1)] transition-all duration-300 flex flex-col bg-white/20 backdrop-blur-2xl overflow-hidden border border-white/60 h-full cursor-pointer">
-
-                    <div className="p-3 sm:p-4 pb-0 flex flex-col z-0">
-                      {/* Image Container (solid off-white) */}
-                      <div className="aspect-[3/4] rounded-[1.5rem] overflow-hidden bg-[#eef1f6] flex items-center justify-center p-6 shadow-inner border border-black/5">
-                        <img
-                          src={category.image}
-                          alt={category.name}
-                          className="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform duration-700 ease-out mix-blend-multiply drop-shadow-xl"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Glass Text Container */}
-                    <div className="rounded-[2rem] relative mx-3 mt-2 mb-3 p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-white/60 to-white/30 backdrop-blur-3xl border border-white/60 shadow-[0_8px_64px_rgba(0,0,0,0.1)] flex flex-col flex-1 z-10">
-                      <div className="flex items-start justify-between gap-2 mb-1">
-                        <h3 className="text-xl font-extrabold text-[#0f172a] uppercase tracking-wide group-hover:text-[#1e3a8a] transition-colors drop-shadow-sm">{category.name}</h3>
-                        <span className="text-[0.65rem] font-bold tracking-wider uppercase bg-[#eef1f6] text-gray-600 px-2 py-1 rounded-full border border-black/5 shadow-inner whitespace-nowrap">
-                          {category.group}
-                        </span>
-                      </div>
-
-                      <p className="text-xs text-gray-500 font-medium mb-3">{category.description}</p>
-
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <span className="text-[#0f172a] font-bold text-sm block">{category.productCount} Products</span>
-                          <span className="text-xs text-gray-500 font-medium">Available Items</span>
-                        </div>
-
-                        <div className="flex items-center gap-1 text-sm font-bold text-[#0f172a] group-hover:text-[#1e3a8a] transition-colors">
-                          View Details <span className="group-hover:translate-x-1 transition-transform">→</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </Link>
-              </motion.div>
-            ))}
-          </div>
-
-          {filteredCategories.length === 0 && (
-            <div className="text-center py-20">
-              <p className="text-xl text-gray-500 font-medium">No categories found.</p>
+          {error && (
+            <div className="text-red-500 text-sm text-center font-medium animate-pulse">
+              {error}
             </div>
           )}
 
-        </div>
-      </main>
-    </>
+          <div>
+            <button
+              type="submit"
+              disabled={loading}
+              className={`group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white ${
+                loading ? 'bg-indigo-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500'
+              } transition-all duration-200 ease-in-out transform hover:-translate-y-0.5`}
+            >
+              {loading ? (
+                <span className="flex items-center">
+                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Signing in...
+                </span>
+              ) : (
+                'Sign in'
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }

@@ -2,24 +2,24 @@
 
 import { useState, useMemo } from 'react';
 import { Product, FilterState } from '@/lib/types';
-import { MOCK_PRODUCTS, CATEGORIES } from '@/lib/mock-data';
 import ProductCard from './product-card';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronDown, X, Check, PanelLeftClose, PanelLeftOpen, Filter, SortDesc, LayoutGrid } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { formatPrice } from '@/lib/currency';
-import { getSubcategoriesForCategory, getAllCategoryNames } from '@/lib/categories-config';
 import CustomSelect from './custom-select';
 
 interface ProductGalleryProps {
+  products: Product[];
   searchQuery: string;
+  initialCategory?: string;
   onFilterChange?: (filters: FilterState) => void;
 }
 
-export default function ProductGallery({ searchQuery, onFilterChange }: ProductGalleryProps) {
+export default function ProductGallery({ products, searchQuery, initialCategory, onFilterChange }: ProductGalleryProps) {
   const [filters, setFilters] = useState<FilterState>({
     searchQuery,
-    categories: [],
+    categories: initialCategory ? [initialCategory] : [],
     subcategories: [],
     priceRange: [0, 40000],
     sortBy: 'newest',
@@ -39,7 +39,7 @@ export default function ProductGallery({ searchQuery, onFilterChange }: ProductG
 
   // Filter and sort products
   const filteredProducts = useMemo(() => {
-    let results = MOCK_PRODUCTS.filter((product) => {
+    let results = products.filter((product) => {
       // Search
       if (
         searchQuery &&
@@ -50,12 +50,12 @@ export default function ProductGallery({ searchQuery, onFilterChange }: ProductG
       }
 
       // Category
-      if (filters.categories.length > 0 && !filters.categories.includes(product.category)) {
+      if (filters.categories.length > 0 && !filters.categories.includes(product.categories || '')) {
         return false;
       }
 
       // Subcategory (if any are selected)
-      if (filters.subcategories.length > 0 && !filters.subcategories.includes(product.subcategory || '')) {
+      if (filters.subcategories.length > 0 && !filters.subcategories.includes(product.subcategories || '')) {
         return false;
       }
 
@@ -86,20 +86,40 @@ export default function ProductGallery({ searchQuery, onFilterChange }: ProductG
     return results;
   }, [searchQuery, filters]);
 
+  // Extract unique categories from products
+  const CATEGORIES = useMemo(() => {
+    const cats = new Set<string>();
+    products.forEach(p => {
+      if (p.categories) cats.add(p.categories);
+    });
+    return ['All', ...Array.from(cats)];
+  }, [products]);
+
+  // Extract subcategories dynamically
+  const getSubcategoriesForCategory = (category: string) => {
+    const subcats = new Set<string>();
+    products.forEach(p => {
+      if (p.categories === category && p.subcategories) {
+        subcats.add(p.subcategories);
+      }
+    });
+    return Array.from(subcats);
+  };
+
   // Group products by category
   const groupedProducts = useMemo(() => {
     const groups: { [category: string]: Product[] } = {};
-    const categoryNames = getAllCategoryNames();
+    const categoryNames = CATEGORIES.filter(c => c !== 'All');
 
     categoryNames.forEach((cat) => {
-      const productsInCategory = filteredProducts.filter((p) => p.category === cat);
+      const productsInCategory = filteredProducts.filter((p) => p.categories === cat);
       if (productsInCategory.length > 0) {
         groups[cat] = productsInCategory;
       }
     });
 
     return groups;
-  }, [filteredProducts]);
+  }, [filteredProducts, CATEGORIES]);
 
   const handleCategoryToggle = (category: string) => {
     setFilters((prev) => {

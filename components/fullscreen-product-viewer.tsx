@@ -5,13 +5,17 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, ChevronRight, ShoppingCart, X, Minus, Plus, Heart, Share2, Star, Check } from 'lucide-react';
 import { useCart } from '@/lib/contexts/cart-context';
 import { Button } from '@/components/ui/button';
-import { MOCK_PRODUCTS } from '@/lib/mock-data';
+import { Product } from '@/lib/types';
 import { formatPrice } from '@/lib/currency';
 import QuickAddModal from './quick-add-modal';
 import Link from 'next/link';
 import { Menu, Home, Grid, BookOpen } from 'lucide-react';
 
-export default function FullscreenProductViewer() {
+interface FullscreenProductViewerProps {
+  products: Product[];
+}
+
+export default function FullscreenProductViewer({ products }: FullscreenProductViewerProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [direction, setDirection] = useState<'left' | 'right'>('right');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -27,14 +31,14 @@ export default function FullscreenProductViewer() {
   const [menuOpen, setMenuOpen] = useState(false);
   const { cart } = useCart();
 
-  const currentProduct = MOCK_PRODUCTS[currentIndex];
+  const currentProduct = products[currentIndex];
 
   const handleSwipe = (newDirection: 'left' | 'right') => {
     setDirection(newDirection);
     if (newDirection === 'right') {
-      setCurrentIndex((prev) => (prev === 0 ? MOCK_PRODUCTS.length - 1 : prev - 1));
+      setCurrentIndex((prev) => (prev === 0 ? products.length - 1 : prev - 1));
     } else {
-      setCurrentIndex((prev) => (prev === MOCK_PRODUCTS.length - 1 ? 0 : prev + 1));
+      setCurrentIndex((prev) => (prev === products.length - 1 ? 0 : prev + 1));
     }
     // Reset modal and states on product change
     setIsModalOpen(false);
@@ -206,7 +210,7 @@ export default function FullscreenProductViewer() {
           animate={{ opacity: 1, y: 0 }}
           className="absolute top-6 left-6 sm:top-8 sm:left-8 bg-white/30 backdrop-blur-2xl text-[#0f172a] px-5 py-2.5 rounded-full shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] border border-white/60"
         >
-          <p className="text-sm font-bold tracking-wider">{String(currentIndex + 1).padStart(2, '0')} / {String(MOCK_PRODUCTS.length).padStart(2, '0')}</p>
+          <p className="text-sm font-bold tracking-wider">{String(currentIndex + 1).padStart(2, '0')} / {String(products.length).padStart(2, '0')}</p>
         </motion.div>
 
         {/* Action Buttons - Top Right */}
@@ -282,7 +286,9 @@ export default function FullscreenProductViewer() {
             className="absolute bottom-32 sm:bottom-40 left-6 sm:left-8 bg-white/40 backdrop-blur-2xl text-[#0f172a] p-6 rounded-[2rem] max-w-sm border border-white/60 shadow-[0_8px_32px_0_rgba(31,38,135,0.07)]"
           >
             <h2 className="text-2xl sm:text-3xl font-black mb-2 leading-tight">{currentProduct.name}</h2>
-            <p className="text-sm text-gray-500 font-medium line-clamp-2 mb-4">{currentProduct.category}</p>
+            <p className="text-sm text-gray-500 font-medium line-clamp-2 mb-4">
+              {currentProduct.subcategories ? `${currentProduct.categories} > ${currentProduct.subcategories}` : currentProduct.categories}
+            </p>
 
             {/* Rating */}
             {/* <div className="flex items-center gap-2 mb-5">
@@ -342,7 +348,7 @@ export default function FullscreenProductViewer() {
             animate={{ opacity: 1, y: 0 }}
             className="absolute bottom-6 sm:bottom-8 left-1/2 -translate-x-1/2 flex gap-2 overflow-x-auto px-4 max-w-xs sm:max-w-2xl justify-center z-20 hidden sm:flex pb-2"
           >
-            {MOCK_PRODUCTS.map((product, idx) => (
+            {products.map((product, idx) => (
               <motion.button
                 key={product.id}
                 onClick={() => {
