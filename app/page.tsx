@@ -16,9 +16,11 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setError('');
+    const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+
 
     try {
-      const res = await fetch('http://localhost:5000/api/catelogue/auth/login', {
+      const res = await fetch(BACKEND_URL + '/api/catelogue/auth/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -40,9 +42,9 @@ export default function LoginPage() {
           role: data.role,
           token: data.token
         };
-        
+
         login(userObj as any);
-        
+
         // Ensure token is also stored if we are relying on it elsewhere
         localStorage.setItem('token', data.token);
 
@@ -112,9 +114,8 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className={`group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white ${
-                loading ? 'bg-indigo-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500'
-              } transition-all duration-200 ease-in-out transform hover:-translate-y-0.5`}
+              className={`group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white ${loading ? 'bg-indigo-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500'
+                } transition-all duration-200 ease-in-out transform hover:-translate-y-0.5`}
             >
               {loading ? (
                 <span className="flex items-center">
