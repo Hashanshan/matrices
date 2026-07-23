@@ -44,7 +44,7 @@ export default function ProductGallery({ searchQuery, initialCategory, onFilterC
     : filters.sortBy === 'price-high' ? 'price-high'
     : undefined; // default = newest
 
-  // Use SWR paginated hook — cached, instant on revisit
+  // Use SWR paginated hook — cached, instant on revisit, now fully backend-filtered
   const {
     products,
     isLoading,
@@ -53,9 +53,13 @@ export default function ProductGallery({ searchQuery, initialCategory, onFilterC
     hasMore,
     loadMore,
     error,
+    totalCount,
   } = useProducts({
     sort: backendSort,
     limit: 20,
+    category: filters.categories.length > 0 ? filters.categories : undefined,
+    subcategory: filters.subcategories.length > 0 ? filters.subcategories : undefined,
+    search: filters.searchQuery || searchQuery || undefined,
   });
 
   // Infinite scroll: observe a sentinel element at the bottom
@@ -81,61 +85,20 @@ export default function ProductGallery({ searchQuery, initialCategory, onFilterC
     }));
   };
 
-  // Client-side filtering on already-fetched data
+  // Client-side filtering only handles price range now (others are backend-filtered)
   const filteredProducts = useMemo(() => {
-    const activeSearch = filters.searchQuery || searchQuery;
-    let results = products.filter((product: any) => {
-      // Search
-      if (
-        activeSearch &&
-        !product.name.toLowerCase().includes(activeSearch.toLowerCase()) &&
-        !(product.description || '').toLowerCase().includes(activeSearch.toLowerCase()) &&
-        !(product.productCode || '').toLowerCase().includes(activeSearch.toLowerCase())
-      ) {
-        return false;
-      }
-
-      // Category
-      if (filters.categories.length > 0 && !filters.categories.includes(product.categories || '')) {
-        return false;
-      }
-
-      // Subcategory
-      if (filters.subcategories.length > 0 && !filters.subcategories.includes(product.subcategories || '')) {
-        return false;
-      }
-
+    return products.filter((product: any) => {
       // Price range
       if (product.price < filters.priceRange[0] || product.price > filters.priceRange[1]) {
         return false;
       }
-
       return true;
     });
-
-    // Client-side sort (the backend also sorts, but if user changes sort dynamically we handle it here too)
-    switch (filters.sortBy) {
-      case 'price-low':
-        results.sort((a: any, b: any) => a.price - b.price);
-        break;
-      case 'price-high':
-        results.sort((a: any, b: any) => b.price - a.price);
-        break;
-      case 'rating':
-        results.sort((a: any, b: any) => (b.rating || 0) - (a.rating || 0));
-        break;
-      case 'newest':
-      default:
-        // Already sorted by backend
-        break;
-    }
-
-    return results;
-  }, [searchQuery, filters, products]);
+  }, [filters.priceRange, products]);
 
   // Use API filters for categories instead of extracting from products
   const CATEGORIES = useMemo(() => {
-    return ['All', ...apiCategories.map(c => c.name)];
+    return ['All', ...apiCategories.map(c => c.name).sort()];
   }, [apiCategories]);
 
   const getSubcategoriesForCategory = useCallback((category: string) => {
@@ -265,8 +228,8 @@ export default function ProductGallery({ searchQuery, initialCategory, onFilterC
             Filters
           </Button>
 
-          <div className="lg:hidden text-sm text-gray-500 font-black px-4 bg-gray-50 py-2 rounded-full">
-            {filteredProducts.length} <span className="font-semibold">Items</span>
+          <div className="lg:hidden text-sm text-gray-500 font-black px-4 bg-gray-50 py-2 rounded-full uppercase">
+            {totalCount} <span className="font-semibold">Items</span>
           </div>
         </div>
 
@@ -305,8 +268,8 @@ export default function ProductGallery({ searchQuery, initialCategory, onFilterC
             />
           </div>
 
-          <div className="hidden lg:flex items-center justify-center px-6 py-3.5 bg-gray-50 border-2 border-gray-100 rounded-full text-sm text-[#0f172a] font-black min-w-[120px]">
-            {filteredProducts.length} <span className="font-semibold text-gray-500 ml-1">Products</span>
+          <div className="hidden lg:flex items-center justify-center px-6 py-3.5 bg-gray-50 border-2 border-gray-100 rounded-full text-sm text-[#0f172a] font-black min-w-[120px] uppercase">
+            {totalCount} <span className="font-semibold text-gray-500 ml-1">Products</span>
           </div>
         </div>
       </motion.div>
@@ -350,7 +313,7 @@ export default function ProductGallery({ searchQuery, initialCategory, onFilterC
                                 {isSelected && <Check size={12} className="text-white" />}
                               </div>
                               <input type="checkbox" checked={isSelected} onChange={() => handleCategoryToggle(category)} className="hidden" />
-                              <span className={`text-[15px] font-semibold transition-colors ${isSelected ? 'text-[#0f172a]' : 'text-gray-600 group-hover:text-[#0f172a]'}`}>
+                              <span className={`text-[15px] font-semibold transition-colors uppercase ${isSelected ? 'text-[#0f172a]' : 'text-gray-600 group-hover:text-[#0f172a]'}`}>
                                 {category}
                               </span>
                             </label>
@@ -395,7 +358,7 @@ export default function ProductGallery({ searchQuery, initialCategory, onFilterC
                                         {filters.subcategories.includes(subcategory) && <Check size={10} className="text-white" />}
                                       </div>
                                       <input type="checkbox" checked={filters.subcategories.includes(subcategory)} onChange={() => handleSubcategoryToggle(subcategory)} className="hidden" />
-                                      <span className={`text-[13px] font-semibold flex-1 transition-colors ${filters.subcategories.includes(subcategory) ? 'text-[#0f172a]' : 'text-gray-500 group-hover:text-[#0f172a]'}`}>
+                                      <span className={`text-[13px] font-semibold flex-1 transition-colors uppercase ${filters.subcategories.includes(subcategory) ? 'text-[#0f172a]' : 'text-gray-500 group-hover:text-[#0f172a]'}`}>
                                         {subcategory}
                                       </span>
                                     </label>

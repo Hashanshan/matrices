@@ -17,8 +17,8 @@ interface QuickAddModalProps {
 
 export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModalProps) {
   const [quantity, setQuantity] = useState(1);
-  const [selectedColor, setSelectedColor] = useState(product.variants?.colors[0]?.name || '');
-  const [selectedSize, setSelectedSize] = useState(product.variants?.sizes[0]?.name || '');
+  const [selectedColor, setSelectedColor] = useState(product.variants?.colors?.[0]?.name || '');
+  const [selectedSize, setSelectedSize] = useState(product.variants?.sizes?.[0]?.name || '');
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
@@ -43,8 +43,8 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
     setTimeout(() => {
       setShowSuccess(false);
       setQuantity(1);
-      setSelectedColor(product.variants?.colors[0]?.name || '');
-      setSelectedSize(product.variants?.sizes[0]?.name || '');
+      setSelectedColor(product.variants?.colors?.[0]?.name || '');
+      setSelectedSize(product.variants?.sizes?.[0]?.name || '');
       setNotes('');
       setIsSubmitting(false);
       onClose();

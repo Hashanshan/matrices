@@ -2,45 +2,39 @@
 
 import { useState, useMemo } from 'react';
 import Header from '@/components/header';
-import { Search, ChevronRight } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { Search, ChevronRight, ArrowLeft } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useFilters } from '@/lib/hooks/use-products';
 
 export default function CategoriesPage() {
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeCategory, setActiveCategory] = useState<string>('All Categories');
-  const [activeSubcategory, setActiveSubcategory] = useState<string>('All');
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   // Fetch filters (categories, subcategories) from our new API
   const { categories, isLoading, isValidating } = useFilters();
 
-  const CATEGORY_GROUPS = ['All Categories', ...categories.map(c => c.name)];
+  const selectedCategoryObj = useMemo(() => {
+    if (!selectedCategory) return null;
+    return categories.find(c => c.name.toUpperCase() === selectedCategory.toUpperCase());
+  }, [selectedCategory, categories]);
 
-  const selectedCategoryObj = categories.find(c => c.name === activeCategory);
-  
-  // If a specific category is selected, we show its subcategories.
-  // If 'All Categories' is selected, we gather all subcategories from all categories.
-  const subcategoriesToDisplay = useMemo(() => {
-    let subs: any[] = [];
-    if (activeCategory === 'All Categories') {
-      categories.forEach(c => {
-        c.subcategories.forEach(s => {
-          subs.push({ ...s, group: c.name });
-        });
-      });
-    } else if (selectedCategoryObj) {
-      subs = selectedCategoryObj.subcategories.map(s => ({ ...s, group: selectedCategoryObj.name }));
-    }
-    return subs;
-  }, [activeCategory, categories, selectedCategoryObj]);
+  // Filtering for top-level categories, sorted A-Z
+  const filteredCategories = useMemo(() => {
+    return categories
+      .filter(c => c.name.toUpperCase().includes(searchQuery.toUpperCase()))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [categories, searchQuery]);
 
-  const filteredSubcategories = subcategoriesToDisplay.filter((sub) => {
-    const matchesSearch = sub.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          sub.group.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesSubTab = activeSubcategory === 'All' || sub.name === activeSubcategory;
-    return matchesSearch && matchesSubTab;
-  });
+  // Filtering for subcategories of the selected category, sorted A-Z
+  const filteredSubcategories = useMemo(() => {
+    if (!selectedCategoryObj) return [];
+    return selectedCategoryObj.subcategories
+      .filter(s => s.name.toUpperCase().includes(searchQuery.toUpperCase()))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [selectedCategoryObj, searchQuery]);
 
   if (isLoading && categories.length === 0) {
     return (
@@ -64,128 +58,168 @@ export default function CategoriesPage() {
             </div>
           )}
 
-          {/* Category Pills (Top Level) */}
-          <div className="flex overflow-x-auto gap-3 pb-4 mb-4 no-scrollbar">
-            {CATEGORY_GROUPS.map((group) => (
-              <button
-                key={group}
-                onClick={() => {
-                  setActiveCategory(group);
-                  setActiveSubcategory('All'); // Reset subcategory tab when category changes
-                }}
-                className={`whitespace-nowrap px-6 py-2.5 rounded-full text-sm font-bold transition-all border ${
-                  activeCategory === group
-                    ? 'bg-white/70 text-[#0f172a] shadow-md border-white/80'
-                    : 'bg-white/30 backdrop-blur-md text-gray-600 hover:text-[#0f172a] shadow-sm hover:shadow-md border-white/40'
-                }`}
-              >
-                {group}
-              </button>
-            ))}
+          {/* Page Title & Back Button */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+            <div className="flex items-center gap-4">
+              {selectedCategory && (
+                <button
+                  onClick={() => {
+                    setSelectedCategory(null);
+                    setSearchQuery('');
+                  }}
+                  className="p-3 bg-white/30 backdrop-blur-md rounded-full border border-white/60 hover:bg-white/60 text-[#0f172a] shadow-sm hover:shadow-md transition-all"
+                  aria-label="Back to Categories"
+                >
+                  <ArrowLeft size={20} />
+                </button>
+              )}
+              <div>
+                <h1 className="text-3xl sm:text-4xl font-black text-[#0f172a] uppercase tracking-wide">
+                  {selectedCategory ? `${selectedCategory}` : 'CATEGORIES'}
+                </h1>
+                <p className="text-sm text-gray-500 font-bold tracking-wide mt-1 uppercase">
+                  {selectedCategory 
+                    ? `EXPLORE SUB CATEGORIES IN ${selectedCategory}` 
+                    : 'EXPLORE MAIN PRODUCT CATEGORIES'}
+                </p>
+              </div>
+            </div>
           </div>
 
-          {/* Subcategory Tabs (Secondary Level) - Only show if a specific category with subcategories is selected */}
-          {activeCategory !== 'All Categories' && selectedCategoryObj && selectedCategoryObj.subcategories.length > 0 && (
-            <motion.div 
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              className="flex flex-wrap gap-2 mb-6 p-2 bg-white/20 backdrop-blur-md rounded-2xl border border-white/40"
-            >
-              <button
-                onClick={() => setActiveSubcategory('All')}
-                className={`px-4 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-                  activeSubcategory === 'All'
-                    ? 'bg-[#0f172a] text-white shadow-md'
-                    : 'bg-white/40 text-gray-700 hover:bg-white/60'
-                }`}
-              >
-                All
-              </button>
-              {selectedCategoryObj.subcategories.map(sub => (
-                <button
-                  key={sub.name}
-                  onClick={() => setActiveSubcategory(sub.name)}
-                  className={`px-4 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-                    activeSubcategory === sub.name
-                      ? 'bg-[#0f172a] text-white shadow-md'
-                      : 'bg-white/40 text-gray-700 hover:bg-white/60'
-                  }`}
-                >
-                  {sub.name}
-                </button>
-              ))}
-            </motion.div>
-          )}
-
           {/* Search Bar */}
-          <div className="relative mb-8 mt-2">
+          <div className="relative mb-8">
             <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
               <Search className="h-5 w-5 text-gray-400" />
             </div>
             <input
               type="text"
-              className="block w-full pl-12 pr-4 py-4 border border-white/60 rounded-2xl leading-5 bg-white/40 backdrop-blur-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#0f172a] sm:text-sm shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] transition-all placeholder:text-gray-500"
-              placeholder="Search categories and collections..."
+              className="block w-full pl-12 pr-4 py-4 border border-white/60 rounded-2xl leading-5 bg-white/40 backdrop-blur-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#0f172a] sm:text-sm shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] transition-all placeholder:text-gray-500 uppercase font-semibold"
+              placeholder={selectedCategory ? "SEARCH SUB CATEGORIES..." : "SEARCH CATEGORIES..."}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
 
-          {/* Subcategories Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-            {filteredSubcategories.map((sub, index) => (
+          <AnimatePresence mode="wait">
+            {!selectedCategory ? (
+              // Categories View
               <motion.div
-                key={`${sub.group}-${sub.name}`}
+                key="categories"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4, delay: index * 0.1 }}
-                whileHover={{ y: -5 }}
-                className="relative group"
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.3 }}
+                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8"
               >
-                <Link href={`/gallery?category=${encodeURIComponent(sub.group)}&subcategory=${encodeURIComponent(sub.name)}`}>
-                  <div className="relative rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.1)] transition-all duration-300 flex flex-col bg-white/20 backdrop-blur-2xl overflow-hidden border border-white/60 h-full cursor-pointer">
-                    <div className="p-3 sm:p-4 pb-0 flex flex-col z-0">
-                      <div className="aspect-[3/4] rounded-[1.5rem] overflow-hidden bg-[#eef1f6] flex items-center justify-center p-6 shadow-inner border border-black/5 relative">
-                        {sub.image ? (
-                          <img
-                            src={sub.image}
-                            alt={sub.name}
-                            className="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform duration-700 ease-out mix-blend-multiply drop-shadow-xl"
-                          />
-                        ) : (
-                          <div className="text-gray-400 font-semibold">No Image</div>
-                        )}
+                {filteredCategories.map((cat, index) => (
+                  <motion.div
+                    key={cat.name}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.4, delay: index * 0.05 }}
+                    whileHover={{ y: -5 }}
+                    className="relative group"
+                    onClick={() => {
+                      if (cat.subcategories && cat.subcategories.length > 0) {
+                        setSelectedCategory(cat.name.toUpperCase());
+                        setSearchQuery('');
+                      } else {
+                        router.push(`/gallery?category=${encodeURIComponent(cat.name)}`);
+                      }
+                    }}
+                  >
+                    <div className="relative rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.1)] transition-all duration-300 flex flex-col bg-white/20 backdrop-blur-2xl overflow-hidden border border-white/60 h-full cursor-pointer">
+                      <div className="p-3 sm:p-4 pb-0 flex flex-col z-0">
+                        <div className="aspect-[3/4] rounded-[1.5rem] overflow-hidden bg-[#eef1f6] flex items-center justify-center p-6 shadow-inner border border-black/5 relative">
+                          {cat.image ? (
+                            <img
+                              src={cat.image}
+                              alt={cat.name}
+                              className="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform duration-700 ease-out mix-blend-multiply drop-shadow-xl"
+                            />
+                          ) : (
+                            <div className="text-gray-400 font-semibold uppercase">NO IMAGE</div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                    <div className="rounded-[2rem] relative mx-3 mt-2 mb-3 p-4 sm:p-5 bg-gradient-to-br from-white/60 to-white/30 backdrop-blur-3xl border border-white/60 shadow-[0_8px_64px_rgba(0,0,0,0.1)] flex flex-col flex-1 z-10">
-                      <div className="flex items-start justify-between gap-2 mb-1">
-                        <h3 className="text-xl font-extrabold text-[#0f172a] uppercase tracking-wide group-hover:text-[#1e3a8a] transition-colors drop-shadow-sm line-clamp-1">
-                          {sub.name}
+                      <div className="rounded-[2rem] relative mx-3 mt-2 mb-3 p-4 sm:p-5 bg-gradient-to-br from-white/60 to-white/30 backdrop-blur-3xl border border-white/60 shadow-[0_8px_64px_rgba(0,0,0,0.1)] flex flex-col flex-1 z-10">
+                        <h3 className="text-xl font-extrabold text-[#0f172a] uppercase tracking-wide group-hover:text-[#1e3a8a] transition-colors drop-shadow-sm line-clamp-1 mb-2">
+                          {cat.name}
                         </h3>
-                        <span className="text-[0.65rem] font-bold tracking-wider uppercase bg-[#eef1f6] text-gray-600 px-2 py-1 rounded-full border border-black/5 shadow-inner whitespace-nowrap">
-                          {sub.group}
-                        </span>
-                      </div>
-                      <p className="text-xs text-gray-500 font-medium mb-3">Explore items in {sub.name}</p>
-                      <div className="flex items-center justify-between mt-auto">
-                        <div>
-                          <span className="text-[#0f172a] font-bold text-sm block">{sub.count} Products</span>
-                          <span className="text-xs text-gray-500 font-medium">Available</span>
-                        </div>
-                        <div className="flex items-center gap-1 text-sm font-bold text-[#0f172a] group-hover:text-[#1e3a8a] transition-colors bg-white/50 px-3 py-1.5 rounded-full">
-                          View <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform" />
+                        <div className="flex items-center justify-between mt-auto pt-4 border-t border-black/5">
+                          <div>
+                            <span className="text-[#0f172a] font-bold text-sm block uppercase">{cat.totalCount} PRODUCTS</span>
+                            <span className="text-xs text-gray-500 font-medium uppercase">TOTAL AVAILABLE</span>
+                          </div>
+                          <div className="flex items-center gap-1 text-sm font-bold text-[#0f172a] group-hover:text-[#1e3a8a] transition-colors bg-white/50 px-4 py-2 rounded-full">
+                            EXPLORE <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform" />
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                </Link>
+                  </motion.div>
+                ))}
               </motion.div>
-            ))}
-          </div>
+            ) : (
+              // Subcategories View (Under selected category)
+              <motion.div
+                key="subcategories"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.3 }}
+                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8"
+              >
+                {filteredSubcategories.map((sub, index) => (
+                  <motion.div
+                    key={sub.name}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.4, delay: index * 0.05 }}
+                    whileHover={{ y: -5 }}
+                    className="relative group"
+                  >
+                    <Link href={`/gallery?category=${encodeURIComponent(selectedCategory)}&subcategory=${encodeURIComponent(sub.name)}`}>
+                      <div className="relative rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.1)] transition-all duration-300 flex flex-col bg-white/20 backdrop-blur-2xl overflow-hidden border border-white/60 h-full cursor-pointer">
+                        <div className="p-3 sm:p-4 pb-0 flex flex-col z-0">
+                          <div className="aspect-[3/4] rounded-[1.5rem] overflow-hidden bg-[#eef1f6] flex items-center justify-center p-6 shadow-inner border border-black/5 relative">
+                            {sub.image ? (
+                              <img
+                                src={sub.image}
+                                alt={sub.name}
+                                className="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform duration-700 ease-out mix-blend-multiply drop-shadow-xl"
+                              />
+                            ) : (
+                              <div className="text-gray-400 font-semibold uppercase">NO IMAGE</div>
+                            )}
+                          </div>
+                        </div>
+                        <div className="rounded-[2rem] relative mx-3 mt-2 mb-3 p-4 sm:p-5 bg-gradient-to-br from-white/60 to-white/30 backdrop-blur-3xl border border-white/60 shadow-[0_8px_64px_rgba(0,0,0,0.1)] flex flex-col flex-1 z-10">
+                          <h3 className="text-xl font-extrabold text-[#0f172a] uppercase tracking-wide group-hover:text-[#1e3a8a] transition-colors drop-shadow-sm line-clamp-1 mb-2">
+                            {sub.name}
+                          </h3>
+                          <div className="flex items-center justify-between mt-auto pt-4 border-t border-black/5">
+                            <div>
+                              <span className="text-[#0f172a] font-bold text-sm block uppercase">{sub.count} PRODUCTS</span>
+                              <span className="text-xs text-gray-500 font-medium uppercase">AVAILABLE</span>
+                            </div>
+                            <div className="flex items-center gap-1 text-sm font-bold text-[#0f172a] group-hover:text-[#1e3a8a] transition-colors bg-white/50 px-4 py-2 rounded-full">
+                              VIEW GALLERY <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform" />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </Link>
+                  </motion.div>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-          {filteredSubcategories.length === 0 && (
-            <div className="text-center py-20">
-              <p className="text-xl text-gray-500 font-medium">No collections found matching your criteria.</p>
+          {((!selectedCategory && filteredCategories.length === 0) || 
+            (selectedCategory && filteredSubcategories.length === 0)) && (
+            <div className="text-center py-20 bg-white/10 backdrop-blur-md rounded-3xl border border-white/40 mt-8">
+              <p className="text-xl text-gray-500 font-bold uppercase">NO RESULTS FOUND MATCHING YOUR CRITERIA</p>
             </div>
           )}
         </div>

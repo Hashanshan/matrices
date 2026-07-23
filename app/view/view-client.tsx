@@ -1,6 +1,7 @@
 'use client';
 
-import { useAllProducts } from '@/lib/hooks/use-products';
+import { useState } from 'react';
+import { useProducts } from '@/lib/hooks/use-products';
 import FullscreenProductViewer from '@/components/fullscreen-product-viewer';
 import Header from '@/components/header';
 
@@ -10,9 +11,24 @@ interface ViewPageProps {
 }
 
 export default function SingleViewPage({ fallbackData, initialProductId }: ViewPageProps) {
-  // SWR-cached fetch with 'view' sort (subCategory -> category -> name)
-  // Instant on revisit, silently revalidates in background
-  const { products, isLoading, isValidating } = useAllProducts({ sort: 'view', fallbackData });
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState('view');
+
+  // Use the cursor-paginated useProducts hook
+  const {
+    products,
+    isLoading,
+    isLoadingMore,
+    isValidating,
+    hasMore,
+    loadMore,
+    totalCount,
+  } = useProducts({
+    sort: sortBy,
+    search: searchQuery,
+    productId: initialProductId,
+    limit: 20,
+  });
 
   if (isLoading && products.length === 0) {
     return (
@@ -25,14 +41,6 @@ export default function SingleViewPage({ fallbackData, initialProductId }: ViewP
     );
   }
 
-  if (products.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50">
-        <h2 className="text-2xl font-bold text-gray-800 mb-4">No products available</h2>
-      </div>
-    );
-  }
-
   return (
     <>
       {/* Subtle revalidation indicator */}
@@ -41,7 +49,15 @@ export default function SingleViewPage({ fallbackData, initialProductId }: ViewP
           <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[#0f172a]/30"></div>
         </div>
       )}
-      <FullscreenProductViewer products={products} initialProductId={initialProductId} />
+      <FullscreenProductViewer
+        products={products}
+        initialProductId={initialProductId}
+        totalCount={totalCount}
+        hasMore={hasMore}
+        loadMore={loadMore}
+        isLoadingMore={isLoadingMore}
+        onSearch={setSearchQuery}
+      />
     </>
   );
 }

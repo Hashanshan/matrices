@@ -2,7 +2,6 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Cart, CartItem, Order } from '../types';
-import { MOCK_PRODUCTS } from '../mock-data';
 
 interface CartContextType {
   cart: Cart;
@@ -43,10 +42,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const calculateTotal = (items: CartItem[]) => {
     let total = 0;
     items.forEach((item) => {
-      const product = MOCK_PRODUCTS.find((p) => p.id === item.productId);
-      if (product) {
-        total += product.price * item.quantity;
-      }
+      // items now include product data because we spread it in addToCart
+      const price = (item as any).price || 0;
+      total += price * item.quantity;
     });
     return total;
   };

@@ -52,7 +52,7 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
           <div className="p-3 sm:p-4 pb-0 flex flex-col z-0">
             {/* Image Container (solid off-white, not glass) */}
             <div
-              onClick={() => router.push(`/view?productId=${product.id}`)}
+              onClick={() => router.push(`/view?productId=${product.productId || product.id}`)}
               className="relative aspect-[4/5] rounded-[1.5rem] overflow-hidden bg-[#eef1f6] flex items-center justify-center p-6 shadow-inner cursor-pointer z-0 border border-black/5"
             >
               <Image
@@ -99,14 +99,14 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
             {/* SKU Row */}
             <div className="flex items-center justify-between mb-2">
               <div>
-                <span className="text-[#0f172a] font-bold text-sm block tracking-wide">
-                  {product.id.startsWith('MAT') ? product.id : `MAT-${1000 + parseInt(product.id)}`}-N
+                <span className="text-[#0f172a] font-bold text-sm block tracking-wide uppercase">
+                  {product.productCode || product.productId || product.id}
                 </span>
-                <span className="text-xs text-gray-500 font-medium">Product Code</span>
+                <span className="text-xs text-gray-500 font-medium uppercase">PRODUCT CODE</span>
               </div>
 
               <button
-                onClick={() => router.push(`/view?productId=${product.id}`)}
+                onClick={() => router.push(`/view?productId=${product.productId || product.id}`)}
                 className="flex items-center gap-1 text-sm font-bold text-[#0f172a] hover:text-[#1e3a8a] transition-colors group/btn"
               >
                 View Details <span className="group-hover/btn:translate-x-1 transition-transform">→</span>

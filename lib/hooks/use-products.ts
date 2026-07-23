@@ -19,6 +19,7 @@ export interface CatalogueProduct {
 interface ProductsResponse {
   success: boolean;
   count: number;
+  totalCount?: number;
   nextCursor: string | null;
   hasNextPage: boolean;
   data: CatalogueProduct[];
@@ -52,32 +53,34 @@ const fetcher = async (url: string): Promise<ProductsResponse> => {
 
 interface UseProductsOptions {
   sort?: string;
-  category?: string;
-  subcategory?: string;
+  category?: string | string[];
+  subcategory?: string | string[];
   search?: string;
   limit?: number;
+  productId?: string;
 }
 
 /**
  * Cursor-paginated, SWR-cached hook for fetching products.
- * 
- * - First visit: fetches from the API proxy (`/api/products`)
- * - Revisits: instantly shows cached data, then silently revalidates in background
- * - "Load More": appends the next page via cursor pagination
- * 
- * Usage:
- *   const { products, isLoading, isLoadingMore, hasMore, loadMore, error } = useProducts({ sort: 'view' });
  */
 export function useProducts(options: UseProductsOptions = {}) {
-  const { sort, category, subcategory, search, limit = 20 } = options;
+  const { sort, category, subcategory, search, limit = 20, productId } = options;
 
   // Build query string from options
   const buildQuery = (cursor?: string) => {
     const params = new URLSearchParams();
     if (sort) params.set('sort', sort);
-    if (category) params.set('category', category);
-    if (subcategory) params.set('subcategory', subcategory);
+    
+    if (category) {
+      const catVal = Array.isArray(category) ? category.join(',') : category;
+      if (catVal) params.set('category', catVal);
+    }
+    if (subcategory) {
+      const subVal = Array.isArray(subcategory) ? subcategory.join(',') : subcategory;
+      if (subVal) params.set('subcategory', subVal);
+    }
     if (search) params.set('search', search);
+    if (productId) params.set('productId', productId);
     params.set('limit', String(limit));
     if (cursor) params.set('cursor', cursor);
     return params.toString();
@@ -120,7 +123,7 @@ export function useProducts(options: UseProductsOptions = {}) {
   const isLoadingInitial = isLoading;
   const isLoadingMore = size > 0 && pages && typeof pages[size - 1] === 'undefined';
   const hasMore = pages ? pages[pages.length - 1]?.hasNextPage ?? false : false;
-  const totalCount = products.length;
+  const totalCount = pages && pages[0] ? pages[0].totalCount ?? products.length : products.length;
 
   const loadMore = () => {
     if (!isLoadingMore && hasMore) {
