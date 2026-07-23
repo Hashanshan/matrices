@@ -13,16 +13,17 @@ import CustomSelect from './custom-select';
 interface ProductGalleryProps {
   searchQuery: string;
   initialCategory?: string;
+  initialSubcategory?: string;
   onFilterChange?: (filters: FilterState) => void;
 }
 
-export default function ProductGallery({ searchQuery, initialCategory, onFilterChange }: ProductGalleryProps) {
+  export default function ProductGallery({ searchQuery, initialCategory, initialSubcategory, onFilterChange }: ProductGalleryProps) {
   const { categories: apiCategories, priceRange: apiPriceRange } = useFilters();
 
   const [filters, setFilters] = useState<FilterState>({
     searchQuery,
     categories: initialCategory ? [initialCategory] : [],
-    subcategories: [],
+    subcategories: initialSubcategory ? [initialSubcategory] : [],
     priceRange: [0, 40000],
     sortBy: 'newest',
     gridSize: 4,
@@ -30,10 +31,15 @@ export default function ProductGallery({ searchQuery, initialCategory, onFilterC
 
   // Sync price range once api data loads if it's default
   useEffect(() => {
-    if (apiPriceRange.max > 0 && filters.priceRange[1] === 40000) {
-      setFilters(prev => ({ ...prev, priceRange: [apiPriceRange.min, apiPriceRange.max] }));
+    if (apiPriceRange.max > 0) {
+      setFilters(prev => {
+        if (prev.priceRange[1] === 40000 && (prev.priceRange[0] !== apiPriceRange.min || prev.priceRange[1] !== apiPriceRange.max)) {
+          return { ...prev, priceRange: [apiPriceRange.min, apiPriceRange.max] };
+        }
+        return prev;
+      });
     }
-  }, [apiPriceRange]);
+  }, [apiPriceRange.min, apiPriceRange.max]);
 
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
@@ -423,6 +429,10 @@ export default function ProductGallery({ searchQuery, initialCategory, onFilterC
             <div className="space-y-12">
               {Object.entries(groupedProducts).map(([category, categoryProducts], categoryIndex) => {
                 const isCollapsed = collapsedSections[category];
+                
+                // Get the accurate total count from API data for this category
+                const apiCategoryData = apiCategories.find(c => c.name.toUpperCase() === category.toUpperCase());
+                const accurateCount = apiCategoryData ? apiCategoryData.totalCount : categoryProducts.length;
 
                 return (
                   <motion.section
@@ -442,7 +452,7 @@ export default function ProductGallery({ searchQuery, initialCategory, onFilterC
                         <h2 className="text-2xl font-black text-[#0f172a] tracking-wide uppercase">{category}</h2>
                       </div>
                       <span className="text-sm font-bold text-gray-500 bg-gray-50 px-4 py-2 rounded-full">
-                        {categoryProducts.length} {categoryProducts.length === 1 ? 'Product' : 'Products'}
+                        {accurateCount} {accurateCount === 1 ? 'Product' : 'Products'}
                       </span>
                     </div>
 

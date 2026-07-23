@@ -57,17 +57,20 @@ interface UseProductsOptions {
   subcategory?: string | string[];
   search?: string;
   limit?: number;
+  initialLimit?: number;
   productId?: string;
+  prioritizeCategory?: string;
+  fallbackData?: ProductsResponse[];
 }
 
 /**
  * Cursor-paginated, SWR-cached hook for fetching products.
  */
 export function useProducts(options: UseProductsOptions = {}) {
-  const { sort, category, subcategory, search, limit = 20, productId } = options;
+  const { sort, category, subcategory, search, limit = 20, productId, prioritizeCategory, fallbackData } = options;
 
   // Build query string from options
-  const buildQuery = (cursor?: string) => {
+  const buildQuery = (pageIndex: number) => {
     const params = new URLSearchParams();
     if (sort) params.set('sort', sort);
     
@@ -81,23 +84,22 @@ export function useProducts(options: UseProductsOptions = {}) {
     }
     if (search) params.set('search', search);
     if (productId) params.set('productId', productId);
-    params.set('limit', String(limit));
-    if (cursor) params.set('cursor', cursor);
+    if (prioritizeCategory) params.set('prioritizeCategory', prioritizeCategory);
+    
+    const currentLimit = pageIndex > 0 ? limit : (options.initialLimit || limit);
+    params.set('limit', String(currentLimit));
+    params.set('page', String(pageIndex + 1));
     return params.toString();
   };
 
   const getKey = (pageIndex: number, previousPageData: ProductsResponse | null) => {
     // First page
-    if (pageIndex === 0) return `/api/products?${buildQuery()}`;
+    if (pageIndex === 0) return `/api/products?${buildQuery(0)}`;
 
     // No more pages
     if (previousPageData && !previousPageData.hasNextPage) return null;
 
-    // Next page using cursor
-    const cursor = previousPageData?.data?.[previousPageData.data.length - 1]?.id;
-    if (!cursor) return null;
-
-    return `/api/products?${buildQuery(cursor)}`;
+    return `/api/products?${buildQuery(pageIndex)}`;
   };
 
   const {
@@ -114,6 +116,7 @@ export function useProducts(options: UseProductsOptions = {}) {
     revalidateOnReconnect: true,     // Auto-revalidate when network reconnects
     dedupingInterval: 5000,          // Dedupe identical requests within 5s
     keepPreviousData: true,          // Keep showing old data while revalidating
+    fallbackData,
   });
 
   // Flatten all pages into a single array

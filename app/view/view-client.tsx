@@ -8,9 +8,11 @@ import Header from '@/components/header';
 interface ViewPageProps {
   fallbackData?: any;
   initialProductId?: string;
+  initialCategory?: string;
+  initialSubcategory?: string;
 }
 
-export default function SingleViewPage({ fallbackData, initialProductId }: ViewPageProps) {
+export default function SingleViewPage({ fallbackData, initialProductId, initialCategory, initialSubcategory }: ViewPageProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('view');
 
@@ -27,7 +29,10 @@ export default function SingleViewPage({ fallbackData, initialProductId }: ViewP
     sort: sortBy,
     search: searchQuery,
     productId: initialProductId,
-    limit: 20,
+    prioritizeCategory: initialCategory,
+    fallbackData: fallbackData ? [fallbackData] : undefined,
+    initialLimit: 20,
+    limit: 10,
   });
 
   if (isLoading && products.length === 0) {

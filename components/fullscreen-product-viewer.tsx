@@ -47,20 +47,23 @@ export default function FullscreenProductViewer({
   const [menuOpen, setMenuOpen] = useState(false);
   const { cart } = useCart();
 
+  const hasSetInitialIndex = useRef(false);
+
   // Find index of deep-linked product on initial load or change
   useEffect(() => {
-    if (initialProductId && products.length > 0) {
+    if (initialProductId && products.length > 0 && !hasSetInitialIndex.current) {
       const idx = products.findIndex(p => p.productId === initialProductId || p.id === initialProductId);
       if (idx >= 0) {
         setCurrentIndex(idx);
+        hasSetInitialIndex.current = true;
       }
     }
   }, [initialProductId, products]);
 
-  // Reset index to 0 when search returns new products
+  // Reset index to 0 when search returns new products (but not on loadMore)
   useEffect(() => {
     setCurrentIndex(0);
-  }, [products.length]);
+  }, [products[0]?.id]);
 
   // Load more when reaching the last few slides
   useEffect(() => {
@@ -463,6 +466,27 @@ export default function FullscreenProductViewer({
                 />
               </motion.button>
             ))}
+            {hasMore && (
+              <div 
+                ref={(node) => {
+                  if (!node) return;
+                  const observer = new IntersectionObserver(entries => {
+                    if (entries[0].isIntersecting && !isLoadingMore) {
+                      loadMore();
+                    }
+                  }, { threshold: 0.1 });
+                  observer.observe(node);
+                  return () => observer.disconnect();
+                }}
+                className="flex-shrink-0 w-14 h-14 flex items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm border-2 border-white/20"
+              >
+                {isLoadingMore ? (
+                  <div className="w-5 h-5 border-2 border-white/50 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <span className="text-white text-xs font-bold">+</span>
+                )}
+              </div>
+            )}
           </motion.div>
         )}
 

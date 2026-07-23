@@ -8,13 +8,14 @@ import { useSearchParams } from 'next/navigation';
 function GalleryContent() {
   const searchParams = useSearchParams();
   const initialCategory = searchParams.get('category') || '';
+  const initialSubcategory = searchParams.get('subcategory') || '';
 
   return (
     <>
       <Header showSearch={false} />
       <main className="min-h-screen bg-background">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <ProductGallery searchQuery="" initialCategory={initialCategory} />
+          <ProductGallery searchQuery="" initialCategory={initialCategory} initialSubcategory={initialSubcategory} />
         </div>
       </main>
     </>
