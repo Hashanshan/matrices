@@ -4,7 +4,7 @@ import ViewClient from './view-client';
 export const dynamic = 'force-dynamic';
 
 async function getInitialProducts() {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const token = cookieStore.get('token')?.value;
 
   if (!token) {
@@ -47,12 +47,13 @@ async function getInitialProducts() {
   }
 }
 
-export default async function ViewPage() {
+export default async function ViewPage({ searchParams }: { searchParams: Promise<{ productId?: string }> }) {
+  const params = await searchParams;
   const fallbackData = await getInitialProducts();
 
   return (
     <>
-      <ViewClient fallbackData={fallbackData} />
+      <ViewClient fallbackData={fallbackData} initialProductId={params.productId} />
     </>
   );
 }

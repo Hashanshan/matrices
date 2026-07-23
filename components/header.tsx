@@ -51,7 +51,7 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
           {/* Navigation Links */}
           <nav className="hidden lg:flex gap-8 flex-1 justify-center">
             {[
-              { href: '/', label: 'Home' },
+              { href: '/catalogue', label: 'Home' },
               { href: '/gallery', label: 'Gallery' },
               { href: '/view', label: 'Products' },
             ].map((link) => (
@@ -179,7 +179,7 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
           {/* Navigation */}
           <nav className="p-4 space-y-2 border-b border-border">
             {[
-              { href: '/', label: 'Home' },
+              { href: '/catalogue', label: 'Home' },
               { href: '/gallery', label: 'Gallery' },
               { href: '/view', label: 'Products' },
             ].map((link) => (

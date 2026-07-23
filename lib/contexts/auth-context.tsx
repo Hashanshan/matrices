@@ -29,6 +29,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.error('Failed to parse user from localStorage:', error);
       }
     }
+
+    const handleAuthError = () => {
+      logout();
+      window.location.href = '/';
+    };
+    window.addEventListener('auth-error', handleAuthError);
+    return () => window.removeEventListener('auth-error', handleAuthError);
   }, []);
 
   const login = (newUser: UserProfile) => {

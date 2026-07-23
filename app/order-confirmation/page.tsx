@@ -242,7 +242,7 @@ export default function OrderConfirmationPage() {
                     Continue Shopping
                   </Button>
                 </Link>
-                <Link href="/">
+                <Link href="/catalogue">
                   <Button variant="outline" className="w-full sm:w-auto">
                     Back to Home
                   </Button>

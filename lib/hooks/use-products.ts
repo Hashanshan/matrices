@@ -36,6 +36,11 @@ const fetcher = async (url: string): Promise<ProductsResponse> => {
   });
 
   if (!res.ok) {
+    if (res.status === 401 || res.status === 403) {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('auth-error'));
+      }
+    }
     const error = await res.json().catch(() => ({ msg: 'Network error' }));
     throw new Error(error.msg || 'Failed to fetch');
   }
@@ -165,6 +170,47 @@ export function useAllProducts(options: Omit<UseProductsOptions, 'limit'> & { fa
 
   return {
     products: data?.data || [],
+    isLoading,
+    isValidating,
+    error,
+    mutate,
+  };
+}
+
+// ─── Hook: useFilters (Fetch Categories & Price Range) ───────────────────
+
+export interface SubcategoryFilter {
+  name: string;
+  image: string;
+  count: number;
+}
+
+export interface CategoryFilter {
+  name: string;
+  image: string;
+  totalCount: number;
+  subcategories: SubcategoryFilter[];
+}
+
+export interface FiltersResponse {
+  success: boolean;
+  categories: CategoryFilter[];
+  priceRange: { min: number; max: number };
+}
+
+export function useFilters(options: { fallbackData?: FiltersResponse } = {}) {
+  const { fallbackData } = options;
+  const key = '/api/products/filters';
+
+  const { data, error, isLoading, isValidating, mutate } = useSWR<FiltersResponse>(key, fetcher, {
+    fallbackData,
+    revalidateOnFocus: true,
+    dedupingInterval: 60000, // cache for 1 minute
+  });
+
+  return {
+    categories: data?.categories || [],
+    priceRange: data?.priceRange || { min: 0, max: 40000 },
     isLoading,
     isValidating,
     error,

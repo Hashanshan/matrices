@@ -2,10 +2,10 @@
 
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { Product, FilterState } from '@/lib/types';
-import { useProducts } from '@/lib/hooks/use-products';
+import { useProducts, useFilters } from '@/lib/hooks/use-products';
 import ProductCard from './product-card';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronDown, X, Check, PanelLeftClose, PanelLeftOpen, Filter, SortDesc, LayoutGrid, Loader2 } from 'lucide-react';
+import { ChevronDown, X, Check, PanelLeftClose, PanelLeftOpen, Filter, SortDesc, LayoutGrid, Loader2, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { formatPrice } from '@/lib/currency';
 import CustomSelect from './custom-select';
@@ -17,6 +17,8 @@ interface ProductGalleryProps {
 }
 
 export default function ProductGallery({ searchQuery, initialCategory, onFilterChange }: ProductGalleryProps) {
+  const { categories: apiCategories, priceRange: apiPriceRange } = useFilters();
+
   const [filters, setFilters] = useState<FilterState>({
     searchQuery,
     categories: initialCategory ? [initialCategory] : [],
@@ -25,6 +27,13 @@ export default function ProductGallery({ searchQuery, initialCategory, onFilterC
     sortBy: 'newest',
     gridSize: 4,
   });
+
+  // Sync price range once api data loads if it's default
+  useEffect(() => {
+    if (apiPriceRange.max > 0 && filters.priceRange[1] === 40000) {
+      setFilters(prev => ({ ...prev, priceRange: [apiPriceRange.min, apiPriceRange.max] }));
+    }
+  }, [apiPriceRange]);
 
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
@@ -74,12 +83,14 @@ export default function ProductGallery({ searchQuery, initialCategory, onFilterC
 
   // Client-side filtering on already-fetched data
   const filteredProducts = useMemo(() => {
+    const activeSearch = filters.searchQuery || searchQuery;
     let results = products.filter((product: any) => {
       // Search
       if (
-        searchQuery &&
-        !product.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
-        !(product.description || '').toLowerCase().includes(searchQuery.toLowerCase())
+        activeSearch &&
+        !product.name.toLowerCase().includes(activeSearch.toLowerCase()) &&
+        !(product.description || '').toLowerCase().includes(activeSearch.toLowerCase()) &&
+        !(product.productCode || '').toLowerCase().includes(activeSearch.toLowerCase())
       ) {
         return false;
       }
@@ -122,24 +133,15 @@ export default function ProductGallery({ searchQuery, initialCategory, onFilterC
     return results;
   }, [searchQuery, filters, products]);
 
-  // Extract unique categories from products
+  // Use API filters for categories instead of extracting from products
   const CATEGORIES = useMemo(() => {
-    const cats = new Set<string>();
-    products.forEach((p: any) => {
-      if (p.categories) cats.add(p.categories);
-    });
-    return ['All', ...Array.from(cats)];
-  }, [products]);
+    return ['All', ...apiCategories.map(c => c.name)];
+  }, [apiCategories]);
 
   const getSubcategoriesForCategory = useCallback((category: string) => {
-    const subcats = new Set<string>();
-    products.forEach((p: any) => {
-      if (p.categories === category && p.subcategories) {
-        subcats.add(p.subcategories);
-      }
-    });
-    return Array.from(subcats);
-  }, [products]);
+    const cat = apiCategories.find(c => c.name === category);
+    return cat ? cat.subcategories.map(s => s.name) : [];
+  }, [apiCategories]);
 
   // Group products by category
   const groupedProducts = useMemo(() => {
@@ -223,6 +225,20 @@ export default function ProductGallery({ searchQuery, initialCategory, onFilterC
           <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[#0f172a]/30"></div>
         </div>
       )}
+
+      {/* Search Bar - Gallery Top */}
+      <div className="relative mb-6">
+        <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
+          <Search className="h-5 w-5 text-gray-400" />
+        </div>
+        <input
+          type="text"
+          className="block w-full pl-12 pr-4 py-4 border border-white/60 rounded-2xl leading-5 bg-white/40 backdrop-blur-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#0f172a] sm:text-sm shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] transition-all placeholder:text-gray-500"
+          placeholder="Search products in gallery..."
+          value={filters.searchQuery}
+          onChange={(e) => setFilters(prev => ({ ...prev, searchQuery: e.target.value }))}
+        />
+      </div>
 
       {/* Premium Controls Bar */}
       <motion.div
@@ -403,14 +419,14 @@ export default function ProductGallery({ searchQuery, initialCategory, onFilterC
                         <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Min Price</label>
                         <span className="text-sm font-black text-[#0f172a]">{formatPrice(filters.priceRange[0])}</span>
                       </div>
-                      <input type="range" min="0" max="40000" value={filters.priceRange[0]} onChange={(e) => handlePriceChange('min', parseInt(e.target.value))} className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#0f172a]" />
+                      <input type="range" min={apiPriceRange.min} max={apiPriceRange.max} value={filters.priceRange[0]} onChange={(e) => handlePriceChange('min', parseInt(e.target.value))} className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#0f172a]" />
                     </div>
                     <div>
                       <div className="flex justify-between items-center mb-2">
                         <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Max Price</label>
                         <span className="text-sm font-black text-[#0f172a]">{formatPrice(filters.priceRange[1])}</span>
                       </div>
-                      <input type="range" min="0" max="40000" value={filters.priceRange[1]} onChange={(e) => handlePriceChange('max', parseInt(e.target.value))} className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#0f172a]" />
+                      <input type="range" min={apiPriceRange.min} max={apiPriceRange.max} value={filters.priceRange[1]} onChange={(e) => handlePriceChange('max', parseInt(e.target.value))} className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#0f172a]" />
                     </div>
                   </div>
                 </div>

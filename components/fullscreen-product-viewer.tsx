@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, ChevronRight, ShoppingCart, X, Minus, Plus, Heart, Share2, Star, Check } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ShoppingCart, X, Minus, Plus, Heart, Share2, Star, Check, Search } from 'lucide-react';
 import { useCart } from '@/lib/contexts/cart-context';
 import { Button } from '@/components/ui/button';
 import { Product } from '@/lib/types';
@@ -13,10 +13,17 @@ import { Menu, Home, Grid, BookOpen } from 'lucide-react';
 
 interface FullscreenProductViewerProps {
   products: Product[];
+  initialProductId?: string;
 }
 
-export default function FullscreenProductViewer({ products }: FullscreenProductViewerProps) {
-  const [currentIndex, setCurrentIndex] = useState(0);
+export default function FullscreenProductViewer({ products, initialProductId }: FullscreenProductViewerProps) {
+  // Compute the starting index from the URL's productId
+  const startIndex = useMemo(() => {
+    if (!initialProductId) return 0;
+    const idx = products.findIndex(p => p.productId === initialProductId || p.id === initialProductId);
+    return idx >= 0 ? idx : 0;
+  }, [initialProductId, products]);
+  const [currentIndex, setCurrentIndex] = useState(startIndex);
   const [direction, setDirection] = useState<'left' | 'right'>('right');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [quantity, setQuantity] = useState(1);
@@ -26,19 +33,49 @@ export default function FullscreenProductViewer({ products }: FullscreenProductV
   const [isLiked, setIsLiked] = useState(false);
   const [addedSuccess, setAddedSuccess] = useState(false);
   const [imageZoomed, setImageZoomed] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [viewerSearchQuery, setViewerSearchQuery] = useState('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const touchStartX = useRef(0);
   const { addToCart } = useCart();
   const [menuOpen, setMenuOpen] = useState(false);
   const { cart } = useCart();
 
-  const currentProduct = products[currentIndex];
+  // Filter products when search is active
+  const displayProducts = useMemo(() => {
+    if (!viewerSearchQuery.trim()) return products;
+    const q = viewerSearchQuery.toLowerCase();
+    return products.filter(p =>
+      p.name.toLowerCase().includes(q) ||
+      (p.categories || '').toLowerCase().includes(q) ||
+      (p.subcategories || '').toLowerCase().includes(q) ||
+      (p.productCode || '').toLowerCase().includes(q)
+    );
+  }, [products, viewerSearchQuery]);
+
+  // Reset index when search results change
+  useEffect(() => {
+    if (viewerSearchQuery.trim() && displayProducts.length > 0) {
+      setCurrentIndex(0);
+    }
+  }, [displayProducts.length, viewerSearchQuery]);
+
+  // Focus search input when opened
+  useEffect(() => {
+    if (searchOpen && searchInputRef.current) {
+      searchInputRef.current.focus();
+    }
+  }, [searchOpen]);
+
+  const currentProduct = displayProducts[currentIndex] || displayProducts[0];
+  if (!currentProduct) return null;
 
   const handleSwipe = (newDirection: 'left' | 'right') => {
     setDirection(newDirection);
     if (newDirection === 'right') {
-      setCurrentIndex((prev) => (prev === 0 ? products.length - 1 : prev - 1));
+      setCurrentIndex((prev) => (prev === 0 ? displayProducts.length - 1 : prev - 1));
     } else {
-      setCurrentIndex((prev) => (prev === products.length - 1 ? 0 : prev + 1));
+      setCurrentIndex((prev) => (prev === displayProducts.length - 1 ? 0 : prev + 1));
     }
     // Reset modal and states on product change
     setIsModalOpen(false);
@@ -210,7 +247,7 @@ export default function FullscreenProductViewer({ products }: FullscreenProductV
           animate={{ opacity: 1, y: 0 }}
           className="absolute top-6 left-6 sm:top-8 sm:left-8 bg-white/30 backdrop-blur-2xl text-[#0f172a] px-5 py-2.5 rounded-full shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] border border-white/60"
         >
-          <p className="text-sm font-bold tracking-wider">{String(currentIndex + 1).padStart(2, '0')} / {String(products.length).padStart(2, '0')}</p>
+          <p className="text-sm font-bold tracking-wider">{String(currentIndex + 1).padStart(2, '0')} / {String(displayProducts.length).padStart(2, '0')}</p>
         </motion.div>
 
         {/* Action Buttons - Top Right */}
@@ -227,6 +264,48 @@ export default function FullscreenProductViewer({ products }: FullscreenProductV
           >
             <Heart size={20} fill={isLiked ? 'currentColor' : 'none'} className={isLiked ? 'text-red-500' : ''} />
           </motion.button>
+          {/* Expandable Search */}
+          <motion.div className="flex items-center gap-0">
+            <AnimatePresence>
+              {searchOpen && (
+                <motion.div
+                  initial={{ width: 0, opacity: 0 }}
+                  animate={{ width: 200, opacity: 1 }}
+                  exit={{ width: 0, opacity: 0 }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                  className="overflow-hidden"
+                >
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    value={viewerSearchQuery}
+                    onChange={(e) => setViewerSearchQuery(e.target.value)}
+                    placeholder="Search products..."
+                    className="w-full px-4 py-2.5 text-sm bg-white/40 backdrop-blur-2xl border border-white/60 rounded-full text-[#0f172a] placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0f172a]/30 shadow-[0_8px_32px_0_rgba(31,38,135,0.07)]"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') {
+                        setSearchOpen(false);
+                        setViewerSearchQuery('');
+                      }
+                    }}
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
+            <motion.button
+              onClick={() => {
+                if (searchOpen && viewerSearchQuery) {
+                  setViewerSearchQuery('');
+                }
+                setSearchOpen(!searchOpen);
+              }}
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.95 }}
+              className={`p-3.5 rounded-full backdrop-blur-2xl text-[#0f172a] transition-all shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] border border-white/60 ${searchOpen ? 'bg-white/60' : 'bg-white/30 hover:bg-white/60'}`}
+            >
+              {searchOpen ? <X size={20} /> : <Search size={20} />}
+            </motion.button>
+          </motion.div>
           <motion.button
             onClick={handleShare}
             whileHover={{ scale: 1.1 }}
@@ -255,7 +334,7 @@ export default function FullscreenProductViewer({ products }: FullscreenProductV
                   className="absolute top-16 right-0 bg-white/40 backdrop-blur-2xl border border-white/60 rounded-2xl shadow-[0_8px_32px_0_rgba(31,38,135,0.1)] p-4 w-48 flex flex-col gap-2 overflow-hidden"
                 >
                   {[
-                    { href: '/', label: 'Home', icon: Home },
+                    { href: '/catalogue', label: 'Home', icon: Home },
                     { href: '/gallery', label: 'Catalogue', icon: BookOpen },
                     { href: '/view', label: 'Products', icon: Grid },
                     { href: '/cart', label: `Cart (${cart.itemCount})`, icon: ShoppingCart },
@@ -348,7 +427,7 @@ export default function FullscreenProductViewer({ products }: FullscreenProductV
             animate={{ opacity: 1, y: 0 }}
             className="absolute bottom-6 sm:bottom-8 left-1/2 -translate-x-1/2 flex gap-2 overflow-x-auto px-4 max-w-xs sm:max-w-2xl justify-center z-20 hidden sm:flex pb-2"
           >
-            {products.map((product, idx) => (
+            {displayProducts.map((product, idx) => (
               <motion.button
                 key={product.id}
                 onClick={() => {
