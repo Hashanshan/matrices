@@ -78,8 +78,8 @@ export default function CategoriesPage() {
                   {selectedCategory ? `${selectedCategory}` : 'CATEGORIES'}
                 </h1>
                 <p className="text-sm text-gray-500 font-bold tracking-wide mt-1 uppercase">
-                  {selectedCategory 
-                    ? `EXPLORE SUB CATEGORIES IN ${selectedCategory}` 
+                  {selectedCategory
+                    ? `EXPLORE SUB CATEGORIES IN ${selectedCategory}`
                     : 'EXPLORE MAIN PRODUCT CATEGORIES'}
                 </p>
               </div>
@@ -87,13 +87,13 @@ export default function CategoriesPage() {
           </div>
 
           {/* Search Bar */}
-          <div className="relative mb-8">
+          <div className="relative mb-8 ">
             <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
-              <Search className="h-5 w-5 text-gray-400" />
+              <Search className="h-5 w-5 text-gray-400 z-1" />
             </div>
             <input
               type="text"
-              className="block w-full pl-12 pr-4 py-4 border border-white/60 rounded-2xl leading-5 bg-white/40 backdrop-blur-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#0f172a] sm:text-sm shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] transition-all placeholder:text-gray-500 uppercase font-semibold"
+              className="rounded-[1rem] block w-full pl-12 pr-4 py-4 border border-white/60 rounded-2xl leading-5 bg-white/40 backdrop-blur-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#0f172a] sm:text-sm shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] transition-all placeholder:text-gray-500 uppercase font-semibold"
               placeholder={selectedCategory ? "SEARCH SUB CATEGORIES..." : "SEARCH CATEGORIES..."}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -216,12 +216,12 @@ export default function CategoriesPage() {
             )}
           </AnimatePresence>
 
-          {((!selectedCategory && filteredCategories.length === 0) || 
+          {((!selectedCategory && filteredCategories.length === 0) ||
             (selectedCategory && filteredSubcategories.length === 0)) && (
-            <div className="text-center py-20 bg-white/10 backdrop-blur-md rounded-3xl border border-white/40 mt-8">
-              <p className="text-xl text-gray-500 font-bold uppercase">NO RESULTS FOUND MATCHING YOUR CRITERIA</p>
-            </div>
-          )}
+              <div className="text-center py-20 bg-white/10 backdrop-blur-md rounded-3xl border border-white/40 mt-8">
+                <p className="text-xl text-gray-500 font-bold uppercase">NO RESULTS FOUND MATCHING YOUR CRITERIA</p>
+              </div>
+            )}
         </div>
       </main>
     </>

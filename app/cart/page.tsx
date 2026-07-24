@@ -54,7 +54,7 @@ export default function CartPage() {
 
     placeOrder(order);
     clearCart();
-    
+
     // Redirect to order confirmation
     router.push('/order-confirmation');
   };
@@ -83,7 +83,7 @@ export default function CartPage() {
               className="flex flex-col items-center justify-center py-20 text-center bg-white rounded-[2rem] border border-gray-50 shadow-[0_8px_30px_-12px_rgba(0,0,0,0.06)]"
             >
               <p className="text-lg text-gray-500 font-semibold mb-6">Your cart is empty</p>
-              <Link href="/">
+              <Link href="/catalogue">
                 <Button className="bg-[#0f172a] hover:bg-[#1e293b] text-white px-8 py-6 rounded-full font-bold shadow-md">
                   Start Shopping
                 </Button>

@@ -17,7 +17,7 @@ interface ProductGalleryProps {
   onFilterChange?: (filters: FilterState) => void;
 }
 
-  export default function ProductGallery({ searchQuery, initialCategory, initialSubcategory, onFilterChange }: ProductGalleryProps) {
+export default function ProductGallery({ searchQuery, initialCategory, initialSubcategory, onFilterChange }: ProductGalleryProps) {
   const { categories: apiCategories, priceRange: apiPriceRange } = useFilters();
 
   const [filters, setFilters] = useState<FilterState>({
@@ -41,14 +41,14 @@ interface ProductGalleryProps {
     }
   }, [apiPriceRange.min, apiPriceRange.max]);
 
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
 
   // Map frontend sortBy to backend sort param
   const backendSort = filters.sortBy === 'price-low' ? 'price-low'
     : filters.sortBy === 'price-high' ? 'price-high'
-    : undefined; // default = newest
+      : undefined; // default = newest
 
   // Use SWR paginated hook — cached, instant on revisit, now fully backend-filtered
   const {
@@ -197,12 +197,12 @@ interface ProductGalleryProps {
 
       {/* Search Bar - Gallery Top */}
       <div className="relative mb-6">
-        <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
+        <div className="z-1 absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
           <Search className="h-5 w-5 text-gray-400" />
         </div>
         <input
           type="text"
-          className="block w-full pl-12 pr-4 py-4 border border-white/60 rounded-2xl leading-5 bg-white/40 backdrop-blur-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#0f172a] sm:text-sm shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] transition-all placeholder:text-gray-500"
+          className="block w-full rounded-[1rem] pl-12 pr-4 py-4 border border-white/60 rounded-2xl leading-5 bg-white/40 backdrop-blur-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#0f172a] sm:text-sm shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] transition-all placeholder:text-gray-500"
           placeholder="Search products in gallery..."
           value={filters.searchQuery}
           onChange={(e) => setFilters(prev => ({ ...prev, searchQuery: e.target.value }))}
@@ -429,7 +429,7 @@ interface ProductGalleryProps {
             <div className="space-y-12">
               {Object.entries(groupedProducts).map(([category, categoryProducts], categoryIndex) => {
                 const isCollapsed = collapsedSections[category];
-                
+
                 // Get the accurate total count from API data for this category
                 const apiCategoryData = apiCategories.find(c => c.name.toUpperCase() === category.toUpperCase());
                 const accurateCount = apiCategoryData ? apiCategoryData.totalCount : categoryProducts.length;

@@ -90,7 +90,7 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
                 </h3>
               </button>
               <span className="text-[0.65rem] font-bold tracking-wider uppercase bg-[#eef1f6] text-gray-600 px-2 py-1 rounded-full border border-black/5 shadow-inner">
-                {product.category || 'HOROLOGY'}
+                {product.categories || 'HOROLOGY'}
               </span>
             </div>
 
@@ -100,7 +100,7 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
             <div className="flex items-center justify-between mb-2">
               <div>
                 <span className="text-[#0f172a] font-bold text-sm block tracking-wide uppercase">
-                  {product.productCode || product.productId || product.id}
+                  {product.productId || product.productCode || product.id}
                 </span>
                 <span className="text-xs text-gray-500 font-medium uppercase">PRODUCT CODE</span>
               </div>

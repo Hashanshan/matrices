@@ -28,7 +28,7 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
   };
 
   return (
-    <header className="sticky top-0 z-50 bg-white/30 backdrop-blur-2xl border-b border-white/40 shadow-[0_8px_32px_0_rgba(31,38,135,0.05)]">
+    <header className="sticky  top-0 z-50 bg-white/30 backdrop-blur-2xl border-b border-white/40 shadow-[0_8px_32px_0_rgba(31,38,135,0.05)]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Desktop Header */}
         <div className="flex items-center justify-between h-20 gap-6">
@@ -124,7 +124,7 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
                     initial={{ opacity: 0, y: -15, scale: 0.95 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: -15, scale: 0.95 }}
-                    className="absolute right-0 mt-3 w-64 bg-card border-2 border-border rounded-2xl shadow-2xl p-6 space-y-4"
+                    className="absolute rounded-[0.5rem] right-0 mt-3 w-64 bg-card border-2 border-border rounded-2xl shadow-2xl p-6 space-y-4"
                   >
                     <div className="pb-4 border-b border-border">
                       <p className="text-base font-bold text-foreground">{user.name}</p>

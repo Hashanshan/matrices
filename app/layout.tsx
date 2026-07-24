@@ -35,16 +35,23 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
-      <body className="font-sans antialiased text-foreground min-h-screen bg-[#f8fafc] relative">
-        
+      <body className="font-sans antialiased text-foreground min-h-screen  relative   bg-[url('/bg.png')]
+    bg-cover
+    bg-center
+    bg-no-repeat
+    bg-fixed">
+        <div className="absolute inset-0 backdrop-blur-[4px]" />
+
+
+
         {/* Background elements mimicking the exact sample design */}
         <div className="fixed inset-0 -z-50 overflow-hidden pointer-events-none bg-[#f4f7fa]">
           {/* Main Diagonal dark blue shape (Top Right) */}
           <div className="absolute top-[0%] right-[-10%] w-[100%] h-[150%] bg-[#1c2c4d] origin-top-right -rotate-[35deg] transform translate-x-[20%] translate-y-[-40%]" />
-          
+
           {/* Diagonal lighter shape (Middle/Left overlapping) */}
           <div className="absolute bottom-[0%] left-[-20%] w-[100%] h-[100%] bg-gradient-to-t from-[#8da0bd] to-[#b3c1d6] origin-bottom-left -rotate-[35deg] transform -translate-x-[10%] translate-y-[20%] opacity-20" />
-          
+
           {/* Bottom left dark blue shape */}
           <div className="absolute bottom-[-20%] left-[-20%] w-[80%] h-[100%] bg-[#1c2c4d] origin-bottom-left -rotate-[35deg] transform -translate-x-[20%] translate-y-[30%]" />
 

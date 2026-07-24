@@ -155,7 +155,7 @@ export default function FullscreenProductViewer({
   // If no products found, render a clean blank search/no results state
   if (products.length === 0) {
     return (
-      <div className="w-full h-screen bg-black/95 flex flex-col items-center justify-center relative p-8">
+      <div className="w-full h-screen  flex flex-col items-center justify-center relative p-8">
         <div className="absolute top-6 sm:top-8 right-6 sm:right-8 flex gap-3 z-20">
           <div className="flex items-center gap-0">
             <input
@@ -353,12 +353,12 @@ export default function FullscreenProductViewer({
           >
             <Heart size={20} fill={isLiked ? 'currentColor' : 'none'} className={isLiked ? 'text-red-500' : ''} />
           </motion.button>
-          
+
           <motion.button
             onClick={handleShare}
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.95 }}
-            className="p-3.5 rounded-full bg-white/30 backdrop-blur-2xl hover:bg-white/60 text-[#0f172a] transition-all shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] border border-white/60"
+            className="p-3.5 rounded-full bg-white/30 backdrop-blur-4xl hover:bg-white/60 text-[#0f172a] transition-all shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] border border-white/60"
           >
             <Share2 size={20} />
           </motion.button>
@@ -380,7 +380,7 @@ export default function FullscreenProductViewer({
                   initial={{ opacity: 0, scale: 0.9, y: -20, originX: 1, originY: 0 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.9, y: -20 }}
-                  className="absolute top-16 right-0 bg-white/40 backdrop-blur-2xl border border-white/60 rounded-2xl shadow-[0_8px_32px_0_rgba(31,38,135,0.1)] p-4 w-48 flex flex-col gap-2 overflow-hidden"
+                  className="absolute rounded-[1rem] top-16 right-0  backdrop-blur-2xl border border-white/60 rounded-2xl shadow-[0_8px_32px_0_rgba(31,38,135,0.1)] p-4 w-48 flex flex-col gap-2 overflow-hidden"
                 >
                   {[
                     { href: '/catalogue', label: 'HOME', icon: Home },
@@ -390,7 +390,7 @@ export default function FullscreenProductViewer({
                   ].map((item) => (
                     <Link href={item.href} key={item.label} onClick={() => setMenuOpen(false)}>
                       <motion.div
-                        whileHover={{ x: 4, backgroundColor: 'rgba(0,0,0,0.05)' }}
+                        whileHover={{ x: 4, backgroundColor: 'rgba(117, 116, 116, 0.945)', borderRadius: '1rem' }}
                         className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-800 font-bold text-sm transition-colors cursor-pointer uppercase"
                       >
                         <item.icon size={18} />
@@ -409,17 +409,17 @@ export default function FullscreenProductViewer({
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="absolute bottom-32 sm:bottom-40 left-6 sm:left-8 bg-white/40 backdrop-blur-2xl text-[#0f172a] p-6 rounded-[2rem] max-w-sm border border-white/60 shadow-[0_8px_32px_0_rgba(31,38,135,0.07)]"
+            className="absolute bottom-32 sm:bottom-40 left-6 sm:left-8 bg-white/40 backdrop-blur-2xl text-[#0f172a] p-6 rounded-[2rem] max-w-sm border border-white/60 shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] z-1 sm:w-[90%] md:w-[70%] lg:w-[50%] xl:w-[30%]"
           >
-            <h2 className="text-2xl sm:text-3xl font-black mb-2 leading-tight uppercase">{currentProduct.name}</h2>
-            <p className="text-sm text-gray-500 font-bold line-clamp-2 mb-4 uppercase">
+            <h2 className="text-sm sm:text-2xl sm:text-3xl font-black mb-1 sm:mb-2 leading-tight uppercase">{currentProduct.name}</h2>
+            <p className="text-sm text-gray-500 font-bold line-clamp-2 mb-2 sm:mb-4 uppercase">
               {currentProduct.subcategories ? `${currentProduct.categories} > ${currentProduct.subcategories}` : currentProduct.categories}
             </p>
 
             {/* Price */}
-            <div className="flex items-baseline justify-between pt-4 border-t border-gray-100">
+            <div className="flex items-baseline justify-between pt-2 sm:pt-4 border-t border-gray-100">
               <div>
-                <span className="text-3xl font-black text-[#0f172a]">{formatPrice(currentProduct.price)}</span>
+                <span className="text-md sm:text-3xl font-black text-[#0f172a]">{formatPrice(currentProduct.price)}</span>
               </div>
             </div>
           </motion.div>
@@ -431,7 +431,7 @@ export default function FullscreenProductViewer({
             whileHover={{ scale: 1.05, y: -4 }}
             whileTap={{ scale: 0.95 }}
             onClick={() => setIsModalOpen(true)}
-            className="absolute bottom-32 sm:bottom-40 left-1/2 -translate-x-1/2 bg-[#0f172a] hover:bg-[#1e293b] text-white px-8 sm:px-12 py-4 sm:py-5 rounded-full font-black flex items-center gap-3 shadow-[0_15px_30px_-10px_rgba(15,23,42,0.4)] transition-all z-30 text-lg uppercase tracking-wider"
+            className="absolute bottom-26 md:bottom-26 lg:bottom-30 left-1/2 -translate-x-1/2 bg-[#0f172a] hover:bg-[#1e293b] text-white px-8 sm:px-12 py-4 sm:py-5 rounded-full font-black flex items-center gap-3 shadow-[0_15px_30px_-10px_rgba(15,23,42,0.4)] transition-all z-30 text-sm md:text-md lg:text-lg uppercase tracking-wider"
           >
             <ShoppingCart size={22} />
             <span>ADD TO CART</span>
@@ -467,7 +467,7 @@ export default function FullscreenProductViewer({
               </motion.button>
             ))}
             {hasMore && (
-              <div 
+              <div
                 ref={(node) => {
                   if (!node) return;
                   const observer = new IntersectionObserver(entries => {
