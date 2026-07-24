@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Product } from '@/lib/types';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Minus, Plus, Check, ShoppingCart, ZoomIn } from 'lucide-react';
@@ -27,7 +28,12 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [isZoomed, setIsZoomed] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const { addToCart } = useCart();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const handleAddToCart = async () => {
     setIsSubmitting(true);
@@ -59,7 +65,9 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
     onClose();
   };
 
-  return (
+  if (!mounted) return null;
+
+  return createPortal(
     <AnimatePresence>
       {isOpen && (
         <>
@@ -80,20 +88,19 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
             className="fixed inset-4 md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 w-auto md:w-full md:max-w-4xl z-50 flex items-center justify-center pointer-events-none"
           >
-            <div className="bg-card w-full max-h-full rounded-2xl md:rounded-3xl border border-border overflow-hidden shadow-2xl flex flex-col md:flex-row pointer-events-auto">
+            <div className="bg-card w-full max-h-full rounded-2xl md:rounded-3xl border border-border shadow-2xl flex flex-col md:flex-row pointer-events-auto overflow-y-auto md:overflow-hidden relative">
+              {/* Close Button for Mobile (when stacked) */}
+              <motion.button
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={(e) => { e.stopPropagation(); onClose(); }}
+                className="absolute top-4 right-4 p-2 bg-white/80 backdrop-blur-md hover:bg-white rounded-full transition-colors md:hidden z-10 shadow-sm"
+              >
+                <X size={20} className="text-gray-800" />
+              </motion.button>
 
               {/* Left Side: Large Image */}
-              <div className="w-full md:w-1/2 bg-[#f8f9fc] relative p-8 flex items-center justify-center min-h-[300px] md:min-h-[500px] cursor-zoom-in group" onClick={() => setIsZoomed(true)}>
-                {/* Close Button for Mobile (when stacked) */}
-                <motion.button
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={(e) => { e.stopPropagation(); onClose(); }}
-                  className="absolute top-4 right-4 p-2 bg-white/50 hover:bg-white rounded-full transition-colors md:hidden z-10"
-                >
-                  <X size={20} className="text-gray-800" />
-                </motion.button>
-
+              <div className="w-full md:w-1/2 bg-[#f8f9fc] relative p-8 flex items-center justify-center h-[40vh] min-h-[300px] md:h-auto md:min-h-[500px] cursor-zoom-in group shrink-0" onClick={() => setIsZoomed(true)}>
                 <Image
                   src={product.image}
                   alt={product.name}
@@ -108,7 +115,7 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
               </div>
 
               {/* Right Side: Product Details & Add to Cart */}
-              <div className="w-full md:w-1/2 p-6 md:p-8 overflow-y-auto max-h-[60vh] md:max-h-[80vh]">
+              <div className="w-full md:w-1/2 p-6 md:p-8 md:overflow-y-auto md:max-h-[80vh] flex flex-col">
                 {/* Close Button for Desktop */}
                 <motion.button
                   whileHover={{ scale: 1.1 }}
@@ -284,6 +291,7 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
           </AnimatePresence>
         </>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 }
