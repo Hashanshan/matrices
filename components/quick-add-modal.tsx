@@ -8,6 +8,10 @@ import { useCart } from '@/lib/contexts/cart-context';
 import { Button } from '@/components/ui/button';
 import { formatPrice } from '@/lib/currency';
 import Image from 'next/image';
+import Swal from 'sweetalert2';
+import withReactContent from 'sweetalert2-react-content';
+
+const MySwal = withReactContent(Swal);
 
 interface QuickAddModalProps {
   isOpen: boolean;
@@ -38,17 +42,21 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
     };
 
     addToCart(cartItem);
-    setShowSuccess(true);
+    
+    MySwal.fire({
+      title: 'Success!',
+      text: 'Added to cart successfully!',
+      icon: 'success',
+      timer: 1500,
+      showConfirmButton: false,
+    });
 
-    setTimeout(() => {
-      setShowSuccess(false);
-      setQuantity(1);
-      setSelectedColor(product.variants?.colors?.[0]?.name || '');
-      setSelectedSize(product.variants?.sizes?.[0]?.name || '');
-      setNotes('');
-      setIsSubmitting(false);
-      onClose();
-    }, 1500);
+    setQuantity(1);
+    setSelectedColor(product.variants?.colors?.[0]?.name || '');
+    setSelectedSize(product.variants?.sizes?.[0]?.name || '');
+    setNotes('');
+    setIsSubmitting(false);
+    onClose();
   };
 
   return (
@@ -217,40 +225,29 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
 
                 {/* Success / Action Area */}
                 <div className="mt-8 pt-6 border-t border-gray-100">
-                  {showSuccess ? (
-                    <motion.div
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="p-4 bg-green-50 border border-green-200 rounded-xl flex items-center gap-3 justify-center text-green-700 font-bold"
+                  <div className="flex gap-4 flex-col sm:flex-row">
+                    <button
+                      onClick={onClose}
+                      disabled={isSubmitting}
+                      className="px-6 py-4 rounded-xl border-2 border-gray-200 text-gray-600 font-bold hover:border-gray-300 hover:bg-gray-50 transition-all text-center"
                     >
-                      <Check size={20} />
-                      <span>Added to cart successfully!</span>
-                    </motion.div>
-                  ) : (
-                    <div className="flex gap-4 flex-col sm:flex-row">
-                      <button
-                        onClick={onClose}
-                        disabled={isSubmitting}
-                        className="px-6 py-4 rounded-xl border-2 border-gray-200 text-gray-600 font-bold hover:border-gray-300 hover:bg-gray-50 transition-all text-center"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={handleAddToCart}
-                        disabled={isSubmitting}
-                        className="flex-1 bg-[#0f172a] hover:bg-[#1e293b] text-white font-bold py-4 px-6 rounded-xl flex items-center justify-center gap-3 transition-all hover:shadow-lg disabled:opacity-50"
-                      >
-                        {isSubmitting ? (
-                          <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity }} className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full" />
-                        ) : (
-                          <>
-                            <ShoppingCart size={20} />
-                            Add to Cart
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  )}
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleAddToCart}
+                      disabled={isSubmitting}
+                      className="flex-1 bg-[#0f172a] hover:bg-[#1e293b] text-white font-bold py-4 px-6 rounded-xl flex items-center justify-center gap-3 transition-all hover:shadow-lg disabled:opacity-50"
+                    >
+                      {isSubmitting ? (
+                        <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity }} className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full" />
+                      ) : (
+                        <>
+                          <ShoppingCart size={20} />
+                          Add to Cart
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
 
               </div>

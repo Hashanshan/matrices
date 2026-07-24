@@ -25,6 +25,7 @@ export default function SingleViewPage({ fallbackData, initialProductId, initial
     hasMore,
     loadMore,
     totalCount,
+    exactMatchFound,
   } = useProducts({
     sort: sortBy,
     search: searchQuery,
@@ -62,6 +63,7 @@ export default function SingleViewPage({ fallbackData, initialProductId, initial
         loadMore={loadMore}
         isLoadingMore={isLoadingMore}
         onSearch={setSearchQuery}
+        exactMatchFound={exactMatchFound}
       />
     </>
   );

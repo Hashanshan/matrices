@@ -10,6 +10,10 @@ import { Button } from '@/components/ui/button';
 import { formatPrice } from '@/lib/currency';
 import CustomSelect from './custom-select';
 import RelatedProducts from './related-products';
+import Swal from 'sweetalert2';
+import withReactContent from 'sweetalert2-react-content';
+
+const MySwal = withReactContent(Swal);
 
 function CategorySection({
   category,
@@ -145,6 +149,7 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
     loadMore,
     error,
     totalCount,
+    exactMatchFound,
   } = useProducts({
     sort: backendSort,
     limit: 20,
@@ -175,6 +180,25 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
       [cat]: !prev[cat]
     }));
   };
+
+  // Handle SweetAlert for no exact match
+  useEffect(() => {
+    if (exactMatchFound === false && products.length > 0 && filters.searchQuery) {
+      MySwal.fire({
+        title: 'No exact match found',
+        text: 'Do you want to continue to view related products?',
+        icon: 'info',
+        showCancelButton: true,
+        confirmButtonText: 'Continue',
+        confirmButtonColor: '#0f172a',
+        cancelButtonColor: '#64748b'
+      }).then((result) => {
+        if (!result.isConfirmed) {
+           setFilters(prev => ({ ...prev, searchQuery: '' }));
+        }
+      });
+    }
+  }, [exactMatchFound, products.length, filters.searchQuery]);
 
   // Client-side filtering only handles price range now (others are backend-filtered)
   const filteredProducts = useMemo(() => {

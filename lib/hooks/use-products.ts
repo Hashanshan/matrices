@@ -20,6 +20,7 @@ interface ProductsResponse {
   success: boolean;
   count: number;
   totalCount?: number;
+  exactMatchFound?: boolean;
   nextCursor: string | null;
   hasNextPage: boolean;
   data: CatalogueProduct[];
@@ -127,6 +128,7 @@ export function useProducts(options: UseProductsOptions = {}) {
   const isLoadingMore = size > 0 && pages && typeof pages[size - 1] === 'undefined';
   const hasMore = pages ? pages[pages.length - 1]?.hasNextPage ?? false : false;
   const totalCount = pages && pages[0] ? pages[0].totalCount ?? products.length : products.length;
+  const exactMatchFound = pages && pages[0] ? pages[0].exactMatchFound : undefined;
 
   const loadMore = () => {
     if (!isLoadingMore && hasMore) {
@@ -141,6 +143,7 @@ export function useProducts(options: UseProductsOptions = {}) {
     isValidating,
     hasMore,
     totalCount,
+    exactMatchFound,
     loadMore,
     error,
     mutate,
@@ -176,6 +179,7 @@ export function useAllProducts(options: Omit<UseProductsOptions, 'limit'> & { fa
 
   return {
     products: data?.data || [],
+    exactMatchFound: data?.exactMatchFound,
     isLoading,
     isValidating,
     error,

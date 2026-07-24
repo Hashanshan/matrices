@@ -11,6 +11,10 @@ import QuickAddModal from './quick-add-modal';
 import Link from 'next/link';
 import RelatedProducts from './related-products';
 import { Menu, Home, Grid, BookOpen } from 'lucide-react';
+import Swal from 'sweetalert2';
+import withReactContent from 'sweetalert2-react-content';
+
+const MySwal = withReactContent(Swal);
 
 interface FullscreenProductViewerProps {
   products: Product[];
@@ -20,6 +24,7 @@ interface FullscreenProductViewerProps {
   loadMore: () => void;
   isLoadingMore: boolean;
   onSearch: (query: string) => void;
+  exactMatchFound?: boolean;
 }
 
 export default function FullscreenProductViewer({
@@ -29,7 +34,8 @@ export default function FullscreenProductViewer({
   hasMore,
   loadMore,
   isLoadingMore,
-  onSearch
+  onSearch,
+  exactMatchFound
 }: FullscreenProductViewerProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [direction, setDirection] = useState<'left' | 'right'>('right');
@@ -80,6 +86,27 @@ export default function FullscreenProductViewer({
       searchInputRef.current.focus();
     }
   }, [searchOpen]);
+
+  // Handle SweetAlert for no exact match
+  useEffect(() => {
+    if (exactMatchFound === false && products.length > 0 && viewerSearchQuery) {
+      MySwal.fire({
+        title: 'No exact match found',
+        text: 'Do you want to continue to view related products?',
+        icon: 'info',
+        showCancelButton: true,
+        confirmButtonText: 'Continue',
+        confirmButtonColor: '#0f172a',
+        cancelButtonColor: '#64748b'
+      }).then((result) => {
+        if (!result.isConfirmed) {
+           setViewerSearchQuery('');
+           onSearch('');
+           setCurrentIndex(0);
+        }
+      });
+    }
+  }, [exactMatchFound, products.length, viewerSearchQuery, onSearch]);
 
   const handleSwipe = useCallback((newDirection: 'left' | 'right') => {
     setDirection(newDirection);
@@ -171,13 +198,20 @@ export default function FullscreenProductViewer({
         });
       } else {
         navigator.clipboard.writeText(shareUrl);
-        alert('Link copied to clipboard: ' + shareUrl);
+        MySwal.fire({
+          title: 'Link Copied',
+          text: shareUrl,
+          icon: 'success',
+          timer: 2000,
+          showConfirmButton: false
+        });
       }
     }
   };
 
   const triggerSearch = () => {
     onSearch(viewerSearchQuery);
+    setCurrentIndex(0);
   };
 
   // If no products found, render a clean blank search/no results state
