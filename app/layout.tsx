@@ -40,7 +40,7 @@ export default function RootLayout({
     bg-center
     bg-no-repeat
     bg-fixed">
-        <div className="absolute inset-0 backdrop-blur-[4px]" />
+        <div className="absolute inset-0 backdrop-blur-[3px]" />
 
 
 

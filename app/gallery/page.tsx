@@ -13,7 +13,7 @@ function GalleryContent() {
   return (
     <>
       <Header showSearch={false} />
-      <main className="min-h-screen bg-background">
+      <main className="min-h-screen ">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <ProductGallery searchQuery="" initialCategory={initialCategory} initialSubcategory={initialSubcategory} />
         </div>
@@ -27,7 +27,7 @@ export default function GalleryPage() {
     <Suspense fallback={
       <>
         <Header showSearch={false} />
-        <main className="min-h-screen bg-background flex justify-center items-center">
+        <main className="min-h-screen  flex justify-center items-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#0f172a]"></div>
         </main>
       </>

@@ -10,6 +10,90 @@ import { Button } from '@/components/ui/button';
 import { formatPrice } from '@/lib/currency';
 import CustomSelect from './custom-select';
 
+function CategorySection({
+  category,
+  categoryProducts,
+  categoryIndex,
+  isCollapsed,
+  toggleSection,
+  accurateCount,
+  gridClass
+}: {
+  category: string;
+  categoryProducts: any[];
+  categoryIndex: number;
+  isCollapsed: boolean;
+  toggleSection: (cat: string) => void;
+  accurateCount: number;
+  gridClass: string;
+}) {
+  const [visibleCount, setVisibleCount] = useState(20);
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  const loadMoreRef = useCallback((node: HTMLDivElement | null) => {
+    if (observerRef.current) observerRef.current.disconnect();
+
+    observerRef.current = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting) {
+        setVisibleCount(prev => Math.min(prev + 20, categoryProducts.length));
+      }
+    }, { threshold: 0.1 });
+
+    if (node) observerRef.current.observe(node);
+  }, [categoryProducts.length]);
+
+  const visibleProducts = categoryProducts.slice(0, visibleCount);
+  const hasMore = visibleCount < categoryProducts.length;
+
+  return (
+    <motion.section
+      key={category}
+      initial={{ opacity: 0, y: 30 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, delay: categoryIndex * 0.1 }}
+    >
+      <div
+        className="bg-white/40 backdrop-blur-xl rounded-[1.5rem] shadow-[0_8px_32px_0_rgba(31,38,135,0.05)] border border-white/60 flex items-center justify-between p-6 mb-8 cursor-pointer hover:shadow-md transition-shadow"
+        onClick={() => toggleSection(category)}
+      >
+        <div className="flex items-center gap-4">
+          <motion.div animate={{ rotate: isCollapsed ? -90 : 0 }} transition={{ duration: 0.2 }} className="bg-gray-100 p-2 rounded-full text-gray-500">
+            <ChevronDown size={20} />
+          </motion.div>
+          <h2 className="text-2xl font-black text-[#0f172a] tracking-wide uppercase">{category}</h2>
+        </div>
+        <span className="text-sm font-bold text-gray-500 bg-gray-50 px-4 py-2 rounded-full">
+          {accurateCount} {accurateCount === 1 ? 'Product' : 'Products'}
+        </span>
+      </div>
+
+      <AnimatePresence>
+        {!isCollapsed && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.3 }}
+            className="overflow-hidden"
+          >
+            <div className="pb-8">
+              <motion.div layout className={`grid gap-6 sm:gap-8 ${gridClass}`} style={{ gridAutoRows: 'max-content' }}>
+                {visibleProducts.map((product, index) => (
+                  <ProductCard key={product.id} product={product} index={index} />
+                ))}
+              </motion.div>
+              {hasMore && (
+                <div ref={loadMoreRef} className="h-20 w-full mt-4 flex items-center justify-center">
+                  <Loader2 size={24} className="animate-spin text-[#0f172a]/50" />
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.section>
+  );
+}
+
 interface ProductGalleryProps {
   searchQuery: string;
   initialCategory?: string;
@@ -435,47 +519,16 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
                 const accurateCount = apiCategoryData ? apiCategoryData.totalCount : categoryProducts.length;
 
                 return (
-                  <motion.section
+                  <CategorySection
                     key={category}
-                    initial={{ opacity: 0, y: 30 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.4, delay: categoryIndex * 0.1 }}
-                  >
-                    <div
-                      className="bg-white/40 backdrop-blur-xl rounded-[1.5rem] shadow-[0_8px_32px_0_rgba(31,38,135,0.05)] border border-white/60 flex items-center justify-between p-6 mb-8 cursor-pointer hover:shadow-md transition-shadow"
-                      onClick={() => toggleSection(category)}
-                    >
-                      <div className="flex items-center gap-4">
-                        <motion.div animate={{ rotate: isCollapsed ? -90 : 0 }} transition={{ duration: 0.2 }} className="bg-gray-100 p-2 rounded-full text-gray-500">
-                          <ChevronDown size={20} />
-                        </motion.div>
-                        <h2 className="text-2xl font-black text-[#0f172a] tracking-wide uppercase">{category}</h2>
-                      </div>
-                      <span className="text-sm font-bold text-gray-500 bg-gray-50 px-4 py-2 rounded-full">
-                        {accurateCount} {accurateCount === 1 ? 'Product' : 'Products'}
-                      </span>
-                    </div>
-
-                    <AnimatePresence>
-                      {!isCollapsed && (
-                        <motion.div
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: 'auto' }}
-                          exit={{ opacity: 0, height: 0 }}
-                          transition={{ duration: 0.3 }}
-                          className="overflow-hidden"
-                        >
-                          <div className="pb-8">
-                            <motion.div layout className={`grid gap-6 sm:gap-8 ${gridClass}`} style={{ gridAutoRows: 'max-content' }}>
-                              {categoryProducts.map((product, index) => (
-                                <ProductCard key={product.id} product={product} index={index} />
-                              ))}
-                            </motion.div>
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </motion.section>
+                    category={category}
+                    categoryProducts={categoryProducts}
+                    categoryIndex={categoryIndex}
+                    isCollapsed={isCollapsed}
+                    toggleSection={toggleSection}
+                    accurateCount={accurateCount}
+                    gridClass={gridClass}
+                  />
                 );
               })}
 

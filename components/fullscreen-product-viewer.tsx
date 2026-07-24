@@ -4,6 +4,7 @@ import { useState, useRef, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, ChevronRight, ShoppingCart, X, Minus, Plus, Heart, Share2, Search, ArrowLeft } from 'lucide-react';
 import { useCart } from '@/lib/contexts/cart-context';
+import { useCallback } from 'react';
 import { Product } from '@/lib/types';
 import { formatPrice } from '@/lib/currency';
 import QuickAddModal from './quick-add-modal';
@@ -79,9 +80,7 @@ export default function FullscreenProductViewer({
     }
   }, [searchOpen]);
 
-  const currentProduct = products[currentIndex] || products[0];
-
-  const handleSwipe = (newDirection: 'left' | 'right') => {
+  const handleSwipe = useCallback((newDirection: 'left' | 'right') => {
     setDirection(newDirection);
     if (newDirection === 'right') {
       setCurrentIndex((prev) => (prev === 0 ? products.length - 1 : prev - 1));
@@ -94,7 +93,31 @@ export default function FullscreenProductViewer({
     setSelectedColor(null);
     setSelectedSize(null);
     setNotes('');
-  };
+  }, [products.length]);
+
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if typing in an input or textarea
+      if (
+        document.activeElement?.tagName === 'INPUT' ||
+        document.activeElement?.tagName === 'TEXTAREA'
+      ) {
+        return;
+      }
+      
+      if (e.key === 'ArrowLeft') {
+        handleSwipe('right');
+      } else if (e.key === 'ArrowRight') {
+        handleSwipe('left');
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleSwipe]);
+
+  const currentProduct = products[currentIndex] || products[0];
 
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX;
@@ -137,14 +160,18 @@ export default function FullscreenProductViewer({
   };
 
   const handleShare = () => {
-    if (navigator.share && currentProduct) {
-      navigator.share({
-        title: currentProduct.name.toUpperCase(),
-        text: `Check out ${currentProduct.name.toUpperCase()} - ${formatPrice(currentProduct.price)}`,
-        url: window.location.href,
-      });
-    } else if (currentProduct) {
-      alert('Share this product: ' + currentProduct.name.toUpperCase());
+    if (currentProduct) {
+      const shareUrl = `${window.location.origin}/view?productId=${currentProduct.productId || currentProduct.id}`;
+      if (navigator.share) {
+        navigator.share({
+          title: currentProduct.name.toUpperCase(),
+          text: `Check out ${currentProduct.name.toUpperCase()} - ${formatPrice(currentProduct.price)}`,
+          url: shareUrl,
+        });
+      } else {
+        navigator.clipboard.writeText(shareUrl);
+        alert('Link copied to clipboard: ' + shareUrl);
+      }
     }
   };
 
