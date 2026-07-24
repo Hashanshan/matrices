@@ -9,6 +9,7 @@ import { Product } from '@/lib/types';
 import { formatPrice } from '@/lib/currency';
 import QuickAddModal from './quick-add-modal';
 import Link from 'next/link';
+import RelatedProducts from './related-products';
 import { Menu, Home, Grid, BookOpen } from 'lucide-react';
 
 interface FullscreenProductViewerProps {
@@ -105,7 +106,7 @@ export default function FullscreenProductViewer({
       ) {
         return;
       }
-      
+
       if (e.key === 'ArrowLeft') {
         handleSwipe('right');
       } else if (e.key === 'ArrowRight') {
@@ -182,7 +183,7 @@ export default function FullscreenProductViewer({
   // If no products found, render a clean blank search/no results state
   if (products.length === 0) {
     return (
-      <div className="w-full h-screen  flex flex-col items-center justify-center relative p-8">
+      <div className="w-full min-h-screen flex flex-col items-center relative p-8 !backdrop-blur-[2px] overflow-y-auto no-scrollbar pb-24">
         <div className="absolute top-6 sm:top-8 right-6 sm:right-8 flex gap-3 z-20">
           <div className="flex items-center gap-0">
             <input
@@ -218,17 +219,21 @@ export default function FullscreenProductViewer({
             </button>
           </Link>
         </div>
-        <div className="text-center text-white">
+        <div className="text-center text-white mt-24 mb-8">
           <p className="text-4xl mb-4">🔍</p>
           <h2 className="text-2xl font-black uppercase tracking-wider mb-2">NO PRODUCTS FOUND</h2>
-          <p className="text-gray-400 text-sm max-w-sm">TRY SEARCHING FOR OTHER ITEMS OR CLEAR THE SEARCH FILTER</p>
+          <p className="text-gray-400 text-sm max-w-sm mx-auto">TRY SEARCHING FOR OTHER ITEMS OR CLEAR THE SEARCH FILTER</p>
+        </div>
+        
+        <div className="w-full max-w-7xl">
+          <RelatedProducts />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="w-full h-screen bg-transparent overflow-hidden relative max-w-full">
+    <div className="w-full h-screen !backdrop-blur-[2px] overflow-hidden relative max-w-full">
       {/* Full Image Container */}
       <div
         className="w-full h-full flex items-center justify-center relative cursor-move group"

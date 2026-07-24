@@ -35,12 +35,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
-      <body className="font-sans antialiased text-foreground min-h-screen  relative   bg-[url('/bg.png')]
+      <body className="font-sans antialiased text-foreground min-h-screen  relative  
+       bg-[url('/bg.png')]
     bg-cover
     bg-center
     bg-no-repeat
     bg-fixed">
-        <div className="absolute inset-0 backdrop-blur-[3px]" />
+        {/* <div className="absolute inset-0 backdrop-blur-[3px]" /> */}
 
 
 

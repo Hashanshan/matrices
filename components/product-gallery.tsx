@@ -9,6 +9,7 @@ import { ChevronDown, X, Check, PanelLeftClose, PanelLeftOpen, Filter, SortDesc,
 import { Button } from '@/components/ui/button';
 import { formatPrice } from '@/lib/currency';
 import CustomSelect from './custom-select';
+import RelatedProducts from './related-products';
 
 function CategorySection({
   category,
@@ -73,9 +74,9 @@ function CategorySection({
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.3 }}
-            className="overflow-hidden"
+            className="overflow-hidden backdrop-blur-[2px] p-2"
           >
-            <div className="pb-8">
+            <div className="pb-8 ">
               <motion.div layout className={`grid gap-6 sm:gap-8 ${gridClass}`} style={{ gridAutoRows: 'max-content' }}>
                 {visibleProducts.map((product, index) => (
                   <ProductCard key={product.id} product={product} index={index} />
@@ -508,7 +509,7 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
         </AnimatePresence>
 
         {/* Main Products Content */}
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 ">
           {filteredProducts.length > 0 ? (
             <div className="space-y-12">
               {Object.entries(groupedProducts).map(([category, categoryProducts], categoryIndex) => {
@@ -546,19 +547,22 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
               </div>
             </div>
           ) : (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="flex flex-col items-center justify-center py-32 text-center bg-white/30 backdrop-blur-2xl rounded-[3rem] border border-white/60 shadow-[0_8px_32px_0_rgba(31,38,135,0.07)]"
-            >
-              <div className="w-24 h-24 bg-gray-50 rounded-full flex items-center justify-center mb-6">
-                <span className="text-4xl">🔍</span>
-              </div>
-              <p className="text-3xl font-black text-[#0f172a] mb-3">No products found</p>
-              <p className="text-lg font-medium text-gray-400 max-w-md">
-                Try adjusting your search terms or clearing some filters to find what you&apos;re looking for
-              </p>
-            </motion.div>
+            <div className="flex flex-col gap-12 w-full">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="flex flex-col items-center justify-center py-32 text-center bg-white/30 backdrop-blur-2xl rounded-[3rem] border border-white/60 shadow-[0_8px_32px_0_rgba(31,38,135,0.07)]"
+              >
+                <div className="w-24 h-24 bg-gray-50 rounded-full flex items-center justify-center mb-6">
+                  <span className="text-4xl">🔍</span>
+                </div>
+                <p className="text-3xl font-black text-[#0f172a] mb-3">No products found</p>
+                <p className="text-lg font-medium text-gray-400 max-w-md">
+                  Try adjusting your search terms or clearing some filters to find what you&apos;re looking for
+                </p>
+              </motion.div>
+              <RelatedProducts />
+            </div>
           )}
         </div>
       </div>

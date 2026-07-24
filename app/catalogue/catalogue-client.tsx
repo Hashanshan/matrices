@@ -50,7 +50,11 @@ export default function CategoriesPage() {
   return (
     <>
       <Header showSearch={false} />
-      <main className="min-h-screen bg-transparent py-8">
+      <main className="min-h-screen   bg-[url('/bg.png')]
+    bg-cover
+    bg-center
+    bg-no-repeat
+    bg-fixed py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {isValidating && categories.length > 0 && (
             <div className="fixed top-4 right-4 z-50">
@@ -109,7 +113,7 @@ export default function CategoriesPage() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
                 transition={{ duration: 0.3 }}
-                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8"
+                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 backdrop-blur-[2px]"
               >
                 {filteredCategories.map((cat, index) => (
                   <motion.div
@@ -168,7 +172,7 @@ export default function CategoriesPage() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
                 transition={{ duration: 0.3 }}
-                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8"
+                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 backdrop-blur-[2px]"
               >
                 {filteredSubcategories.map((sub, index) => (
                   <motion.div
