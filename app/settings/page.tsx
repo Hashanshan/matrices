@@ -3,11 +3,11 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
-export default function WishlistRootPage() {
+export default function SettingsRootPage() {
   const router = useRouter();
 
   useEffect(() => {
-    router.replace('/settings/wishlist');
+    router.replace('/settings/security');
   }, [router]);
 
   return (

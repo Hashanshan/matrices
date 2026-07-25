@@ -48,14 +48,36 @@ The Wishlist system provides persistent, API-based management of favorite Catego
 - **Product Gallery Display**: Under each category section, products wishlisted by the user appear **FIRST**, preserving custom wishlist priority. Non-wishlisted products follow in their default sort order.
 - **Visual Design**: The redundant text badge "WISHLISTED" was removed. Only the Heart icon (filled red heart when saved vs. empty outline when not) is rendered on cards for a clean, elegant aesthetic.
 
----
-
-### 3. Wishlist Management Page (`app/wishlist/page.tsx`)
-- Accessible via `/wishlist` or the header Heart icon button.
-- Displays all wishlisted Categories, Subcategories, and Products.
-- Supports interactive reordering controls (Move Up / Move Down priority controls). Reordering triggers `reorderWishlist` API calls that persist directly to the MongoDB backend.
+#### `/view` Page (`app/view/page.tsx` & `components/fullscreen-product-viewer.tsx`)
+- **Wishlist Integration**: Connected Heart button in full-screen product viewer directly to `useWishlist` hook (`isProductWishlisted` and `toggleProductWishlist`). Allows instant toggling of product wishlist status.
+- **Wishlist-First Product Priority**: `GET /api/catelogue/products` computes `wishlistScore` in MongoDB aggregation pipeline per salesrep, serving wishlisted products/categories/subcategories **FIRST** on page load.
 
 ---
+
+### 3. Security Settings Page (`app/settings/security/page.tsx`)
+- **Per-Visit PIN Security Gate**: Accessing Security Settings (`/settings/security`) requires 4-digit Security PIN verification via `PinModal` (`components/pin-modal.tsx`) on **every single visit**.
+- **Password & PIN Configuration**:
+  - **Password Tab**: Allows editing Name, viewing read-only Email, and changing account Password.
+  - **Security PIN Tab**: Allows setting or updating the 4-digit Security PIN.
+- **iPad OS Design**: Built with `rounded-[2.5rem]` glassmorphism cards, `rounded-full` iPad OS style pill buttons, `rounded-full` input fields, and circular `rounded-full` keypad buttons in `PinModal`.
+
+---
+
+### 4. Settings Wishlist Page (`app/settings/wishlist/page.tsx`)
+- **Per-Visit PIN Security Gate**: Accessing Wishlist under Settings (`/settings/wishlist`) is strictly protected by 4-digit Security PIN verification on **every single visit**.
+- **Tab-Based Navigation**: Features iPad-style pill tabs for **All Items**, **Categories**, **Subcategories**, and **Products**.
+- **Interactive Priority Reordering**: Supports Move Up / Move Down controls with live persistence to backend MongoDB.
+- **Card & Border Radius Design System**: All category, subcategory, and product containers are styled with `rounded-[2.5rem]` glassmorphism cards, `rounded-full` action controls, and `rounded-full` badges matching the site design system.
+
+---
+
+### 5. Navigation & Header Restructuring (`components/header.tsx`)
+- **Strict Top Navigation Links**: Desktop & Mobile Navbars strictly display:
+  1. **Home** (`/catalogue`)
+  2. **Gallery** (`/gallery`)
+  3. **Products** (`/view`)
+  4. **Cart** (`/cart`)
+- **User Profile Dropdown Menu**: Contains separate links for **My Wishlist** (`/settings/wishlist`) and **Security Settings** (`/settings/security`), both protected by the Security PIN gate.
 
 ## Data Fetching & API Architecture
 

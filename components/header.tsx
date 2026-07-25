@@ -3,10 +3,9 @@
 import { useState } from 'react';
 import { useAuth } from '@/lib/contexts/auth-context';
 import { useCart } from '@/lib/contexts/cart-context';
-import { useWishlist } from '@/lib/contexts/wishlist-context';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Menu, X, ShoppingCart as CartIcon, LogOut, User, Heart } from 'lucide-react';
+import { Menu, X, ShoppingCart as CartIcon, LogOut, User, Settings, Heart, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
@@ -20,7 +19,6 @@ interface HeaderProps {
 export default function Header({ searchQuery = '', onSearchChange, showSearch = true }: HeaderProps) {
   const { user, logout } = useAuth();
   const { cart } = useCart();
-  const { totalWishlistCount } = useWishlist();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
 
@@ -30,7 +28,7 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
   };
 
   return (
-    <header className="sticky top-0 z-50 bg-white/30 backdrop-blur-2xl border-b border-white/40 shadow-[0_8px_32px_0_rgba(31,38,135,0.05)]">
+    <header className="sticky top-0 z-50  backdrop-blur-2xl border-b border-white/40 shadow-[0_8px_32px_0_rgba(31,38,135,0.05)]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Desktop Header */}
         <div className="flex items-center justify-between h-20 gap-6">
@@ -50,13 +48,13 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
             </motion.div>
           </Link>
 
-          {/* Navigation Links */}
+          {/* Navigation Links (strictly Home, Gallery, Products, Cart) */}
           <nav className="hidden lg:flex gap-8 flex-1 justify-center">
             {[
               { href: '/catalogue', label: 'Home' },
               { href: '/gallery', label: 'Gallery' },
               { href: '/view', label: 'Products' },
-              { href: '/wishlist', label: 'Wishlist' },
+              { href: '/cart', label: 'Cart' },
             ].map((link) => (
               <Link
                 key={link.href}
@@ -81,7 +79,7 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
                   placeholder="Search premium products..."
                   value={searchQuery}
                   onChange={(e) => onSearchChange?.(e.target.value)}
-                  className="w-full px-4 py-3 bg-secondary border-2 border-border rounded-xl focus:outline-none focus:ring-0 focus:border-accent text-foreground placeholder-muted-foreground font-medium transition-all"
+                  className="w-full px-4 py-3 bg-secondary border-2 border-border rounded-2xl focus:outline-none focus:ring-0 focus:border-accent text-foreground placeholder-muted-foreground font-medium transition-all"
                 />
               </motion.div>
             </div>
@@ -89,28 +87,10 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
 
           {/* Right Section */}
           <div className="flex items-center gap-3 md:gap-6">
-            {/* Wishlist Button */}
-            <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }}>
-              <Link href="/wishlist">
-                <div className="relative p-2 hover:bg-secondary rounded-xl transition-colors cursor-pointer group" title="Wishlist">
-                  <Heart size={24} className="text-foreground group-hover:text-red-500 transition-colors" fill={totalWishlistCount > 0 ? '#ef4444' : 'none'} />
-                  {totalWishlistCount > 0 && (
-                    <motion.span
-                      initial={{ scale: 0, rotate: -180 }}
-                      animate={{ scale: 1, rotate: 0 }}
-                      className="absolute -top-1 -right-1 bg-red-500 text-white w-6 h-6 rounded-full text-xs flex items-center justify-center font-bold shadow-lg"
-                    >
-                      {totalWishlistCount}
-                    </motion.span>
-                  )}
-                </div>
-              </Link>
-            </motion.div>
-
             {/* Cart Button */}
             <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }}>
               <Link href="/cart">
-                <div className="relative p-2 hover:bg-secondary rounded-xl transition-colors cursor-pointer group" title="Shopping Cart">
+                <div className="relative p-2.5 hover:bg-secondary rounded-2xl transition-colors cursor-pointer group" title="Shopping Cart">
                   <CartIcon size={24} className="text-foreground group-hover:text-accent transition-colors" />
                   {cart.itemCount > 0 && (
                     <motion.span
@@ -125,39 +105,58 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
               </Link>
             </motion.div>
 
-            {/* User Menu */}
+            {/* User Profile & Settings Menu */}
             {user && (
-              <div className="relative hidden md:block">
+              <div className="relative hidden md:block ">
                 <motion.button
                   whileHover={{ scale: 1.1 }}
                   whileTap={{ scale: 0.95 }}
                   onClick={() => setShowProfileMenu(!showProfileMenu)}
                   className="p-2 hover:bg-secondary rounded-full transition-colors"
                 >
-                  <div className="w-8 h-8 bg-gradient-to-br from-accent to-accent/60 rounded-full flex items-center justify-center text-white font-bold">
+                  <div className="w-9 h-9 bg-gradient-to-br from-accent to-accent/60 rounded-full flex items-center justify-center text-white font-black text-sm shadow-md">
                     {user.name.charAt(0).toUpperCase()}
                   </div>
                 </motion.button>
 
-                {/* Desktop Profile Dropdown */}
+                {/* Desktop Profile Dropdown (iPad Glassmorphism Pill Design) */}
                 {showProfileMenu && (
                   <motion.div
                     initial={{ opacity: 0, y: -15, scale: 0.95 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: -15, scale: 0.95 }}
-                    className="absolute rounded-[0.5rem] right-0 mt-3 w-64 bg-card border-2 border-border rounded-2xl shadow-2xl p-6 space-y-4"
+                    className="absolute right-0 mt-4 w-72 bg-white backdrop-blur-2xl border border-white/80 rounded-[2.5rem] shadow-[0_20px_60px_rgba(0,0,0,0.18)] p-6 space-y-3 z-50 overflow-hidden"
                   >
-                    <div className="pb-4 border-b border-border">
-                      <p className="text-base font-bold text-foreground">{user.name}</p>
-                      <p className="text-sm text-accent font-medium">{user.email}</p>
+                    <div className="pb-3 border-b border-gray-200/60">
+                      <p className="text-base font-black text-[#0f172a] uppercase">{user.name}</p>
+                      <p className="text-xs text-gray-500 font-bold truncate mt-0.5">{user.email}</p>
                     </div>
+
+                    <Link
+                      href="/settings/wishlist"
+                      onClick={() => setShowProfileMenu(false)}
+                      className="flex items-center gap-3 px-5 py-3.5 font-black text-xs uppercase tracking-wider text-[#0f172a] bg-white/60 hover:bg-white border border-white/60 rounded-full transition-all shadow-sm"
+                    >
+                      <Heart size={18} fill="#ef4444" className="text-red-500" />
+                      My Wishlist
+                    </Link>
+
+                    <Link
+                      href="/settings/security"
+                      onClick={() => setShowProfileMenu(false)}
+                      className="flex items-center gap-3 px-5 py-3.5 font-black text-xs uppercase tracking-wider text-[#0f172a] bg-white/60 hover:bg-white border border-white/60 rounded-full transition-all shadow-sm"
+                    >
+                      <ShieldCheck size={18} />
+                      Security Settings
+                    </Link>
+
                     <motion.button
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
                       onClick={handleLogout}
-                      className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-destructive to-destructive/80 hover:from-destructive/90 hover:to-destructive text-white font-bold py-3 rounded-full transition-all"
+                      className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white font-black py-4 rounded-full transition-all uppercase text-xs tracking-wider shadow-lg shadow-red-500/20"
                     >
-                      <LogOut size={18} />
+                      <LogOut size={16} />
                       Logout
                     </motion.button>
                   </motion.div>
@@ -170,7 +169,7 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden p-2 hover:bg-secondary rounded-xl transition-colors"
+              className="md:hidden p-2.5 hover:bg-secondary rounded-2xl transition-colors"
             >
               {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
             </motion.button>
@@ -192,23 +191,23 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
                 placeholder="Search products..."
                 value={searchQuery}
                 onChange={(e) => onSearchChange?.(e.target.value)}
-                className="w-full px-4 py-3 bg-secondary border-2 border-border rounded-xl focus:outline-none focus:border-accent text-foreground"
+                className="w-full px-4 py-3 bg-secondary border-2 border-border rounded-2xl focus:outline-none focus:border-accent text-foreground"
               />
             </div>
           )}
 
-          {/* Navigation */}
+          {/* Navigation (strictly Home, Gallery, Products, Cart) */}
           <nav className="p-4 space-y-2 border-b border-border">
             {[
               { href: '/catalogue', label: 'Home' },
               { href: '/gallery', label: 'Gallery' },
               { href: '/view', label: 'Products' },
-              { href: '/wishlist', label: `Wishlist (${totalWishlistCount})` },
+              { href: '/cart', label: `Cart (${cart.itemCount})` },
             ].map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
-                className="block px-4 py-3 text-foreground font-bold hover:bg-secondary rounded-xl transition-colors"
+                className="block px-4 py-3 text-foreground font-bold hover:bg-secondary rounded-2xl transition-colors"
                 onClick={() => setMobileMenuOpen(false)}
               >
                 {link.label}
@@ -216,21 +215,39 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
             ))}
           </nav>
 
-          {/* User Info */}
+          {/* User Info & Settings Links */}
           {user && (
-            <div className="p-4 space-y-4">
-              <div className="p-4 bg-secondary rounded-xl">
-                <p className="font-bold text-foreground text-lg">{user.name}</p>
-                <p className="text-sm text-accent font-medium">{user.email}</p>
-                <p className="text-xs text-muted-foreground mt-1">{user.phone}</p>
+            <div className="p-4 space-y-3">
+              <div className="p-5 bg-white/60 backdrop-blur-xl border border-white/60 rounded-[2rem] shadow-sm">
+                <p className="font-black text-[#0f172a] uppercase text-base">{user.name}</p>
+                <p className="text-xs text-gray-500 font-bold mt-0.5">{user.email}</p>
               </div>
+
+              <Link
+                href="/settings/wishlist"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center gap-3 px-5 py-3.5 font-black text-xs uppercase tracking-wider bg-white/60 hover:bg-white text-[#0f172a] border border-white/60 rounded-full transition-all shadow-sm"
+              >
+                <Heart size={18} fill="#ef4444" className="text-red-500" />
+                My Wishlist
+              </Link>
+
+              <Link
+                href="/settings/security"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center gap-3 px-5 py-3.5 font-black text-xs uppercase tracking-wider bg-white/60 hover:bg-white text-[#0f172a] border border-white/60 rounded-full transition-all shadow-sm"
+              >
+                <ShieldCheck size={18} />
+                Security Settings
+              </Link>
+
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={handleLogout}
-                className="w-full flex items-center justify-center gap-2 bg-destructive hover:bg-destructive/90 text-white font-bold py-3 rounded-xl transition-all"
+                className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white font-black py-4 rounded-full transition-all uppercase text-xs tracking-wider shadow-md"
               >
-                <LogOut size={18} />
+                <LogOut size={16} />
                 Logout
               </motion.button>
             </div>

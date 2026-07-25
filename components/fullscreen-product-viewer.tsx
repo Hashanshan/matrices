@@ -4,6 +4,7 @@ import { useState, useRef, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, ChevronRight, ShoppingCart, X, Minus, Plus, Heart, Share2, Search, ArrowLeft } from 'lucide-react';
 import { useCart } from '@/lib/contexts/cart-context';
+import { useWishlist } from '@/lib/contexts/wishlist-context';
 import { useCallback } from 'react';
 import { Product } from '@/lib/types';
 import { formatPrice } from '@/lib/currency';
@@ -44,7 +45,6 @@ export default function FullscreenProductViewer({
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
-  const [isLiked, setIsLiked] = useState(false);
   const [addedSuccess, setAddedSuccess] = useState(false);
   const [imageZoomed, setImageZoomed] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -52,6 +52,7 @@ export default function FullscreenProductViewer({
   const searchInputRef = useRef<HTMLInputElement>(null);
   const touchStartX = useRef(0);
   const { addToCart } = useCart();
+  const { isProductWishlisted, toggleProductWishlist } = useWishlist();
   const [menuOpen, setMenuOpen] = useState(false);
   const { cart } = useCart();
 
@@ -412,12 +413,22 @@ export default function FullscreenProductViewer({
           </motion.div>
 
           <motion.button
-            onClick={() => setIsLiked(!isLiked)}
+            onClick={() => {
+              if (currentProduct) {
+                const prodId = currentProduct.productId || currentProduct.id;
+                if (prodId) toggleProductWishlist(prodId);
+              }
+            }}
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.95 }}
             className="p-3.5 rounded-full bg-white/30 backdrop-blur-2xl hover:bg-white/60 text-[#0f172a] transition-all shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] border border-white/60"
+            title={currentProduct && isProductWishlisted(currentProduct.productId || currentProduct.id) ? "Remove from Wishlist" : "Add to Wishlist"}
           >
-            <Heart size={20} fill={isLiked ? 'currentColor' : 'none'} className={isLiked ? 'text-red-500' : ''} />
+            <Heart
+              size={20}
+              fill={currentProduct && isProductWishlisted(currentProduct.productId || currentProduct.id) ? '#ef4444' : 'none'}
+              className={currentProduct && isProductWishlisted(currentProduct.productId || currentProduct.id) ? 'text-red-500' : ''}
+            />
           </motion.button>
 
           <motion.button
