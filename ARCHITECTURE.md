@@ -3,6 +3,8 @@
 ## Overview
 This is a Next.js application that serves as a product catalogue for salesrep users. It connects to a backend API through a server-side BFF (Backend For Frontend) proxy to ensure the real backend URL is never exposed to the browser.
 
+---
+
 ## Authentication & Routing
 - `/` is the login page (root). Only `salesrep` users can log in.
 - All other routes are protected by `AuthGuard` (wraps `RootLayout`).
@@ -13,13 +15,56 @@ This is a Next.js application that serves as a product catalogue for salesrep us
 ## Future Updates
 When modifying the authentication flow, ensure that the `AuthContext` (`lib/contexts/auth-context.tsx`) remains the central source of truth for the user's session state. The `AuthGuard` handles all client-side redirect logic.
 
+---
+
+## Wishlist System & Priority Sorting Architecture
+
+### 1. Overview & Data Flow
+The Wishlist system provides persistent, API-based management of favorite Categories, Subcategories, and Products for each logged-in sales representative. Wishlist items dictate visual priority throughout the site.
+
+- **BFF Proxy Routes**:
+  - `app/api/wishlist/route.ts`: Proxies `GET` (fetch user wishlist) and `POST` (toggle item in wishlist) to backend `GET /api/catelogue/wishlist` and `POST /api/catelogue/wishlist/toggle`.
+  - `app/api/wishlist/reorder/route.ts`: Proxies `PUT` (reorder items) to backend `PUT /api/catelogue/wishlist/reorder`.
+- **Wishlist Context & Hook (`lib/contexts/wishlist-context.tsx`)**:
+  - Leverages SWR to cache wishlist state globally and perform optimistic UI updates upon toggling or reordering.
+  - Exposes helper methods: `isCategoryWishlisted`, `isSubcategoryWishlisted`, `isProductWishlisted`, `toggleCategoryWishlist`, `toggleSubcategoryWishlist`, `toggleProductWishlist`, and `reorderWishlist`.
+
+---
+
+### 2. Wishlist Priority Sorting Rules
+
+#### `/catalogue` Page
+- **Main Categories View**: Wishlisted Categories appear **FIRST** in the grid, sorted by user-defined wishlist priority (`order`). Non-wishlisted categories follow, sorted alphabetically (A-Z).
+- **Subcategories View**: Under a selected category, Wishlisted Subcategories appear **FIRST**, sorted by user-defined wishlist priority (`order`). Non-wishlisted subcategories follow, sorted alphabetically (A-Z).
+- **Interactive Toggles**: Heart icon buttons on Category and Subcategory cards enable instant toggling without leaving the page.
+
+#### `/gallery` Page
+- **Salesrep Wishlist Isolation**: Each salesrep user has their own isolated `Wishlist` document in MongoDB tied to their `userId`.
+- **Backend Product & Filter API Integration**:
+  - `GET /api/catelogue/products/filters` checks the salesrep's wishlist in backend database and returns categories and subcategories with wishlisted items sorted **FIRST** (in wishlist priority order).
+  - `GET /api/catelogue/products` computes `wishlistScore` in MongoDB aggregation pipeline per salesrep, serving products belonging to wishlisted categories, subcategories, and products **FIRST** on page load.
+- **Category Sections Sorting**: Accordion category sections on `/gallery` (`sortedGroupedEntries`) are sorted with Wishlisted Categories appearing **FIRST** (ordered by user wishlist priority index), followed by non-wishlisted categories.
+- **Filter Sidebar & Subcategories**: Categories and subcategories in the filter sidebar default to wishlist priority order.
+- **Product Gallery Display**: Under each category section, products wishlisted by the user appear **FIRST**, preserving custom wishlist priority. Non-wishlisted products follow in their default sort order.
+- **Visual Design**: The redundant text badge "WISHLISTED" was removed. Only the Heart icon (filled red heart when saved vs. empty outline when not) is rendered on cards for a clean, elegant aesthetic.
+
+---
+
+### 3. Wishlist Management Page (`app/wishlist/page.tsx`)
+- Accessible via `/wishlist` or the header Heart icon button.
+- Displays all wishlisted Categories, Subcategories, and Products.
+- Supports interactive reordering controls (Move Up / Move Down priority controls). Reordering triggers `reorderWishlist` API calls that persist directly to the MongoDB backend.
+
+---
+
 ## Data Fetching & API Architecture
 
 ### BFF Proxy Pattern (API Hiding)
 - **The browser NEVER calls the backend directly.**
-- All product requests go through the Next.js API Route Handler at `app/api/products/route.ts`.
-- This route reads `BACKEND_API_URL` from `.env.local` (server-side only, never exposed to the browser) and proxies requests to the real backend.
-- In the browser's Network tab, users only see calls to `/api/products`, not the real backend URL.
+- Product requests go through `app/api/products/route.ts`.
+- Filter requests go through `app/api/products/filters/route.ts`.
+- Wishlist requests go through `app/api/wishlist/route.ts` and `app/api/wishlist/reorder/route.ts`.
+- Reads `BACKEND_API_URL` from `.env.local` (server-side only) and forwards Authorization tokens.
 
 ### Environment Variables
 - `BACKEND_API_URL` — Set in `.env.local`. The real backend base URL (e.g., `http://localhost:5000`). Server-side only.
@@ -28,50 +73,32 @@ When modifying the authentication flow, ensure that the `AuthContext` (`lib/cont
 - **Library**: `swr` (installed as a dependency).
 - **Behavior**:
   - **First visit**: Fetches from the API and displays a loading spinner.
-  - **Revisits**: Instantly shows cached data from memory. In the background, SWR silently revalidates against the server. If the data has changed, the UI updates seamlessly.
-  - **Tab focus / reconnect**: Automatic revalidation when the user returns to the tab or reconnects to the network.
+  - **Revisits**: Instantly shows cached data from memory. In the background, SWR silently revalidates against the server.
   - **Deduplication**: Identical requests within 5 seconds are deduplicated.
 - **Hooks**:
   - `useProducts(options)` — Cursor-paginated infinite loading. Used by `/gallery` (`ProductGallery`).
   - `useAllProducts(options)` — Single-fetch with high limit. Used by `/catalogue` and `/view`.
-
-### Cursor Pagination
-- **Backend**: `GET /api/catelogue/products` accepts `cursor` and `limit` query parameters.
-- **Cursor**: The `_id` of the last item from the previous page.
-- **Response**: Includes `nextCursor` (string or null) and `hasNextPage` (boolean).
-- **Frontend**: The `ProductGallery` component uses `useSWRInfinite` with an `IntersectionObserver` sentinel to automatically load the next page when the user scrolls to the bottom.
+  - `useWishlist()` — Real-time SWR hook for user wishlist state.
 
 ### Image Proxy (Bucket URL Hiding)
-- **Problem**: Directly loading images exposes the S3/storage bucket URL to the client.
-- **Solution**: The `app/api/image/route.ts` proxy intercepts image requests.
-- **Mechanism**: The backend/SSR proxy transforms all valid image URLs into a base64 encoded URL format: `/api/image?url=<base64_encoded_url>`. The Next.js image proxy fetches and streams the image to the browser, completely masking the original storage bucket.
+- **Mechanism**: The `app/api/image/route.ts` proxy transforms all valid image URLs into a base64 encoded URL format: `/api/image?url=<base64_encoded_url>` to hide S3/storage bucket URLs from client inspector.
 
-### Server-Side Rendering (SSR) & SWR Caching
-- **Hybrid Approach**: The app combines Server-Side Rendering (SSR) for instantaneous initial page loads, and SWR for client-side caching and background mutations.
-- **Mechanism**:
-  1. On login, the JWT is stored in an HTTP Cookie (`token`) as well as `localStorage`.
-  2. The Next.js Server Components (`app/catalogue/page.tsx` and `app/view/page.tsx`) read this cookie via `cookies().get('token')` to securely fetch the initial product data on the server during the initial page request.
-  3. This pre-fetched data is passed to the client components as `fallbackData` for SWR.
-  4. SWR takes over on the client, providing instant caching, background revalidation, and pagination.
-- **Excluded**: `buyPrice`, `stocks`, `history`, and all other internal fields.
-
-### Sorting
-- Default: Newest first (`_id` descending).
-- `sort=view`: `subCategory` → `category` → `name` (ascending). Used by the `/view` fullscreen viewer.
-- `sort=price-low`: `sellPrice` ascending.
-- `sort=price-high`: `sellPrice` descending.
+---
 
 ## Key Files Reference
 
 | File | Purpose |
 |------|---------|
 | `.env.local` | Backend API URL (server-side only) |
-| `app/api/products/route.ts` | BFF proxy — hides backend from browser |
-| `lib/hooks/use-products.ts` | SWR hooks (`useProducts`, `useAllProducts`) |
-| `lib/types.ts` | TypeScript interfaces for `Product`, `FilterState`, etc. |
-| `components/product-gallery.tsx` | Gallery with filters, sorting, infinite scroll |
-| `components/fullscreen-product-viewer.tsx` | Fullscreen swipeable product viewer |
-| `components/auth-guard.tsx` | Route protection component |
-| `lib/contexts/auth-context.tsx` | Authentication state management |
-| `backend/catelogue/controllers/productController.js` | Cursor pagination, projection, filtering |
-| `backend/catelogue/routes/productRoutes.js` | Route definitions for catalogue API |
+| `app/api/products/route.ts` | BFF proxy for products |
+| `app/api/wishlist/route.ts` | BFF proxy for wishlist GET & POST |
+| `app/api/wishlist/reorder/route.ts` | BFF proxy for wishlist PUT reorder |
+| `lib/contexts/wishlist-context.tsx` | Wishlist state management provider and `useWishlist` hook |
+| `app/wishlist/page.tsx` | Dedicated Wishlist management and reordering page |
+| `app/catalogue/catalogue-client.tsx` | Main catalogue page with category & subcategory wishlist priority sorting |
+| `components/product-gallery.tsx` | Product gallery with product wishlist priority sorting |
+| `components/product-card.tsx` | Product card with interactive wishlist toggle |
+| `components/header.tsx` | Site header with Wishlist navigation link and item count badge |
+| `backend/models/Wishlist.js` | MongoDB model for per-user wishlist storage |
+| `backend/catelogue/controllers/wishlistController.js` | Backend wishlist logic (get, toggle, reorder) |
+| `backend/catelogue/routes/wishlistRoutes.js` | Express route definitions for wishlist API |

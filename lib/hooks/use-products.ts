@@ -28,7 +28,7 @@ interface ProductsResponse {
 
 // ─── Fetcher ────────────────────────────────────────────────────────────────
 
-const fetcher = async (url: string): Promise<ProductsResponse> => {
+const fetcher = async <T = any>(url: string): Promise<T> => {
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
 
   const res = await fetch(url, {
@@ -163,8 +163,14 @@ export function useAllProducts(options: Omit<UseProductsOptions, 'limit'> & { fa
   const params = new URLSearchParams();
   params.set('sort', sort);
   params.set('limit', '500'); // High limit to get all products
-  if (category) params.set('category', category);
-  if (subcategory) params.set('subcategory', subcategory);
+  if (category) {
+    const catVal = Array.isArray(category) ? category.join(',') : category;
+    if (catVal) params.set('category', catVal);
+  }
+  if (subcategory) {
+    const subVal = Array.isArray(subcategory) ? subcategory.join(',') : subcategory;
+    if (subVal) params.set('subcategory', subVal);
+  }
   if (search) params.set('search', search);
 
   const key = `/api/products?${params.toString()}`;

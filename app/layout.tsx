@@ -4,6 +4,7 @@ import { Geist, Geist_Mono } from 'next/font/google'
 import './globals.css'
 import { AuthProvider } from '@/lib/contexts/auth-context'
 import { CartProvider } from '@/lib/contexts/cart-context'
+import { WishlistProvider } from '@/lib/contexts/wishlist-context'
 import AuthGuard from '@/components/auth-guard'
 
 const geistSans = Geist({ variable: '--font-geist-sans', subsets: ['latin'] })
@@ -63,14 +64,16 @@ export default function RootLayout({
         <div className="relative z-0 min-h-screen">
           <AuthProvider>
             <CartProvider>
-              <AuthGuard>
-                {children}
-                {process.env.NODE_ENV === 'production' && <Analytics />}
-              </AuthGuard>
+              <WishlistProvider>
+                <AuthGuard>
+                  {children}
+                  {process.env.NODE_ENV === 'production' && <Analytics />}
+                </AuthGuard>
+              </WishlistProvider>
             </CartProvider>
           </AuthProvider>
         </div>
       </body>
     </html>
-  )
+  );
 }

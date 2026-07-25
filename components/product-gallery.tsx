@@ -12,6 +12,7 @@ import CustomSelect from './custom-select';
 import RelatedProducts from './related-products';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
+import { useWishlist } from '@/lib/contexts/wishlist-context';
 
 const MySwal = withReactContent(Swal);
 
@@ -200,6 +201,8 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
     }
   }, [exactMatchFound, products.length, filters.searchQuery]);
 
+  const { wishlist, isProductWishlisted } = useWishlist();
+
   // Client-side filtering only handles price range now (others are backend-filtered)
   const filteredProducts = useMemo(() => {
     return products.filter((product: any) => {
@@ -211,30 +214,109 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
     });
   }, [filters.priceRange, products]);
 
-  // Use API filters for categories instead of extracting from products
+  // Use API filters for categories, prioritizing Wishlisted categories first (followed by A-Z)
   const CATEGORIES = useMemo(() => {
-    return ['All', ...apiCategories.map(c => c.name).sort()];
-  }, [apiCategories]);
+    const wishlistedMap = new Map<string, number>();
+    (wishlist.categories || []).forEach((c, idx) => {
+      wishlistedMap.set(c.name.toUpperCase(), c.order ?? idx);
+    });
+
+    const catNames = apiCategories.map(c => c.name);
+    catNames.sort((a, b) => {
+      const aWish = wishlistedMap.has(a.toUpperCase());
+      const bWish = wishlistedMap.has(b.toUpperCase());
+      if (aWish && bWish) {
+        return (wishlistedMap.get(a.toUpperCase()) ?? 0) - (wishlistedMap.get(b.toUpperCase()) ?? 0);
+      }
+      if (aWish) return -1;
+      if (bWish) return 1;
+      return a.localeCompare(b);
+    });
+
+    return ['All', ...catNames];
+  }, [apiCategories, wishlist.categories]);
 
   const getSubcategoriesForCategory = useCallback((category: string) => {
     const cat = apiCategories.find(c => c.name === category);
-    return cat ? cat.subcategories.map(s => s.name) : [];
-  }, [apiCategories]);
+    if (!cat) return [];
 
-  // Group products by category
+    const wishlistedSubMap = new Map<string, number>();
+    (wishlist.subcategories || [])
+      .filter(s => s.category.toUpperCase() === category.toUpperCase())
+      .forEach((s, idx) => {
+        wishlistedSubMap.set(s.name.toUpperCase(), s.order ?? idx);
+      });
+
+    const subNames = cat.subcategories.map(s => s.name);
+    return subNames.sort((a, b) => {
+      const aWish = wishlistedSubMap.has(a.toUpperCase());
+      const bWish = wishlistedSubMap.has(b.toUpperCase());
+      if (aWish && bWish) {
+        return (wishlistedSubMap.get(a.toUpperCase()) ?? 0) - (wishlistedSubMap.get(b.toUpperCase()) ?? 0);
+      }
+      if (aWish) return -1;
+      if (bWish) return 1;
+      return a.localeCompare(b);
+    });
+  }, [apiCategories, wishlist.subcategories]);
+
+  // Group products by category, prioritizing wishlisted products FIRST within each category
   const groupedProducts = useMemo(() => {
     const groups: { [category: string]: Product[] } = {};
     const categoryNames = CATEGORIES.filter(c => c !== 'All');
 
+    const wishlistedProdOrderMap = new Map<string, number>();
+    (wishlist.products || []).forEach((p, idx) => {
+      wishlistedProdOrderMap.set(String(p.productId).trim(), p.order ?? idx);
+    });
+
     categoryNames.forEach((cat) => {
       const productsInCategory = filteredProducts.filter((p: any) => p.categories === cat);
       if (productsInCategory.length > 0) {
+        // Sort products so Wishlisted items show FIRST
+        productsInCategory.sort((a: any, b: any) => {
+          const aId = String(a.productId || a.id || '').trim();
+          const bId = String(b.productId || b.id || '').trim();
+          const aWish = wishlistedProdOrderMap.has(aId);
+          const bWish = wishlistedProdOrderMap.has(bId);
+
+          if (aWish && bWish) {
+            return (wishlistedProdOrderMap.get(aId) ?? 0) - (wishlistedProdOrderMap.get(bId) ?? 0);
+          }
+          if (aWish) return -1;
+          if (bWish) return 1;
+          return 0; // Maintain original sort
+        });
+
         groups[cat] = productsInCategory;
       }
     });
 
     return groups;
-  }, [filteredProducts, CATEGORIES]);
+  }, [filteredProducts, CATEGORIES, wishlist.products]);
+
+  // Sort category entries so Wishlisted categories appear FIRST on /gallery page
+  const sortedGroupedEntries = useMemo(() => {
+    const wishlistedCatOrderMap = new Map<string, number>();
+    (wishlist.categories || []).forEach((c, idx) => {
+      wishlistedCatOrderMap.set(c.name.toUpperCase(), c.order ?? idx);
+    });
+
+    const entries = Object.entries(groupedProducts);
+
+    return entries.sort(([catA], [catB]) => {
+      const aWish = wishlistedCatOrderMap.has(catA.toUpperCase());
+      const bWish = wishlistedCatOrderMap.has(catB.toUpperCase());
+
+      if (aWish && bWish) {
+        return (wishlistedCatOrderMap.get(catA.toUpperCase()) ?? 0) - (wishlistedCatOrderMap.get(catB.toUpperCase()) ?? 0);
+      }
+      if (aWish) return -1;
+      if (bWish) return 1;
+
+      return catA.localeCompare(catB);
+    });
+  }, [groupedProducts, wishlist.categories]);
 
   const handleCategoryToggle = (category: string) => {
     setFilters((prev) => {
@@ -460,7 +542,7 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
                                 transition={{ duration: 0.2 }}
                                 className="ml-8 mt-1 space-y-1 pl-4 border-l-2 border-gray-100"
                               >
-                                {getSubcategoriesForCategory(category).sort().map((subcategory) => (
+                                {getSubcategoriesForCategory(category).map((subcategory) => (
                                   <motion.div
                                     key={subcategory}
                                     initial={{ opacity: 0, x: -10 }}
@@ -536,7 +618,7 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
         <div className="flex-1 min-w-0 ">
           {filteredProducts.length > 0 ? (
             <div className="space-y-12">
-              {Object.entries(groupedProducts).map(([category, categoryProducts], categoryIndex) => {
+              {sortedGroupedEntries.map(([category, categoryProducts], categoryIndex) => {
                 const isCollapsed = collapsedSections[category];
 
                 // Get the accurate total count from API data for this category

@@ -3,9 +3,10 @@
 import { useState } from 'react';
 import { useAuth } from '@/lib/contexts/auth-context';
 import { useCart } from '@/lib/contexts/cart-context';
+import { useWishlist } from '@/lib/contexts/wishlist-context';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Menu, X, ShoppingCart as CartIcon, LogOut, User } from 'lucide-react';
+import { Menu, X, ShoppingCart as CartIcon, LogOut, User, Heart } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
@@ -19,6 +20,7 @@ interface HeaderProps {
 export default function Header({ searchQuery = '', onSearchChange, showSearch = true }: HeaderProps) {
   const { user, logout } = useAuth();
   const { cart } = useCart();
+  const { totalWishlistCount } = useWishlist();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
 
@@ -28,7 +30,7 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
   };
 
   return (
-    <header className="sticky  top-0 z-50 bg-white/30 backdrop-blur-2xl border-b border-white/40 shadow-[0_8px_32px_0_rgba(31,38,135,0.05)]">
+    <header className="sticky top-0 z-50 bg-white/30 backdrop-blur-2xl border-b border-white/40 shadow-[0_8px_32px_0_rgba(31,38,135,0.05)]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Desktop Header */}
         <div className="flex items-center justify-between h-20 gap-6">
@@ -54,6 +56,7 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
               { href: '/catalogue', label: 'Home' },
               { href: '/gallery', label: 'Gallery' },
               { href: '/view', label: 'Products' },
+              { href: '/wishlist', label: 'Wishlist' },
             ].map((link) => (
               <Link
                 key={link.href}
@@ -86,10 +89,28 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
 
           {/* Right Section */}
           <div className="flex items-center gap-3 md:gap-6">
+            {/* Wishlist Button */}
+            <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }}>
+              <Link href="/wishlist">
+                <div className="relative p-2 hover:bg-secondary rounded-xl transition-colors cursor-pointer group" title="Wishlist">
+                  <Heart size={24} className="text-foreground group-hover:text-red-500 transition-colors" fill={totalWishlistCount > 0 ? '#ef4444' : 'none'} />
+                  {totalWishlistCount > 0 && (
+                    <motion.span
+                      initial={{ scale: 0, rotate: -180 }}
+                      animate={{ scale: 1, rotate: 0 }}
+                      className="absolute -top-1 -right-1 bg-red-500 text-white w-6 h-6 rounded-full text-xs flex items-center justify-center font-bold shadow-lg"
+                    >
+                      {totalWishlistCount}
+                    </motion.span>
+                  )}
+                </div>
+              </Link>
+            </motion.div>
+
             {/* Cart Button */}
             <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }}>
               <Link href="/cart">
-                <div className="relative p-2 hover:bg-secondary rounded-xl transition-colors cursor-pointer group">
+                <div className="relative p-2 hover:bg-secondary rounded-xl transition-colors cursor-pointer group" title="Shopping Cart">
                   <CartIcon size={24} className="text-foreground group-hover:text-accent transition-colors" />
                   {cart.itemCount > 0 && (
                     <motion.span
@@ -134,7 +155,7 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
                       onClick={handleLogout}
-                      className="w-full flex items-center  justify-center gap-2 bg-gradient-to-r from-destructive to-destructive/80 hover:from-destructive/90 hover:to-destructive text-white font-bold py-3 rounded-full transition-all"
+                      className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-destructive to-destructive/80 hover:from-destructive/90 hover:to-destructive text-white font-bold py-3 rounded-full transition-all"
                     >
                       <LogOut size={18} />
                       Logout
@@ -182,6 +203,7 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
               { href: '/catalogue', label: 'Home' },
               { href: '/gallery', label: 'Gallery' },
               { href: '/view', label: 'Products' },
+              { href: '/wishlist', label: `Wishlist (${totalWishlistCount})` },
             ].map((link) => (
               <Link
                 key={link.href}
