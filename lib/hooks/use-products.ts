@@ -7,7 +7,6 @@ export interface CatalogueProduct {
   id: string;
   name: string;
   productCode: string;
-  productId: string;
   categories: string;
   subcategories: string;
   image: string;
@@ -59,7 +58,6 @@ interface UseProductsOptions {
   search?: string;
   limit?: number;
   initialLimit?: number;
-  productId?: string;
   prioritizeCategory?: string;
   fallbackData?: ProductsResponse[];
 }
@@ -68,7 +66,7 @@ interface UseProductsOptions {
  * Cursor-paginated, SWR-cached hook for fetching products.
  */
 export function useProducts(options: UseProductsOptions = {}) {
-  const { sort, category, subcategory, search, limit = 20, productId, prioritizeCategory, fallbackData } = options;
+  const { sort, category, subcategory, search, limit = 20, prioritizeCategory, fallbackData } = options;
 
   // Build query string from options
   const buildQuery = (pageIndex: number) => {
@@ -84,7 +82,6 @@ export function useProducts(options: UseProductsOptions = {}) {
       if (subVal) params.set('subcategory', subVal);
     }
     if (search) params.set('search', search);
-    if (productId) params.set('productId', productId);
     if (prioritizeCategory) params.set('prioritizeCategory', prioritizeCategory);
     
     const currentLimit = pageIndex > 0 ? limit : (options.initialLimit || limit);
