@@ -27,6 +27,45 @@ export default function PinModal({
   const [errorMsg, setErrorMsg] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Keyboard input listener for physical keyboard entry
+  React.useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Allow default handling if typing inside password or text input fields
+      if (
+        document.activeElement?.tagName === 'INPUT' ||
+        document.activeElement?.tagName === 'TEXTAREA'
+      ) {
+        return;
+      }
+
+      if (mode === 'pin' && !isSubmitting) {
+        if (/^[0-9]$/.test(e.key)) {
+          e.preventDefault();
+          handleDigit(e.key);
+        } else if (e.key === 'Backspace') {
+          e.preventDefault();
+          handleBackspace();
+        } else if (e.key === 'Delete') {
+          e.preventDefault();
+          handleClear();
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          onClose();
+        } else if (e.key === 'Enter') {
+          e.preventDefault();
+          if (pin.length === 4) {
+            submitPin(pin);
+          }
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, mode, pin, isSubmitting, onClose]);
+
   if (!isOpen) return null;
 
   const handleDigit = (digit: string) => {

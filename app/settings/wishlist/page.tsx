@@ -342,14 +342,23 @@ export default function SettingsWishlistPage() {
                         {fullProducts.map((item, idx) => {
                           if (!item.product) {
                             return (
-                              <div key={item.wishlistId} className="p-5 bg-white/30 backdrop-blur-md rounded-full border border-white/60 flex items-center justify-between">
-                                <span className="text-sm font-bold text-gray-600 uppercase">Product ID: {item.wishlistId}</span>
-                                <button
-                                  onClick={() => toggleProductWishlist(item.wishlistId)}
-                                  className="p-2 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white rounded-full transition-all"
-                                >
-                                  <Trash2 size={16} />
-                                </button>
+                              <div key={item.wishlistId} className="bg-white/30 backdrop-blur-2xl border border-white/60 rounded-[2.5rem] p-5 shadow-[0_15px_45px_rgba(0,0,0,0.06)] flex flex-col justify-between group h-full min-h-[300px]">
+                                <div className="relative aspect-[4/5] rounded-[1.5rem] bg-[#eef1f6] flex items-center justify-center p-6 mb-4 border border-black/5">
+                                  <Package className="text-gray-400" size={48} />
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <span className="font-extrabold text-[#0f172a] text-sm block uppercase">Product ID: {item.wishlistId}</span>
+                                    <span className="text-xs text-gray-500 font-medium uppercase">WISHLIST ITEM</span>
+                                  </div>
+                                  <button
+                                    onClick={() => toggleProductWishlist(item.wishlistId)}
+                                    className="p-3 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white rounded-full transition-all border border-red-500/20"
+                                    title="Remove from Wishlist"
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                </div>
                               </div>
                             );
                           }

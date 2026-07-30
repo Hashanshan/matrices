@@ -360,7 +360,7 @@ export default function FullscreenProductViewer({
               {searchOpen && (
                 <motion.div
                   initial={{ width: 0, opacity: 0 }}
-                  animate={{ width: 220, opacity: 1 }}
+                  animate={{ width: 240, opacity: 1 }}
                   exit={{ width: 0, opacity: 0 }}
                   transition={{ type: 'spring', stiffness: 400, damping: 30 }}
                   className="overflow-hidden"
@@ -389,6 +389,7 @@ export default function FullscreenProductViewer({
                 if (searchOpen) {
                   triggerSearch();
                 } else {
+                  setMenuOpen(false);
                   setSearchOpen(true);
                 }
               }}
@@ -412,73 +413,85 @@ export default function FullscreenProductViewer({
             )}
           </motion.div>
 
-          <motion.button
-            onClick={() => {
-              if (currentProduct) {
-                const prodId = currentProduct.productId || currentProduct.id;
-                if (prodId) toggleProductWishlist(prodId);
-              }
-            }}
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.95 }}
-            className="p-3.5 rounded-full bg-white/30 backdrop-blur-2xl hover:bg-white/60 text-[#0f172a] transition-all shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] border border-white/60"
-            title={currentProduct && isProductWishlisted(currentProduct.productId || currentProduct.id) ? "Remove from Wishlist" : "Add to Wishlist"}
-          >
-            <Heart
-              size={20}
-              fill={currentProduct && isProductWishlisted(currentProduct.productId || currentProduct.id) ? '#ef4444' : 'none'}
-              className={currentProduct && isProductWishlisted(currentProduct.productId || currentProduct.id) ? 'text-red-500' : ''}
-            />
-          </motion.button>
-
-          <motion.button
-            onClick={handleShare}
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.95 }}
-            className="p-3.5 rounded-full bg-white/30 backdrop-blur-4xl hover:bg-white/60 text-[#0f172a] transition-all shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] border border-white/60"
-          >
-            <Share2 size={20} />
-          </motion.button>
-
-          <motion.div className="relative">
-            <motion.button
-              onClick={() => setMenuOpen(!menuOpen)}
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.95 }}
-              className="p-3.5 rounded-full bg-white/30 backdrop-blur-2xl hover:bg-white/60 text-[#0f172a] transition-all shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] border border-white/60"
-            >
-              {menuOpen ? <X size={24} /> : <Menu size={24} />}
-            </motion.button>
-
-            {/* Expanded Menu */}
-            <AnimatePresence>
-              {menuOpen && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.9, y: -20, originX: 1, originY: 0 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.9, y: -20 }}
-                  className="absolute rounded-[1rem] top-16 right-0  backdrop-blur-2xl border border-white/60 rounded-2xl shadow-[0_8px_32px_0_rgba(31,38,135,0.1)] p-4 w-48 flex flex-col gap-2 overflow-hidden"
+          <AnimatePresence>
+            {!searchOpen && (
+              <motion.div
+                initial={{ opacity: 1, scale: 1 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                transition={{ duration: 0.2 }}
+                className="flex items-center gap-3"
+              >
+                <motion.button
+                  onClick={() => {
+                    if (currentProduct) {
+                      const prodId = currentProduct.productId || currentProduct.id;
+                      if (prodId) toggleProductWishlist(prodId);
+                    }
+                  }}
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="p-3.5 rounded-full bg-white/30 backdrop-blur-2xl hover:bg-white/60 text-[#0f172a] transition-all shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] border border-white/60"
+                  title={currentProduct && isProductWishlisted(currentProduct.productId || currentProduct.id) ? "Remove from Wishlist" : "Add to Wishlist"}
                 >
-                  {[
-                    { href: '/catalogue', label: 'HOME', icon: Home },
-                    { href: '/gallery', label: 'GALLERY', icon: BookOpen },
-                    { href: '/view', label: 'PRODUCTS', icon: Grid },
-                    { href: '/cart', label: `CART (${cart.itemCount})`, icon: ShoppingCart },
-                  ].map((item) => (
-                    <Link href={item.href} key={item.label} onClick={() => setMenuOpen(false)}>
+                  <Heart
+                    size={20}
+                    fill={currentProduct && isProductWishlisted(currentProduct.productId || currentProduct.id) ? '#ef4444' : 'none'}
+                    className={currentProduct && isProductWishlisted(currentProduct.productId || currentProduct.id) ? 'text-red-500' : ''}
+                  />
+                </motion.button>
+
+                <motion.button
+                  onClick={handleShare}
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="p-3.5 rounded-full bg-white/30 backdrop-blur-4xl hover:bg-white/60 text-[#0f172a] transition-all shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] border border-white/60"
+                >
+                  <Share2 size={20} />
+                </motion.button>
+
+                <motion.div className="relative">
+                  <motion.button
+                    onClick={() => setMenuOpen(!menuOpen)}
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="p-3.5 rounded-full bg-white/30 backdrop-blur-2xl hover:bg-white/60 text-[#0f172a] transition-all shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] border border-white/60"
+                  >
+                    {menuOpen ? <X size={24} /> : <Menu size={24} />}
+                  </motion.button>
+
+                  {/* Expanded Menu */}
+                  <AnimatePresence>
+                    {menuOpen && (
                       <motion.div
-                        whileHover={{ x: 4, backgroundColor: 'rgba(117, 116, 116, 0.945)', borderRadius: '1rem' }}
-                        className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-800 font-bold text-sm transition-colors cursor-pointer uppercase"
+                        initial={{ opacity: 0, scale: 0.9, y: -20, originX: 1, originY: 0 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.9, y: -20 }}
+                        className="absolute rounded-[1rem] top-16 right-0  backdrop-blur-2xl border border-white/60 rounded-2xl shadow-[0_8px_32px_0_rgba(31,38,135,0.1)] p-4 w-48 flex flex-col gap-2 overflow-hidden"
                       >
-                        <item.icon size={18} />
-                        {item.label}
+                        {[
+                          { href: '/catalogue', label: 'HOME', icon: Home },
+                          { href: '/gallery', label: 'GALLERY', icon: BookOpen },
+                          { href: '/view', label: 'PRODUCTS', icon: Grid },
+                          { href: '/cart', label: `CART (${cart.itemCount})`, icon: ShoppingCart },
+                        ].map((item) => (
+                          <Link href={item.href} key={item.label} onClick={() => setMenuOpen(false)}>
+                            <motion.div
+                              whileHover={{ x: 4, backgroundColor: 'rgba(117, 116, 116, 0.945)', borderRadius: '1rem' }}
+                              className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-800 font-bold text-sm transition-colors cursor-pointer uppercase"
+                            >
+                              <item.icon size={18} />
+                              {item.label}
+                            </motion.div>
+                          </Link>
+                        ))}
                       </motion.div>
-                    </Link>
-                  ))}
+                    )}
+                  </AnimatePresence>
                 </motion.div>
-              )}
-            </AnimatePresence>
-          </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </motion.div>
 
         {/* Product Info Overlay - Capitalized */}
