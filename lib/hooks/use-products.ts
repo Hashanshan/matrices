@@ -6,7 +6,7 @@ import useSWR from 'swr';
 export interface CatalogueProduct {
   id: string;
   name: string;
-  productCode: string;
+  productId: string;
   categories: string;
   subcategories: string;
   image: string;

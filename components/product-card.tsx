@@ -21,7 +21,7 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
 
   const { isProductWishlisted, toggleProductWishlist } = useWishlist();
 
-  const targetProductId = product.productId || product.id || product.productCode || '';
+  const targetProductId = product.productId || product.id || '';
   const isFavorite = isProductWishlisted(targetProductId);
 
   const handleQuickAdd = (e: React.MouseEvent) => {
@@ -104,9 +104,9 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
             <div className="flex items-center justify-between mb-2">
               <div>
                 <span className="text-[#0f172a] font-bold text-sm block tracking-wide uppercase">
-                  {product.productId || product.productCode || product.id}
+                  {product.productId || product.id}
                 </span>
-                <span className="text-xs text-gray-500 font-medium uppercase">PRODUCT CODE</span>
+                <span className="text-xs text-gray-500 font-medium uppercase">PRODUCT ID</span>
               </div>
 
               <button
