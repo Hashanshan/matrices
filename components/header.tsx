@@ -5,7 +5,7 @@ import { useAuth } from '@/lib/contexts/auth-context';
 import { useCart } from '@/lib/contexts/cart-context';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Menu, X, ShoppingCart as CartIcon, LogOut, User, Settings, Heart, ShieldCheck, Store } from 'lucide-react';
+import { Menu, X, ShoppingCart as CartIcon, LogOut, User, Settings, Heart, ShieldCheck, Store, FileText } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
@@ -151,6 +151,15 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
                     </Link>
 
                     <Link
+                      href="/settings/orders"
+                      onClick={() => setShowProfileMenu(false)}
+                      className="flex items-center gap-3 px-5 py-3.5 font-black text-xs uppercase tracking-wider text-[#0f172a] bg-white/60 hover:bg-white border border-white/60 rounded-full transition-all shadow-sm"
+                    >
+                      <FileText size={18} />
+                      My Orders
+                    </Link>
+
+                    <Link
                       href="/settings/security"
                       onClick={() => setShowProfileMenu(false)}
                       className="flex items-center gap-3 px-5 py-3.5 font-black text-xs uppercase tracking-wider text-[#0f172a] bg-white/60 hover:bg-white border border-white/60 rounded-full transition-all shadow-sm"
@@ -248,6 +257,15 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
               >
                 <Store size={18} />
                 My Shops
+              </Link>
+
+              <Link
+                href="/settings/orders"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center gap-3 px-5 py-3.5 font-black text-xs uppercase tracking-wider bg-white/60 hover:bg-white text-[#0f172a] border border-white/60 rounded-full transition-all shadow-sm"
+              >
+                <FileText size={18} />
+                My Orders
               </Link>
 
               <Link

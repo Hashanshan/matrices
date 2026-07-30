@@ -1,29 +1,16 @@
 'use client';
 
-import { useState, useEffect, use } from 'react';
+import { useState, useEffect } from 'react';
 import Header from '@/components/header';
 import { useAuth } from '@/lib/contexts/auth-context';
 import PinModal from '@/components/pin-modal';
 import Pagination from '@/components/pagination';
 import InvoicePdfModal from '@/components/invoice-pdf-modal';
 import { motion } from 'framer-motion';
-import { Store, Phone, MapPin, ShieldCheck, Heart, Search, Lock, ArrowLeft, FileText, CheckCircle2, Clock, AlertCircle, XCircle, ShoppingBag, DollarSign, Calendar, RefreshCw, Eye } from 'lucide-react';
+import { FileText, Search, Lock, Calendar, CheckCircle2, Clock, AlertCircle, XCircle, ShoppingBag, Store, Heart, ShieldCheck, RefreshCw, Eye } from 'lucide-react';
 import Link from 'next/link';
 import useSWR from 'swr';
 import { formatPrice } from '@/lib/currency';
-
-interface Shop {
-  shopId: string;
-  name: string;
-  phone: string;
-  address: string;
-  deliveredOrders: number;
-  pendingOrders: number;
-  totalSales: number;
-  chequeCount: number;
-  chequeValue: number;
-  currentCredit: number;
-}
 
 interface Item {
   productID: string;
@@ -69,16 +56,13 @@ const fetcher = async (url: string) => {
     },
   });
   if (!res.ok) {
-    const error = await res.json().catch(() => ({ msg: 'Failed to load shop details' }));
+    const error = await res.json().catch(() => ({ msg: 'Failed to load orders' }));
     throw new Error(error.msg || 'Failed to fetch');
   }
   return res.json();
 };
 
-export default function ShopSingleViewPage({ params }: { params: Promise<{ shopId: string }> }) {
-  const resolvedParams = use(params);
-  const shopId = resolvedParams.shopId;
-
+export default function SettingsOrdersPage() {
   const { isPinVerified, resetPinVerification } = useAuth();
   const [showPinModal, setShowPinModal] = useState(true);
 
@@ -89,7 +73,7 @@ export default function ShopSingleViewPage({ params }: { params: Promise<{ shopI
   const [page, setPage] = useState(1);
   const [selectedInvoice, setSelectedInvoice] = useState<Order | null>(null);
 
-  // Build SWR query key for API searching, date filtering, and pagination
+  // Build SWR query key for overall orders API
   const queryParams = new URLSearchParams();
   if (searchQuery) queryParams.set('searchQuery', searchQuery);
   if (activeTab && activeTab !== 'all') queryParams.set('status', activeTab);
@@ -100,12 +84,11 @@ export default function ShopSingleViewPage({ params }: { params: Promise<{ shopI
   queryParams.set('sortField', 'updatedAt');
   queryParams.set('sortOrder', '-1'); // Default: recently updated orders on top
 
-  const swrKey = `/api/shops/${shopId}?${queryParams.toString()}`;
+  const swrKey = `/api/orders?${queryParams.toString()}`;
   const { data, error, isLoading } = useSWR(swrKey, fetcher, {
     revalidateOnFocus: true,
   });
 
-  const shop: Shop | null = data?.shop || null;
   const orders: Order[] = data?.orders || [];
   const totalOrders: number = data?.totalOrders || orders.length;
   const totalPages: number = data?.totalPages || 1;
@@ -195,7 +178,7 @@ export default function ShopSingleViewPage({ params }: { params: Promise<{ shopI
             isOpen={showPinModal}
             onClose={() => {
               if (!isPinVerified) {
-                window.location.href = '/settings/shops';
+                window.location.href = '/catalogue';
               } else {
                 setShowPinModal(false);
               }
@@ -208,9 +191,9 @@ export default function ShopSingleViewPage({ params }: { params: Promise<{ shopI
               <div className="w-20 h-20 bg-[#0f172a] text-white rounded-full flex items-center justify-center mb-4 shadow-xl border border-white/20">
                 <Lock size={36} />
               </div>
-              <h2 className="text-2xl font-black text-[#0f172a] uppercase mb-2">SHOP DETAILS ARE LOCKED</h2>
+              <h2 className="text-2xl font-black text-[#0f172a] uppercase mb-2">ORDERS PAGE IS LOCKED</h2>
               <p className="text-gray-500 font-bold max-w-sm mb-6 uppercase text-xs">
-                PLEASE ENTER YOUR 4-DIGIT SECURITY PIN TO ACCESS SHOP INVOICES AND DETAILS.
+                PLEASE ENTER YOUR 4-DIGIT SECURITY PIN TO ACCESS YOUR ASSIGNED ORDERS & INVOICES.
               </p>
               <button
                 onClick={() => setShowPinModal(true)}
@@ -219,169 +202,95 @@ export default function ShopSingleViewPage({ params }: { params: Promise<{ shopI
                 ENTER SECURITY PIN
               </button>
             </div>
-          ) : isLoading && !data ? (
-            <div className="flex justify-center items-center py-32">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#0f172a]"></div>
-            </div>
-          ) : !shop ? (
-            <div className="text-center py-20 bg-white/20 backdrop-blur-2xl rounded-[2.5rem] border border-white/60 shadow-lg">
-              <h2 className="text-2xl font-black text-[#0f172a] uppercase mb-2">SHOP NOT FOUND</h2>
-              <p className="text-gray-500 font-semibold mb-6 text-xs uppercase">
-                THE REQUESTED SHOP DOES NOT EXIST OR IS NOT ACCESSIBLE.
-              </p>
-              <Link
-                href="/settings/shops"
-                className="bg-[#0f172a] text-white px-8 py-4 rounded-full font-black text-xs uppercase tracking-wider shadow-lg"
-              >
-                BACK TO SHOPS
-              </Link>
-            </div>
           ) : (
             <>
-              {/* Back Button & Top Navigation */}
-              <div className="flex items-center justify-between gap-4 mb-6">
-                <Link
-                  href="/settings/shops"
-                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-white/60 hover:bg-white text-[#0f172a] font-black text-xs uppercase rounded-full border border-white/60 shadow-sm transition-all"
-                >
-                  <ArrowLeft size={16} /> BACK TO SHOPS
-                </Link>
+              {/* Header Title Section */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+                <div className="flex items-center gap-3">
+                  <div className="p-3.5 bg-[#0f172a]/10 border border-[#0f172a]/20 rounded-full text-[#0f172a] shadow-sm flex items-center justify-center">
+                    <FileText size={32} />
+                  </div>
+                  <div>
+                    <h1 className="text-3xl sm:text-4xl font-black text-[#0f172a] uppercase tracking-wide">
+                      SHOP INVOICES & ORDERS
+                    </h1>
+                    <p className="text-xs sm:text-sm text-gray-500 font-bold tracking-wide mt-1 uppercase">
+                      VIEW ALL ORDERS AND INVOICES ACROSS YOUR ASSIGNED SHOPS
+                    </p>
+                  </div>
+                </div>
 
                 <div className="flex items-center gap-3">
                   <Link
-                    href="/settings/orders"
-                    className="text-xs font-black text-[#0f172a] uppercase bg-white/60 hover:bg-white border border-white/60 px-4 py-2.5 rounded-full shadow-xs transition-all flex items-center gap-1.5"
+                    href="/settings/shops"
+                    className="text-xs font-black text-[#0f172a] uppercase bg-white/60 hover:bg-white border border-white/60 px-4 py-3 rounded-full shadow-md transition-all flex items-center gap-1.5"
                   >
-                    <FileText size={14} /> ORDERS
+                    <Store size={16} /> SHOPS
                   </Link>
                   <Link
                     href="/settings/wishlist"
-                    className="text-xs font-black text-[#0f172a] uppercase bg-white/60 hover:bg-white border border-white/60 px-4 py-2.5 rounded-full shadow-xs transition-all flex items-center gap-1.5"
+                    className="text-xs font-black text-[#0f172a] uppercase bg-white/60 hover:bg-white border border-white/60 px-4 py-3 rounded-full shadow-md transition-all flex items-center gap-1.5"
                   >
-                    <Heart size={14} fill="#ef4444" className="text-red-500" /> WISHLIST
+                    <Heart size={16} fill="#ef4444" className="text-red-500" /> WISHLIST
                   </Link>
                   <Link
                     href="/settings/security"
-                    className="text-xs font-black text-[#0f172a] uppercase bg-white/60 hover:bg-white border border-white/60 px-4 py-2.5 rounded-full shadow-xs transition-all flex items-center gap-1.5"
+                    className="text-xs font-black text-[#0f172a] uppercase bg-white/60 hover:bg-white border border-white/60 px-4 py-3 rounded-full shadow-md transition-all flex items-center gap-1.5"
                   >
-                    <ShieldCheck size={14} /> SECURITY
+                    <ShieldCheck size={16} /> SECURITY
                   </Link>
-                </div>
-              </div>
-
-              {/* Shop Single View Hero Card */}
-              <div className="bg-white/40 backdrop-blur-2xl border border-white/60 rounded-[2.5rem] p-6 sm:p-8 shadow-[0_20px_50px_rgba(0,0,0,0.06)] mb-8">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-gray-200/60">
-                  <div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-[0.65rem] font-black text-white bg-[#0f172a] px-3.5 py-1 rounded-full uppercase tracking-widest shadow-xs">
-                        {shop.shopId}
-                      </span>
-                      <span className="text-[0.65rem] font-black text-green-800 bg-green-100/90 border border-green-200 px-3 py-1 rounded-full uppercase">
-                        ACTIVE SHOP
-                      </span>
-                    </div>
-                    <h1 className="text-3xl sm:text-4xl font-black text-[#0f172a] uppercase tracking-wide">
-                      {shop.name}
-                    </h1>
-                    <div className="flex flex-wrap items-center gap-4 mt-2 text-xs font-bold text-gray-600 uppercase">
-                      <a href={`tel:${shop.phone}`} className="flex items-center gap-1.5 hover:text-[#0f172a]">
-                        <Phone size={14} className="text-gray-500" /> {shop.phone}
-                      </a>
-                      <span className="flex items-center gap-1.5">
-                        <MapPin size={14} className="text-gray-500" /> {shop.address}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <div className="p-4 bg-white/60 backdrop-blur-xl border border-white/80 rounded-2xl text-center shadow-xs">
-                      <p className="text-[0.65rem] text-gray-500 font-bold uppercase">MATCHING INVOICES</p>
-                      <p className="text-2xl font-black text-[#0f172a]">{totalOrders}</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Summary Metrics Row */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-6">
-                  <div className="p-4 bg-white/50 rounded-2xl border border-white/60">
-                    <p className="text-[0.65rem] text-gray-500 font-bold uppercase flex items-center gap-1">
-                      <ShoppingBag size={12} /> Total Sales
-                    </p>
-                    <p className="font-black text-[#0f172a] text-base sm:text-lg mt-0.5">{formatPrice(shop.totalSales)}</p>
-                  </div>
-                  <div className="p-4 bg-white/50 rounded-2xl border border-white/60">
-                    <p className="text-[0.65rem] text-gray-500 font-bold uppercase flex items-center gap-1">
-                      <DollarSign size={12} /> Outstanding Credit
-                    </p>
-                    <p className="font-black text-[#0f172a] text-base sm:text-lg mt-0.5">{formatPrice(shop.currentCredit)}</p>
-                  </div>
-                  <div className="p-4 bg-white/50 rounded-2xl border border-white/60">
-                    <p className="text-[0.65rem] text-gray-500 font-bold uppercase flex items-center gap-1">
-                      <CheckCircle2 size={12} /> Delivered Orders
-                    </p>
-                    <p className="font-black text-[#0f172a] text-base sm:text-lg mt-0.5">{shop.deliveredOrders}</p>
-                  </div>
-                  <div className="p-4 bg-white/50 rounded-2xl border border-white/60">
-                    <p className="text-[0.65rem] text-gray-500 font-bold uppercase flex items-center gap-1">
-                      <Clock size={12} /> Pending Orders
-                    </p>
-                    <p className="font-black text-[#0f172a] text-base sm:text-lg mt-0.5">{shop.pendingOrders}</p>
-                  </div>
+                  <span className="text-xs font-black text-white bg-[#0f172a] px-5 py-3 rounded-full shadow-lg uppercase">
+                    {totalOrders} {totalOrders === 1 ? 'ORDER' : 'ORDERS'}
+                  </span>
                 </div>
               </div>
 
               {/* Filter & Search Bar */}
-              <div className="mb-6 space-y-4 bg-white/30 backdrop-blur-2xl border border-white/60 rounded-[2rem] p-5 shadow-sm">
+              <div className="mb-8 space-y-4 bg-white/30 backdrop-blur-2xl border border-white/60 rounded-[2rem] p-5 shadow-sm">
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                  <h2 className="text-xl font-black text-[#0f172a] uppercase tracking-wide flex items-center gap-2">
-                    <FileText size={22} /> SHOP INVOICES & ORDERS
-                  </h2>
-
-                  {/* Search bar inside shop orders */}
-                  <div className="relative max-w-sm w-full">
+                  <div className="relative max-w-md w-full">
                     <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
                     <input
                       type="text"
                       value={searchQuery}
                       onChange={e => handleSearchChange(e.target.value)}
                       placeholder="SEARCH ORDER ID OR ITEM..."
-                      className="w-full pl-10 pr-4 py-2.5 bg-white/70 border border-white/80 rounded-full text-xs font-bold text-[#0f172a] placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0f172a]/30 uppercase shadow-xs"
-                    />
-                  </div>
-                </div>
-
-                {/* API Date Filter Inputs & Reset */}
-                <div className="flex flex-wrap items-center gap-3 pt-3 border-t border-gray-200/50">
-                  <div className="flex items-center gap-2">
-                    <Calendar size={14} className="text-gray-500" />
-                    <span className="text-[0.65rem] font-black text-[#0f172a] uppercase">FROM:</span>
-                    <input
-                      type="date"
-                      value={fromDate}
-                      onChange={e => handleFromDateChange(e.target.value)}
-                      className="px-3 py-1.5 bg-white/70 border border-white/80 rounded-xl text-xs font-bold text-[#0f172a] focus:outline-none focus:ring-2 focus:ring-[#0f172a]/30 uppercase"
+                      className="w-full pl-10 pr-4 py-3.5 bg-white/70 border border-white/80 rounded-full text-xs font-bold text-[#0f172a] placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0f172a]/30 uppercase shadow-xs"
                     />
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <span className="text-[0.65rem] font-black text-[#0f172a] uppercase">TO:</span>
-                    <input
-                      type="date"
-                      value={toDate}
-                      onChange={e => handleToDateChange(e.target.value)}
-                      className="px-3 py-1.5 bg-white/70 border border-white/80 rounded-xl text-xs font-bold text-[#0f172a] focus:outline-none focus:ring-2 focus:ring-[#0f172a]/30 uppercase"
-                    />
-                  </div>
+                  {/* Date Range Inputs */}
+                  <div className="flex flex-wrap items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      <Calendar size={14} className="text-gray-500" />
+                      <span className="text-[0.65rem] font-black text-[#0f172a] uppercase">FROM:</span>
+                      <input
+                        type="date"
+                        value={fromDate}
+                        onChange={e => handleFromDateChange(e.target.value)}
+                        className="px-3.5 py-2 bg-white/70 border border-white/80 rounded-xl text-xs font-bold text-[#0f172a] focus:outline-none focus:ring-2 focus:ring-[#0f172a]/30 uppercase"
+                      />
+                    </div>
 
-                  {(fromDate || toDate || searchQuery || activeTab !== 'all') && (
-                    <button
-                      onClick={resetFilters}
-                      className="px-3 py-1.5 bg-white/60 hover:bg-white text-rose-700 border border-rose-200 rounded-xl text-[0.65rem] font-black uppercase flex items-center gap-1 transition-all ml-auto cursor-pointer"
-                    >
-                      <RefreshCw size={12} /> CLEAR FILTERS
-                    </button>
-                  )}
+                    <div className="flex items-center gap-2">
+                      <span className="text-[0.65rem] font-black text-[#0f172a] uppercase">TO:</span>
+                      <input
+                        type="date"
+                        value={toDate}
+                        onChange={e => handleToDateChange(e.target.value)}
+                        className="px-3.5 py-2 bg-white/70 border border-white/80 rounded-xl text-xs font-bold text-[#0f172a] focus:outline-none focus:ring-2 focus:ring-[#0f172a]/30 uppercase"
+                      />
+                    </div>
+
+                    {(fromDate || toDate || searchQuery || activeTab !== 'all') && (
+                      <button
+                        onClick={resetFilters}
+                        className="px-3.5 py-2 bg-white/60 hover:bg-white text-rose-700 border border-rose-200 rounded-xl text-[0.65rem] font-black uppercase flex items-center gap-1 transition-all cursor-pointer"
+                      >
+                        <RefreshCw size={12} /> CLEAR
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* Separated Status Tabs */}
@@ -396,7 +305,7 @@ export default function ShopSingleViewPage({ params }: { params: Promise<{ shopI
                     <button
                       key={tab.id}
                       onClick={() => handleTabChange(tab.id)}
-                      className={`px-4 py-2.5 rounded-full font-black text-xs uppercase tracking-wider transition-all whitespace-nowrap border cursor-pointer ${
+                      className={`px-5 py-3 rounded-full font-black text-xs uppercase tracking-wider transition-all whitespace-nowrap border cursor-pointer ${
                         activeTab === tab.id
                           ? 'bg-[#0f172a] text-white border-[#0f172a] shadow-md scale-105'
                           : 'bg-white/50 hover:bg-white text-[#0f172a] border-white/60'
@@ -408,17 +317,17 @@ export default function ShopSingleViewPage({ params }: { params: Promise<{ shopI
                 </div>
               </div>
 
-              {/* Invoices List */}
+              {/* Invoices / Orders List */}
               {isLoading ? (
-                <div className="flex justify-center items-center py-20">
-                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#0f172a]"></div>
+                <div className="flex justify-center items-center py-32">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#0f172a]"></div>
                 </div>
               ) : orders.length === 0 ? (
-                <div className="text-center py-16 bg-white/20 backdrop-blur-2xl rounded-[2.5rem] border border-white/60 shadow-md">
+                <div className="text-center py-20 bg-white/20 backdrop-blur-2xl rounded-[2.5rem] border border-white/60 shadow-md">
                   <FileText size={36} className="text-gray-400 mx-auto mb-3" />
-                  <h3 className="text-lg font-black text-[#0f172a] uppercase mb-1">NO MATCHING INVOICES FOUND</h3>
-                  <p className="text-xs text-gray-500 font-bold uppercase">
-                    TRY ADJUSTING YOUR DATE RANGE, STATUS FILTER, OR SEARCH QUERY
+                  <h3 className="text-lg font-black text-[#0f172a] uppercase mb-1">NO MATCHING ORDERS FOUND</h3>
+                  <p className="text-xs text-gray-500 font-bold uppercase max-w-md mx-auto">
+                    NO INVOICES MATCHING YOUR SEARCH QUERY, DATE RANGE, OR SELECTED STATUS TAB.
                   </p>
                 </div>
               ) : (
@@ -440,7 +349,12 @@ export default function ShopSingleViewPage({ params }: { params: Promise<{ shopI
                               </span>
                               {getStatusBadge(order.status)}
                             </div>
-                            <p className="text-xs text-gray-500 font-bold uppercase mt-1">
+
+                            <p className="text-xs text-[#0f172a] font-black uppercase mt-1">
+                              SHOP: {order.shop.name} ({order.shop.shopId})
+                            </p>
+
+                            <p className="text-[0.7rem] text-gray-500 font-bold uppercase mt-0.5">
                               DATE: {new Date(order.date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                             </p>
                           </div>
@@ -463,6 +377,7 @@ export default function ShopSingleViewPage({ params }: { params: Promise<{ shopI
                               <span className="text-rose-700 font-black">{formatPrice(order.remainingAmount)}</span>
                             </div>
 
+                            {/* View Clear PDF Popup Modal Button */}
                             <button
                               onClick={() => setSelectedInvoice(order)}
                               className="px-5 py-3 bg-[#0f172a] hover:bg-[#1e293b] text-white font-black text-xs uppercase tracking-wider rounded-full shadow-md transition-all flex items-center gap-2 ml-auto cursor-pointer"
@@ -513,7 +428,7 @@ export default function ShopSingleViewPage({ params }: { params: Promise<{ shopI
             </>
           )}
 
-          {/* High-Definition Clear PDF Invoice Popup Modal with Click-Outside Close & Download PDF */}
+          {/* PDF Invoice Popup Modal with Click-Outside Close & Download PDF options */}
           <InvoicePdfModal
             order={selectedInvoice}
             onClose={() => setSelectedInvoice(null)}
