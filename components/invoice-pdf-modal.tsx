@@ -5,6 +5,29 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { FileText, Printer, Download, X } from 'lucide-react';
 import { formatPrice } from '@/lib/currency';
 
+const formatDisplayName = (val: any): string => {
+  if (!val) return '';
+  if (typeof val === 'object') {
+    if (val.name) return val.name.trim();
+    if (val.email) val = val.email;
+    else return '';
+  }
+  if (typeof val === 'string') {
+    const trimmed = val.trim();
+    if (trimmed.includes('@')) {
+      const username = trimmed.split('@')[0];
+      return username
+        .replace(/[._-]/g, ' ')
+        .split(' ')
+        .filter(Boolean)
+        .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+        .join(' ');
+    }
+    return trimmed;
+  }
+  return String(val);
+};
+
 export interface Item {
   productID: string;
   name: string;
@@ -236,6 +259,11 @@ export default function InvoicePdfModal({ order, onClose }: InvoicePdfModalProps
                 <p className="text-xs text-gray-500 font-bold uppercase mt-0.5">
                   STATUS: <span className="font-black text-[#0f172a] uppercase">{order.status}</span>
                 </p>
+                {(order.salesrep || order.salesRep || order.createdBy) && (
+                  <p className="text-xs text-gray-500 font-bold uppercase mt-0.5">
+                    BILLED BY: <span className="font-black text-[#0f172a] uppercase">{formatDisplayName(order.salesrep || order.salesRep || order.createdBy)}</span>
+                  </p>
+                )}
               </div>
             </div>
 

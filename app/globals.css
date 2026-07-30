@@ -279,3 +279,39 @@
     }
   }
 }
+
+/* ── Global High-Clarity Print Styles (Epson LQ-310 & Dot-Matrix Ready) ── */
+@media print {
+  *, *::before, *::after {
+    color: #000000 !important;
+    text-shadow: none !important;
+    box-shadow: none !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  html, body {
+    font-family: 'Consolas', 'Lucida Console', Arial, Helvetica, sans-serif !important;
+    font-weight: 600 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  table {
+    border-collapse: collapse !important;
+    width: 100% !important;
+  }
+
+  th, td {
+    border: 1pt solid #000000 !important;
+    color: #000000 !important;
+    font-weight: 600 !important;
+  }
+
+  th {
+    font-weight: 800 !important;
+    background: #ffffff !important;
+  }
+}
