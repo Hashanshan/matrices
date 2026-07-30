@@ -5,10 +5,11 @@ import Header from '@/components/header';
 import { useAuth } from '@/lib/contexts/auth-context';
 import PinModal from '@/components/pin-modal';
 import Pagination from '@/components/pagination';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Store, Phone, MapPin, Edit, ShieldCheck, Heart, Search, Lock, X, Check, ShoppingBag, DollarSign, CreditCard, Clock, Eye } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Store, Phone, MapPin, Edit, ShieldCheck, Heart, Search, Lock, X, Check, FileText } from 'lucide-react';
 import Link from 'next/link';
-import useSWR from 'swr';
+import useSWR, { mutate } from 'swr';
+import Swal from 'sweetalert2';
 import { formatPrice } from '@/lib/currency';
 
 interface Shop {
@@ -32,37 +33,42 @@ const fetcher = async (url: string) => {
     },
   });
   if (!res.ok) {
-    const error = await res.json().catch(() => ({ msg: 'Failed to fetch shops' }));
+    const error = await res.json().catch(() => ({ msg: 'Failed to load shops' }));
     throw new Error(error.msg || 'Failed to fetch');
   }
   return res.json();
 };
 
-export default function SettingsShopsPage() {
+export default function ShopsSettingsPage() {
   const { isPinVerified, resetPinVerification } = useAuth();
   const [showPinModal, setShowPinModal] = useState(true);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [page, setPage] = useState(1);
-  const [editingShop, setEditingShop] = useState<Shop | null>(null);
-  const [editForm, setEditForm] = useState({ name: '', phone: '', address: '' });
-  const [isUpdating, setIsUpdating] = useState(false);
-  const [updateMsg, setUpdateMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  const swrKey = `/api/shops?searchQuery=${encodeURIComponent(searchQuery)}&page=${page}&limit=9&sortField=updatedAt&sortOrder=-1`;
-  const { data, error, isLoading, mutate } = useSWR(swrKey, fetcher, {
+  // Edit Modal State
+  const [editingShop, setEditingShop] = useState<Shop | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [editAddress, setEditAddress] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Build SWR query key
+  const queryParams = new URLSearchParams();
+  if (searchQuery) queryParams.set('searchQuery', searchQuery);
+  queryParams.set('page', String(page));
+  queryParams.set('limit', '9');
+  queryParams.set('sortField', 'updatedAt');
+  queryParams.set('sortOrder', '-1'); // Default: recently updated shops on top
+
+  const swrKey = `/api/shops?${queryParams.toString()}`;
+  const { data, error, isLoading } = useSWR(swrKey, fetcher, {
     revalidateOnFocus: true,
   });
 
   const shops: Shop[] = data?.shops || [];
-  const totalPages: number = data?.totalPages || 1;
   const totalRecords: number = data?.totalRecords || shops.length;
-
-  // Reset page to 1 on search change
-  const handleSearchChange = (val: string) => {
-    setSearchQuery(val);
-    setPage(1);
-  };
+  const totalPages: number = data?.totalPages || 1;
 
   // Require Security PIN verification on visit
   useEffect(() => {
@@ -73,58 +79,77 @@ export default function SettingsShopsPage() {
     setShowPinModal(!isPinVerified);
   }, [isPinVerified]);
 
+  const handleSearchChange = (val: string) => {
+    setSearchQuery(val);
+    setPage(1);
+  };
+
   const handleEditClick = (shop: Shop) => {
     setEditingShop(shop);
-    setEditForm({
-      name: shop.name,
-      phone: shop.phone,
-      address: shop.address
-    });
-    setUpdateMsg(null);
+    setEditName(shop.name || '');
+    setEditPhone(shop.phone || '');
+    setEditAddress(shop.address || '');
+  };
+
+  const handleCloseEditModal = () => {
+    setEditingShop(null);
+    setEditName('');
+    setEditPhone('');
+    setEditAddress('');
   };
 
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingShop) return;
 
-    setIsUpdating(true);
-    setUpdateMsg(null);
-
+    setIsSubmitting(true);
     try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-      const res = await fetch(`/api/shops/update/${editingShop.shopId}`, {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/shops/${editingShop.shopId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify(editForm),
+        body: JSON.stringify({
+          name: editName,
+          phone: editPhone,
+          address: editAddress,
+        }),
       });
 
-      const resData = await res.json();
-      setIsUpdating(false);
-
-      if (res.ok && resData.success) {
-        setUpdateMsg({ type: 'success', text: 'Shop updated successfully!' });
-        mutate();
-        setTimeout(() => {
-          setEditingShop(null);
-          setUpdateMsg(null);
-        }, 1200);
-      } else {
-        setUpdateMsg({ type: 'error', text: resData.msg || 'Failed to update shop' });
+      const result = await res.json();
+      if (!res.ok) {
+        throw new Error(result.msg || 'Failed to update shop details');
       }
+
+      Swal.fire({
+        icon: 'success',
+        title: 'Shop Updated',
+        text: 'Shop details updated successfully',
+        timer: 2000,
+        showConfirmButton: false,
+      });
+
+      handleCloseEditModal();
+      mutate(swrKey);
     } catch (err: any) {
-      setIsUpdating(false);
-      setUpdateMsg({ type: 'error', text: err.message || 'Error updating shop' });
+      console.error('Error saving shop edit:', err);
+      Swal.fire({
+        icon: 'error',
+        title: 'Update Failed',
+        text: err.message || 'Error updating shop',
+      });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
     <>
       <Header showSearch={false} />
-      <main className="min-h-screen bg-[url('/bg.png')] bg-cover bg-center bg-no-repeat bg-fixed py-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <main className="min-h-screen bg-[url('/bg.png')] bg-cover bg-center bg-no-repeat bg-fixed py-4 sm:py-8 overflow-x-hidden">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
 
           {/* Security PIN Gate Modal */}
           <PinModal
@@ -140,17 +165,17 @@ export default function SettingsShopsPage() {
           />
 
           {!isPinVerified ? (
-            <div className="flex flex-col items-center justify-center py-32 text-center">
-              <div className="w-20 h-20 bg-[#0f172a] text-white rounded-full flex items-center justify-center mb-4 shadow-xl border border-white/20">
-                <Lock size={36} />
+            <div className="flex flex-col items-center justify-center py-24 sm:py-32 text-center px-4">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 bg-[#0f172a] text-white rounded-full flex items-center justify-center mb-4 shadow-xl border border-white/20">
+                <Lock size={32} />
               </div>
-              <h2 className="text-2xl font-black text-[#0f172a] uppercase mb-2">SHOP SETTINGS ARE LOCKED</h2>
+              <h2 className="text-xl sm:text-2xl font-black text-[#0f172a] uppercase mb-2">SHOPS PAGE IS LOCKED</h2>
               <p className="text-gray-500 font-bold max-w-sm mb-6 uppercase text-xs">
                 PLEASE ENTER YOUR 4-DIGIT SECURITY PIN TO ACCESS YOUR ASSIGNED SHOPS.
               </p>
               <button
                 onClick={() => setShowPinModal(true)}
-                className="bg-[#0f172a] text-white px-8 py-4 rounded-full font-black text-sm uppercase tracking-wider hover:bg-[#1e293b] shadow-xl transition-all"
+                className="bg-[#0f172a] text-white px-6 sm:px-8 py-3.5 sm:py-4 rounded-full font-black text-xs sm:text-sm uppercase tracking-wider hover:bg-[#1e293b] shadow-xl transition-all cursor-pointer"
               >
                 ENTER SECURITY PIN
               </button>
@@ -158,42 +183,49 @@ export default function SettingsShopsPage() {
           ) : (
             <>
               {/* Header Title Section */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                 <div className="flex items-center gap-3">
-                  <div className="p-3.5 bg-[#0f172a]/10 border border-[#0f172a]/20 rounded-full text-[#0f172a] shadow-sm flex items-center justify-center">
-                    <Store size={32} />
+                  <div className="p-3 sm:p-3.5 bg-[#0f172a]/10 border border-[#0f172a]/20 rounded-full text-[#0f172a] shadow-sm flex items-center justify-center shrink-0">
+                    <Store size={28} />
                   </div>
                   <div>
-                    <h1 className="text-3xl sm:text-4xl font-black text-[#0f172a] uppercase tracking-wide">
+                    <h1 className="text-2xl sm:text-4xl font-black text-[#0f172a] uppercase tracking-wide">
                       MY SHOPS
                     </h1>
-                    <p className="text-xs sm:text-sm text-gray-500 font-bold tracking-wide mt-1 uppercase">
+                    <p className="text-[0.7rem] sm:text-xs text-gray-500 font-bold tracking-wide mt-0.5 uppercase">
                       VIEW AND MANAGE DETAILS FOR YOUR ASSIGNED SHOPS
                     </p>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3">
+                {/* Top Mobile Scrollable Navigation */}
+                <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none w-full sm:w-auto max-w-full shrink-0">
+                  <Link
+                    href="/settings/orders"
+                    className="text-xs font-black text-[#0f172a] uppercase bg-white/60 hover:bg-white border border-white/60 px-3.5 py-2.5 rounded-full shadow-xs transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0"
+                  >
+                    <FileText size={14} /> ORDERS
+                  </Link>
                   <Link
                     href="/settings/wishlist"
-                    className="text-xs font-black text-[#0f172a] uppercase bg-white/60 hover:bg-white border border-white/60 px-5 py-3.5 rounded-full shadow-md transition-all flex items-center gap-2"
+                    className="text-xs font-black text-[#0f172a] uppercase bg-white/60 hover:bg-white border border-white/60 px-3.5 py-2.5 rounded-full shadow-xs transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0"
                   >
-                    <Heart size={16} fill="#ef4444" className="text-red-500" /> WISHLIST
+                    <Heart size={14} fill="#ef4444" className="text-red-500" /> WISHLIST
                   </Link>
                   <Link
                     href="/settings/security"
-                    className="text-xs font-black text-[#0f172a] uppercase bg-white/60 hover:bg-white border border-white/60 px-5 py-3.5 rounded-full shadow-md transition-all flex items-center gap-2"
+                    className="text-xs font-black text-[#0f172a] uppercase bg-white/60 hover:bg-white border border-white/60 px-3.5 py-2.5 rounded-full shadow-xs transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0"
                   >
-                    <ShieldCheck size={16} /> SECURITY
+                    <ShieldCheck size={14} /> SECURITY
                   </Link>
-                  <span className="text-xs font-black text-white bg-[#0f172a] px-6 py-3.5 rounded-full shadow-lg uppercase">
+                  <span className="text-xs font-black text-white bg-[#0f172a] px-4 py-2.5 rounded-full shadow-xs uppercase whitespace-nowrap shrink-0">
                     {totalRecords} {totalRecords === 1 ? 'SHOP' : 'SHOPS'}
                   </span>
                 </div>
               </div>
 
               {/* Search Bar */}
-              <div className="mb-8 flex items-center justify-between gap-4">
+              <div className="mb-6 flex items-center justify-between gap-4">
                 <div className="relative max-w-md w-full">
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                   <input
@@ -201,22 +233,22 @@ export default function SettingsShopsPage() {
                     value={searchQuery}
                     onChange={e => handleSearchChange(e.target.value)}
                     placeholder="SEARCH SHOPS BY NAME, ID, PHONE, ADDRESS..."
-                    className="w-full pl-11 pr-4 py-3.5 bg-white/50 backdrop-blur-xl border border-white/60 rounded-full text-xs font-bold text-[#0f172a] placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0f172a]/30 shadow-sm uppercase"
+                    className="w-full pl-11 pr-4 py-3 bg-white/50 backdrop-blur-xl border border-white/60 rounded-full text-xs font-bold text-[#0f172a] placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0f172a]/30 shadow-sm uppercase"
                   />
                 </div>
               </div>
 
               {isLoading ? (
-                <div className="flex justify-center items-center py-32">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#0f172a]"></div>
+                <div className="flex justify-center items-center py-20">
+                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#0f172a]"></div>
                 </div>
               ) : shops.length === 0 ? (
-                <div className="text-center py-20 bg-white/20 backdrop-blur-2xl rounded-[2.5rem] border border-white/60 shadow-lg">
-                  <div className="w-20 h-20 bg-gray-100/50 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-600">
-                    <Store size={36} />
+                <div className="text-center py-16 bg-white/20 backdrop-blur-2xl rounded-[2rem] border border-white/60 shadow-lg px-4">
+                  <div className="w-16 h-16 bg-gray-100/50 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-600">
+                    <Store size={32} />
                   </div>
-                  <h2 className="text-2xl font-black text-[#0f172a] uppercase mb-2">
-                    {searchQuery ? 'NO MATCHING SHOPS FOUND' : 'NO ACCESSIBLE SHOPS ASSIGNED'}
+                  <h2 className="text-xl font-black text-[#0f172a] uppercase mb-2">
+                    NO ASSIGNED SHOPS FOUND
                   </h2>
                   <p className="text-gray-500 font-semibold mb-6 max-w-md mx-auto uppercase text-xs">
                     {searchQuery
@@ -226,14 +258,15 @@ export default function SettingsShopsPage() {
                 </div>
               ) : (
                 <>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                  {/* Shop Cards Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-8">
                     {shops.map((shop) => (
                       <motion.div
                         key={shop.shopId}
                         layout
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="bg-white/40 backdrop-blur-2xl border border-white/60 rounded-[2.5rem] p-6 shadow-[0_15px_45px_rgba(0,0,0,0.06)] flex flex-col justify-between group hover:border-white/90 transition-all"
+                        className="bg-white/40 backdrop-blur-2xl border border-white/60 rounded-[2rem] sm:rounded-[2.5rem] p-5 sm:p-6 shadow-[0_15px_45px_rgba(0,0,0,0.06)] flex flex-col justify-between group hover:border-white/90 transition-all"
                       >
                         <div>
                           {/* Header Badge & Title */}
@@ -242,13 +275,13 @@ export default function SettingsShopsPage() {
                               <span className="text-[0.65rem] font-black text-[#0f172a] tracking-widest uppercase bg-white/60 border border-white/80 px-3 py-1 rounded-full inline-block mb-2 shadow-xs">
                                 {shop.shopId}
                               </span>
-                              <h3 className="font-extrabold text-[#0f172a] text-xl uppercase leading-tight truncate">
+                              <h3 className="font-extrabold text-[#0f172a] text-lg sm:text-xl uppercase leading-tight truncate">
                                 {shop.name}
                               </h3>
                             </div>
                             <button
                               onClick={() => handleEditClick(shop)}
-                              className="p-3 bg-white/70 hover:bg-white text-[#0f172a] rounded-full transition-all border border-white/60 shadow-sm flex-shrink-0 cursor-pointer"
+                              className="p-2.5 sm:p-3 bg-white/70 hover:bg-white text-[#0f172a] rounded-full transition-all border border-white/60 shadow-sm flex-shrink-0 cursor-pointer"
                               title="Edit Shop Details"
                             >
                               <Edit size={16} />
@@ -259,72 +292,50 @@ export default function SettingsShopsPage() {
                           <div className="space-y-2 mb-5">
                             <a
                               href={`tel:${shop.phone}`}
-                              className="flex items-center gap-2 text-xs font-bold text-gray-600 hover:text-[#0f172a] uppercase transition-colors"
+                              className="flex items-center gap-2 text-xs font-bold text-[#0f172a] hover:text-blue-600 transition-colors uppercase"
                             >
-                              <Phone size={14} className="text-gray-500 flex-shrink-0" />
-                              <span>{shop.phone}</span>
+                              <Phone size={14} className="text-gray-500 shrink-0" />
+                              <span>{shop.phone || 'NO PHONE'}</span>
                             </a>
                             <div className="flex items-start gap-2 text-xs font-bold text-gray-600 uppercase">
-                              <MapPin size={14} className="text-gray-500 flex-shrink-0 mt-0.5" />
-                              <span className="line-clamp-2">{shop.address}</span>
+                              <MapPin size={14} className="text-gray-500 mt-0.5 shrink-0" />
+                              <span className="line-clamp-2">{shop.address || 'NO ADDRESS'}</span>
                             </div>
                           </div>
 
-                          {/* Metrics Grid */}
-                          <div className="grid grid-cols-2 gap-2 pt-4 border-t border-gray-200/60 text-xs">
-                            <div className="p-3 bg-white/40 rounded-2xl border border-white/40">
-                              <p className="text-[0.65rem] text-gray-500 font-bold uppercase flex items-center gap-1">
-                                <ShoppingBag size={12} /> Total Sales
-                              </p>
-                              <p className="font-black text-[#0f172a] text-sm mt-0.5">{formatPrice(shop.totalSales)}</p>
+                          {/* Metrics Projected Fields Grid */}
+                          <div className="grid grid-cols-2 gap-2 pt-4 border-t border-gray-200/50 mb-5">
+                            <div className="bg-white/50 rounded-2xl p-2.5 sm:p-3 border border-white/60">
+                              <span className="text-[0.65rem] text-gray-500 font-bold uppercase block">TOTAL SALES</span>
+                              <span className="text-xs sm:text-sm font-black text-[#0f172a]">{formatPrice(shop.totalSales)}</span>
                             </div>
-
-                            <div className="p-3 bg-white/40 rounded-2xl border border-white/40">
-                              <p className="text-[0.65rem] text-gray-500 font-bold uppercase flex items-center gap-1">
-                                <DollarSign size={12} /> Current Credit
-                              </p>
-                              <p className="font-black text-[#0f172a] text-sm mt-0.5">{formatPrice(shop.currentCredit)}</p>
+                            <div className="bg-white/50 rounded-2xl p-2.5 sm:p-3 border border-white/60">
+                              <span className="text-[0.65rem] text-gray-500 font-bold uppercase block">CREDIT</span>
+                              <span className="text-xs sm:text-sm font-black text-[#0f172a]">{formatPrice(shop.currentCredit)}</span>
                             </div>
-
-                            <div className="p-3 bg-white/40 rounded-2xl border border-white/40">
-                              <p className="text-[0.65rem] text-gray-500 font-bold uppercase flex items-center gap-1">
-                                <Check size={12} /> Delivered
-                              </p>
-                              <p className="font-black text-[#0f172a] text-sm mt-0.5">{shop.deliveredOrders} Orders</p>
+                            <div className="bg-white/50 rounded-2xl p-2.5 sm:p-3 border border-white/60">
+                              <span className="text-[0.65rem] text-gray-500 font-bold uppercase block">DELIVERED</span>
+                              <span className="text-xs sm:text-sm font-black text-green-700">{shop.deliveredOrders}</span>
                             </div>
-
-                            <div className="p-3 bg-white/40 rounded-2xl border border-white/40">
-                              <p className="text-[0.65rem] text-gray-500 font-bold uppercase flex items-center gap-1">
-                                <Clock size={12} /> Pending
-                              </p>
-                              <p className="font-black text-[#0f172a] text-sm mt-0.5">{shop.pendingOrders} Orders</p>
+                            <div className="bg-white/50 rounded-2xl p-2.5 sm:p-3 border border-white/60">
+                              <span className="text-[0.65rem] text-gray-500 font-bold uppercase block">PENDING</span>
+                              <span className="text-xs sm:text-sm font-black text-amber-700">{shop.pendingOrders}</span>
                             </div>
-
-                            <div className="p-3 bg-white/40 rounded-2xl border border-white/40 col-span-2">
-                              <p className="text-[0.65rem] text-gray-500 font-bold uppercase flex items-center gap-1">
-                                <CreditCard size={12} /> Cheques Summary
-                              </p>
-                              <p className="font-black text-[#0f172a] text-sm mt-0.5">
-                                {shop.chequeCount} Cheques ({formatPrice(shop.chequeValue)})
-                              </p>
-                            </div>
-                          </div>
-
-                          {/* View Single Shop & Invoices Link */}
-                          <div className="mt-4 pt-3 border-t border-gray-200/60">
-                            <Link
-                              href={`/settings/shops/${shop.shopId}`}
-                              className="w-full flex items-center justify-center gap-2 py-3 bg-[#0f172a] hover:bg-[#1e293b] text-white font-black text-xs uppercase tracking-wider rounded-full transition-all shadow-md"
-                            >
-                              <Eye size={14} /> VIEW INVOICES & DETAILS
-                            </Link>
                           </div>
                         </div>
+
+                        {/* View Invoices / Single View Action Button */}
+                        <Link
+                          href={`/settings/shops/${shop.shopId}`}
+                          className="w-full py-3 bg-[#0f172a] hover:bg-[#1e293b] text-white font-black text-xs uppercase tracking-wider rounded-full shadow-md transition-all text-center block"
+                        >
+                          VIEW SHOP INVOICES
+                        </Link>
                       </motion.div>
                     ))}
                   </div>
 
-                  {/* API Pagination Component */}
+                  {/* API Pagination */}
                   <Pagination
                     currentPage={page}
                     totalPages={totalPages}
@@ -336,109 +347,100 @@ export default function SettingsShopsPage() {
             </>
           )}
 
-          {/* Edit Shop Modal */}
-          {editingShop && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95, y: 20 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                className="relative w-full max-w-lg bg-white/50 backdrop-blur-2xl rounded-[2.5rem] p-6 sm:p-8 border border-white/60 shadow-[0_25px_70px_rgba(0,0,0,0.25)]"
-              >
-                <button
-                  onClick={() => setEditingShop(null)}
-                  className="absolute top-6 right-6 p-2 text-gray-600 hover:text-[#0f172a] hover:bg-white/60 rounded-full transition-all border border-white/40 cursor-pointer"
-                >
-                  <X size={18} />
-                </button>
-
-                <div className="text-center mb-6">
-                  <div className="w-14 h-14 bg-[#0f172a] text-white rounded-full flex items-center justify-center mx-auto mb-3 shadow-md">
-                    <Store size={28} />
-                  </div>
-                  <h2 className="text-2xl font-black text-[#0f172a] uppercase">EDIT SHOP DETAILS</h2>
-                  <p className="text-xs text-gray-500 font-bold uppercase mt-1">
-                    SHOP ID: {editingShop.shopId}
-                  </p>
-                </div>
-
-                {updateMsg && (
-                  <div className={`p-3 rounded-full text-center text-xs font-black uppercase mb-4 ${
-                    updateMsg.type === 'success' ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-red-100 text-red-800 border border-red-200'
-                  }`}>
-                    {updateMsg.text}
-                  </div>
-                )}
-
-                <form onSubmit={handleSaveEdit} className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-black text-[#0f172a] uppercase mb-1.5">
-                      SHOP NAME *
-                    </label>
-                    <input
-                      type="text"
-                      value={editForm.name}
-                      onChange={e => setEditForm({ ...editForm, name: e.target.value })}
-                      required
-                      placeholder="ENTER SHOP NAME"
-                      className="w-full px-5 py-3.5 bg-white/70 border border-white/80 rounded-full font-bold text-xs text-[#0f172a] focus:outline-none focus:ring-2 focus:ring-[#0f172a] uppercase shadow-xs"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-black text-[#0f172a] uppercase mb-1.5">
-                      PHONE NUMBER *
-                    </label>
-                    <input
-                      type="text"
-                      value={editForm.phone}
-                      onChange={e => setEditForm({ ...editForm, phone: e.target.value })}
-                      required
-                      placeholder="ENTER PHONE NUMBER"
-                      className="w-full px-5 py-3.5 bg-white/70 border border-white/80 rounded-full font-bold text-xs text-[#0f172a] focus:outline-none focus:ring-2 focus:ring-[#0f172a] uppercase shadow-xs"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-black text-[#0f172a] uppercase mb-1.5">
-                      ADDRESS
-                    </label>
-                    <input
-                      type="text"
-                      value={editForm.address}
-                      onChange={e => setEditForm({ ...editForm, address: e.target.value })}
-                      placeholder="ENTER SHOP ADDRESS"
-                      className="w-full px-5 py-3.5 bg-white/70 border border-white/80 rounded-full font-bold text-xs text-[#0f172a] focus:outline-none focus:ring-2 focus:ring-[#0f172a] uppercase shadow-xs"
-                    />
-                  </div>
-
-                  <div className="pt-4 flex gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setEditingShop(null)}
-                      className="flex-1 py-4 bg-white/60 hover:bg-white text-[#0f172a] font-black text-xs uppercase rounded-full transition-all border border-white/60 cursor-pointer"
-                    >
-                      CANCEL
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={isUpdating || !editForm.name || !editForm.phone}
-                      className="flex-1 py-4 bg-[#0f172a] hover:bg-[#1e293b] text-white font-black text-xs uppercase rounded-full transition-all shadow-lg disabled:opacity-40 flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed"
-                    >
-                      {isUpdating ? (
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                      ) : (
-                        'SAVE CHANGES'
-                      )}
-                    </button>
-                  </div>
-                </form>
-              </motion.div>
-            </div>
-          )}
-
         </div>
       </main>
+
+      {/* Edit Shop Modal (Can Edit, Cannot Delete) */}
+      {editingShop && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="w-full max-w-md bg-white rounded-3xl p-6 sm:p-8 shadow-2xl border border-gray-100"
+          >
+            <div className="flex items-center justify-between pb-4 mb-6 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <Store size={22} className="text-[#0f172a]" />
+                <h3 className="font-black text-lg text-[#0f172a] uppercase">EDIT SHOP INFO</h3>
+              </div>
+              <button
+                onClick={handleCloseEditModal}
+                className="p-2 text-gray-400 hover:text-black rounded-full transition-all cursor-pointer"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEdit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-black text-[#0f172a] uppercase mb-1">SHOP ID</label>
+                <input
+                  type="text"
+                  disabled
+                  value={editingShop.shopId}
+                  className="w-full px-4 py-3 bg-gray-100 border border-gray-200 rounded-2xl text-xs font-bold text-gray-500 cursor-not-allowed uppercase"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-black text-[#0f172a] uppercase mb-1">SHOP NAME</label>
+                <input
+                  type="text"
+                  required
+                  value={editName}
+                  onChange={e => setEditName(e.target.value)}
+                  className="w-full px-4 py-3 bg-white border border-gray-300 rounded-2xl text-xs font-bold text-[#0f172a] focus:outline-none focus:ring-2 focus:ring-[#0f172a] uppercase"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-black text-[#0f172a] uppercase mb-1">PHONE NUMBER</label>
+                <input
+                  type="text"
+                  required
+                  value={editPhone}
+                  onChange={e => setEditPhone(e.target.value)}
+                  className="w-full px-4 py-3 bg-white border border-gray-300 rounded-2xl text-xs font-bold text-[#0f172a] focus:outline-none focus:ring-2 focus:ring-[#0f172a] uppercase"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-black text-[#0f172a] uppercase mb-1">ADDRESS</label>
+                <textarea
+                  required
+                  rows={3}
+                  value={editAddress}
+                  onChange={e => setEditAddress(e.target.value)}
+                  className="w-full px-4 py-3 bg-white border border-gray-300 rounded-2xl text-xs font-bold text-[#0f172a] focus:outline-none focus:ring-2 focus:ring-[#0f172a] uppercase"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={handleCloseEditModal}
+                  className="px-5 py-3 bg-gray-100 hover:bg-gray-200 text-[#0f172a] font-black text-xs uppercase rounded-full transition-all cursor-pointer"
+                >
+                  CANCEL
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="px-6 py-3 bg-[#0f172a] hover:bg-[#1e293b] text-white font-black text-xs uppercase rounded-full shadow-lg transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  {isSubmitting ? (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                  ) : (
+                    <Check size={16} />
+                  )}
+                  SAVE CHANGES
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
     </>
   );
 }

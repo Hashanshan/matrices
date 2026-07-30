@@ -135,32 +135,32 @@ export default function SettingsOrdersPage() {
       case 'delivered':
       case 'completed':
         return (
-          <span className="px-3 py-1 bg-green-100/90 text-green-800 border border-green-200/80 rounded-full text-[0.65rem] font-black uppercase flex items-center gap-1 shadow-xs">
+          <span className="px-3 py-1 bg-green-100/90 text-green-800 border border-green-200/80 rounded-full text-[0.65rem] font-black uppercase flex items-center gap-1 shadow-xs shrink-0">
             <CheckCircle2 size={12} /> DELIVERED
           </span>
         );
       case 'pending':
         return (
-          <span className="px-3 py-1 bg-amber-100/90 text-amber-800 border border-amber-200/80 rounded-full text-[0.65rem] font-black uppercase flex items-center gap-1 shadow-xs">
+          <span className="px-3 py-1 bg-amber-100/90 text-amber-800 border border-amber-200/80 rounded-full text-[0.65rem] font-black uppercase flex items-center gap-1 shadow-xs shrink-0">
             <Clock size={12} /> PENDING
           </span>
         );
       case 'loaded':
         return (
-          <span className="px-3 py-1 bg-blue-100/90 text-blue-800 border border-blue-200/80 rounded-full text-[0.65rem] font-black uppercase flex items-center gap-1 shadow-xs">
+          <span className="px-3 py-1 bg-blue-100/90 text-blue-800 border border-blue-200/80 rounded-full text-[0.65rem] font-black uppercase flex items-center gap-1 shadow-xs shrink-0">
             <ShoppingBag size={12} /> LOADED
           </span>
         );
       case 'cancelled':
       case 'failed':
         return (
-          <span className="px-3 py-1 bg-rose-100/90 text-rose-800 border border-rose-200/80 rounded-full text-[0.65rem] font-black uppercase flex items-center gap-1 shadow-xs">
+          <span className="px-3 py-1 bg-rose-100/90 text-rose-800 border border-rose-200/80 rounded-full text-[0.65rem] font-black uppercase flex items-center gap-1 shadow-xs shrink-0">
             <XCircle size={12} /> CANCELLED
           </span>
         );
       default:
         return (
-          <span className="px-3 py-1 bg-gray-100/90 text-gray-800 border border-gray-200/80 rounded-full text-[0.65rem] font-black uppercase flex items-center gap-1 shadow-xs">
+          <span className="px-3 py-1 bg-gray-100/90 text-gray-800 border border-gray-200/80 rounded-full text-[0.65rem] font-black uppercase flex items-center gap-1 shadow-xs shrink-0">
             <AlertCircle size={12} /> {status}
           </span>
         );
@@ -170,8 +170,8 @@ export default function SettingsOrdersPage() {
   return (
     <>
       <Header showSearch={false} />
-      <main className="min-h-screen bg-[url('/bg.png')] bg-cover bg-center bg-no-repeat bg-fixed py-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <main className="min-h-screen bg-[url('/bg.png')] bg-cover bg-center bg-no-repeat bg-fixed py-4 sm:py-8 overflow-x-hidden">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
 
           {/* Security PIN Gate Modal */}
           <PinModal
@@ -187,17 +187,17 @@ export default function SettingsOrdersPage() {
           />
 
           {!isPinVerified ? (
-            <div className="flex flex-col items-center justify-center py-32 text-center">
-              <div className="w-20 h-20 bg-[#0f172a] text-white rounded-full flex items-center justify-center mb-4 shadow-xl border border-white/20">
-                <Lock size={36} />
+            <div className="flex flex-col items-center justify-center py-24 sm:py-32 text-center px-4">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 bg-[#0f172a] text-white rounded-full flex items-center justify-center mb-4 shadow-xl border border-white/20">
+                <Lock size={32} />
               </div>
-              <h2 className="text-2xl font-black text-[#0f172a] uppercase mb-2">ORDERS PAGE IS LOCKED</h2>
+              <h2 className="text-xl sm:text-2xl font-black text-[#0f172a] uppercase mb-2">ORDERS PAGE IS LOCKED</h2>
               <p className="text-gray-500 font-bold max-w-sm mb-6 uppercase text-xs">
                 PLEASE ENTER YOUR 4-DIGIT SECURITY PIN TO ACCESS YOUR ASSIGNED ORDERS & INVOICES.
               </p>
               <button
                 onClick={() => setShowPinModal(true)}
-                className="bg-[#0f172a] text-white px-8 py-4 rounded-full font-black text-sm uppercase tracking-wider hover:bg-[#1e293b] shadow-xl transition-all cursor-pointer"
+                className="bg-[#0f172a] text-white px-6 sm:px-8 py-3.5 sm:py-4 rounded-full font-black text-xs sm:text-sm uppercase tracking-wider hover:bg-[#1e293b] shadow-xl transition-all cursor-pointer"
               >
                 ENTER SECURITY PIN
               </button>
@@ -205,87 +205,88 @@ export default function SettingsOrdersPage() {
           ) : (
             <>
               {/* Header Title Section */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                 <div className="flex items-center gap-3">
-                  <div className="p-3.5 bg-[#0f172a]/10 border border-[#0f172a]/20 rounded-full text-[#0f172a] shadow-sm flex items-center justify-center">
-                    <FileText size={32} />
+                  <div className="p-3 sm:p-3.5 bg-[#0f172a]/10 border border-[#0f172a]/20 rounded-full text-[#0f172a] shadow-sm flex items-center justify-center shrink-0">
+                    <FileText size={28} />
                   </div>
                   <div>
-                    <h1 className="text-3xl sm:text-4xl font-black text-[#0f172a] uppercase tracking-wide">
+                    <h1 className="text-2xl sm:text-4xl font-black text-[#0f172a] uppercase tracking-wide">
                       SHOP INVOICES & ORDERS
                     </h1>
-                    <p className="text-xs sm:text-sm text-gray-500 font-bold tracking-wide mt-1 uppercase">
+                    <p className="text-[0.7rem] sm:text-xs text-gray-500 font-bold tracking-wide mt-0.5 uppercase">
                       VIEW ALL ORDERS AND INVOICES ACROSS YOUR ASSIGNED SHOPS
                     </p>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3">
+                {/* Top Mobile Scrollable Navigation */}
+                <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none w-full sm:w-auto max-w-full shrink-0">
                   <Link
                     href="/settings/shops"
-                    className="text-xs font-black text-[#0f172a] uppercase bg-white/60 hover:bg-white border border-white/60 px-4 py-3 rounded-full shadow-md transition-all flex items-center gap-1.5"
+                    className="text-xs font-black text-[#0f172a] uppercase bg-white/60 hover:bg-white border border-white/60 px-3.5 py-2.5 rounded-full shadow-xs transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0"
                   >
-                    <Store size={16} /> SHOPS
+                    <Store size={14} /> SHOPS
                   </Link>
                   <Link
                     href="/settings/wishlist"
-                    className="text-xs font-black text-[#0f172a] uppercase bg-white/60 hover:bg-white border border-white/60 px-4 py-3 rounded-full shadow-md transition-all flex items-center gap-1.5"
+                    className="text-xs font-black text-[#0f172a] uppercase bg-white/60 hover:bg-white border border-white/60 px-3.5 py-2.5 rounded-full shadow-xs transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0"
                   >
-                    <Heart size={16} fill="#ef4444" className="text-red-500" /> WISHLIST
+                    <Heart size={14} fill="#ef4444" className="text-red-500" /> WISHLIST
                   </Link>
                   <Link
                     href="/settings/security"
-                    className="text-xs font-black text-[#0f172a] uppercase bg-white/60 hover:bg-white border border-white/60 px-4 py-3 rounded-full shadow-md transition-all flex items-center gap-1.5"
+                    className="text-xs font-black text-[#0f172a] uppercase bg-white/60 hover:bg-white border border-white/60 px-3.5 py-2.5 rounded-full shadow-xs transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0"
                   >
-                    <ShieldCheck size={16} /> SECURITY
+                    <ShieldCheck size={14} /> SECURITY
                   </Link>
-                  <span className="text-xs font-black text-white bg-[#0f172a] px-5 py-3 rounded-full shadow-lg uppercase">
+                  <span className="text-xs font-black text-white bg-[#0f172a] px-4 py-2.5 rounded-full shadow-xs uppercase whitespace-nowrap shrink-0">
                     {totalOrders} {totalOrders === 1 ? 'ORDER' : 'ORDERS'}
                   </span>
                 </div>
               </div>
 
               {/* Filter & Search Bar */}
-              <div className="mb-8 space-y-4 bg-white/30 backdrop-blur-2xl border border-white/60 rounded-[2rem] p-5 shadow-sm">
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                  <div className="relative max-w-md w-full">
+              <div className="mb-6 space-y-4 bg-white/30 backdrop-blur-2xl border border-white/60 rounded-[2rem] p-4 sm:p-5 shadow-sm max-w-full overflow-hidden">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                  <div className="relative max-w-full lg:max-w-md w-full">
                     <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
                     <input
                       type="text"
                       value={searchQuery}
                       onChange={e => handleSearchChange(e.target.value)}
                       placeholder="SEARCH ORDER ID OR ITEM..."
-                      className="w-full pl-10 pr-4 py-3.5 bg-white/70 border border-white/80 rounded-full text-xs font-bold text-[#0f172a] placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0f172a]/30 uppercase shadow-xs"
+                      className="w-full pl-10 pr-4 py-3 bg-white/70 border border-white/80 rounded-full text-xs font-bold text-[#0f172a] placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0f172a]/30 uppercase shadow-xs"
                     />
                   </div>
 
                   {/* Date Range Inputs */}
-                  <div className="flex flex-wrap items-center gap-3">
-                    <div className="flex items-center gap-2">
-                      <Calendar size={14} className="text-gray-500" />
-                      <span className="text-[0.65rem] font-black text-[#0f172a] uppercase">FROM:</span>
+                  <div className="flex flex-wrap items-center gap-2.5">
+                    <div className="flex items-center gap-1.5 bg-white/70 border border-white/80 rounded-xl px-3 py-1.5 text-xs font-bold text-[#0f172a]">
+                      <Calendar size={14} className="text-gray-500 shrink-0" />
+                      <span className="text-[0.65rem] font-black uppercase shrink-0">FROM:</span>
                       <input
                         type="date"
                         value={fromDate}
                         onChange={e => handleFromDateChange(e.target.value)}
-                        className="px-3.5 py-2 bg-white/70 border border-white/80 rounded-xl text-xs font-bold text-[#0f172a] focus:outline-none focus:ring-2 focus:ring-[#0f172a]/30 uppercase"
+                        className="bg-transparent focus:outline-none uppercase text-xs font-bold max-w-[130px]"
                       />
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <span className="text-[0.65rem] font-black text-[#0f172a] uppercase">TO:</span>
+                    <div className="flex items-center gap-1.5 bg-white/70 border border-white/80 rounded-xl px-3 py-1.5 text-xs font-bold text-[#0f172a]">
+                      <span className="text-[0.65rem] font-black uppercase shrink-0">TO:</span>
                       <input
                         type="date"
                         value={toDate}
                         onChange={e => handleToDateChange(e.target.value)}
-                        className="px-3.5 py-2 bg-white/70 border border-white/80 rounded-xl text-xs font-bold text-[#0f172a] focus:outline-none focus:ring-2 focus:ring-[#0f172a]/30 uppercase"
+                        className="bg-transparent focus:outline-none uppercase text-xs font-bold max-w-[130px]"
                       />
                     </div>
 
                     {(fromDate || toDate || searchQuery || activeTab !== 'all') && (
                       <button
                         onClick={resetFilters}
-                        className="px-3.5 py-2 bg-white/60 hover:bg-white text-rose-700 border border-rose-200 rounded-xl text-[0.65rem] font-black uppercase flex items-center gap-1 transition-all cursor-pointer"
+                        className="px-3 py-1.5 bg-white/60 hover:bg-white text-rose-700 border border-rose-200 rounded-xl text-[0.65rem] font-black uppercase flex items-center gap-1 transition-all cursor-pointer shrink-0"
                       >
                         <RefreshCw size={12} /> CLEAR
                       </button>
@@ -294,7 +295,7 @@ export default function SettingsOrdersPage() {
                 </div>
 
                 {/* Separated Status Tabs */}
-                <div className="flex items-center gap-2 overflow-x-auto pt-2 scrollbar-none">
+                <div className="w-full max-w-full overflow-x-auto pt-2 pb-1 scrollbar-none flex items-center gap-2 shrink-0">
                   {[
                     { id: 'all', label: 'ALL INVOICES' },
                     { id: 'delivered', label: 'DELIVERED' },
@@ -305,7 +306,7 @@ export default function SettingsOrdersPage() {
                     <button
                       key={tab.id}
                       onClick={() => handleTabChange(tab.id)}
-                      className={`px-5 py-3 rounded-full font-black text-xs uppercase tracking-wider transition-all whitespace-nowrap border cursor-pointer ${
+                      className={`px-4 py-2.5 rounded-full font-black text-xs uppercase tracking-wider transition-all whitespace-nowrap border shrink-0 cursor-pointer ${
                         activeTab === tab.id
                           ? 'bg-[#0f172a] text-white border-[#0f172a] shadow-md scale-105'
                           : 'bg-white/50 hover:bg-white text-[#0f172a] border-white/60'
@@ -319,11 +320,11 @@ export default function SettingsOrdersPage() {
 
               {/* Invoices / Orders List */}
               {isLoading ? (
-                <div className="flex justify-center items-center py-32">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#0f172a]"></div>
+                <div className="flex justify-center items-center py-20">
+                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#0f172a]"></div>
                 </div>
               ) : orders.length === 0 ? (
-                <div className="text-center py-20 bg-white/20 backdrop-blur-2xl rounded-[2.5rem] border border-white/60 shadow-md">
+                <div className="text-center py-16 bg-white/20 backdrop-blur-2xl rounded-[2rem] border border-white/60 shadow-md px-4">
                   <FileText size={36} className="text-gray-400 mx-auto mb-3" />
                   <h3 className="text-lg font-black text-[#0f172a] uppercase mb-1">NO MATCHING ORDERS FOUND</h3>
                   <p className="text-xs text-gray-500 font-bold uppercase max-w-md mx-auto">
@@ -339,12 +340,12 @@ export default function SettingsOrdersPage() {
                         layout
                         initial={{ opacity: 0, y: 15 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="bg-white/40 backdrop-blur-2xl border border-white/60 rounded-[2rem] p-5 sm:p-6 shadow-[0_10px_35px_rgba(0,0,0,0.04)] hover:border-white/90 transition-all"
+                        className="bg-white/40 backdrop-blur-2xl border border-white/60 rounded-[1.5rem] sm:rounded-[2rem] p-4 sm:p-6 shadow-[0_10px_35px_rgba(0,0,0,0.04)] hover:border-white/90 transition-all max-w-full overflow-hidden"
                       >
                         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-gray-200/60">
                           <div>
-                            <div className="flex items-center gap-3 mb-1">
-                              <span className="text-sm font-black text-[#0f172a] uppercase bg-white/80 border border-white/80 px-3.5 py-1 rounded-full shadow-xs">
+                            <div className="flex items-center gap-2 mb-1 flex-wrap">
+                              <span className="text-xs sm:text-sm font-black text-[#0f172a] uppercase bg-white/80 border border-white/80 px-3 py-1 rounded-full shadow-xs">
                                 {order.orderId}
                               </span>
                               {getStatusBadge(order.status)}
@@ -359,13 +360,13 @@ export default function SettingsOrdersPage() {
                             </p>
                           </div>
 
-                          <div className="flex flex-wrap items-center gap-4 text-xs font-bold">
+                          <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs font-bold">
                             <div>
                               <span className="text-gray-500 uppercase block text-[0.65rem]">SUBTOTAL</span>
                               <span className="text-[#0f172a] font-black">{formatPrice(order.subtotal)}</span>
                             </div>
                             <div>
-                              <span className="text-gray-500 uppercase block text-[0.65rem]">TOTAL AMOUNT</span>
+                              <span className="text-gray-500 uppercase block text-[0.65rem]">TOTAL</span>
                               <span className="text-[#0f172a] font-black text-sm">{formatPrice(order.total)}</span>
                             </div>
                             <div>
@@ -380,16 +381,16 @@ export default function SettingsOrdersPage() {
                             {/* View Clear PDF Popup Modal Button */}
                             <button
                               onClick={() => setSelectedInvoice(order)}
-                              className="px-5 py-3 bg-[#0f172a] hover:bg-[#1e293b] text-white font-black text-xs uppercase tracking-wider rounded-full shadow-md transition-all flex items-center gap-2 ml-auto cursor-pointer"
+                              className="px-4 sm:px-5 py-2.5 sm:py-3 bg-[#0f172a] hover:bg-[#1e293b] text-white font-black text-xs uppercase tracking-wider rounded-full shadow-md transition-all flex items-center gap-2 w-full sm:w-auto justify-center cursor-pointer mt-2 sm:mt-0"
                             >
                               <Eye size={14} /> VIEW CLEAR PDF
                             </button>
                           </div>
                         </div>
 
-                        {/* Items Preview Table */}
-                        <div className="mt-4 overflow-x-auto">
-                          <table className="w-full text-left text-xs font-bold">
+                        {/* Items Preview Table with Horizontal Scroll */}
+                        <div className="mt-4 overflow-x-auto w-full">
+                          <table className="w-full text-left text-xs font-bold min-w-[500px]">
                             <thead>
                               <tr className="text-[0.65rem] text-gray-500 uppercase border-b border-gray-200/40 pb-2">
                                 <th className="pb-2">PRODUCT ID</th>
@@ -428,7 +429,7 @@ export default function SettingsOrdersPage() {
             </>
           )}
 
-          {/* PDF Invoice Popup Modal with Click-Outside Close & Download PDF options */}
+          {/* PDF Invoice Popup Modal */}
           <InvoicePdfModal
             order={selectedInvoice}
             onClose={() => setSelectedInvoice(null)}
