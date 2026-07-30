@@ -62,6 +62,10 @@ export interface Order {
   totalPaid: number;
   remainingAmount: number;
   payments: Payment[];
+  billedBy?: { name?: string; email?: string } | string;
+  salesrep?: any;
+  salesRep?: any;
+  createdBy?: any;
 }
 
 interface InvoicePdfModalProps {
