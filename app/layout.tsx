@@ -29,6 +29,9 @@ export const viewport: Viewport = {
   ],
 }
 
+import { SyncProvider } from '@/lib/contexts/sync-context'
+import OfflineBanner from '@/components/mobile/offline-banner'
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -65,10 +68,13 @@ export default function RootLayout({
           <AuthProvider>
             <CartProvider>
               <WishlistProvider>
-                <AuthGuard>
-                  {children}
-                  {process.env.NODE_ENV === 'production' && <Analytics />}
-                </AuthGuard>
+                <SyncProvider>
+                  <OfflineBanner />
+                  <AuthGuard>
+                    {children}
+                    {process.env.NODE_ENV === 'production' && <Analytics />}
+                  </AuthGuard>
+                </SyncProvider>
               </WishlistProvider>
             </CartProvider>
           </AuthProvider>

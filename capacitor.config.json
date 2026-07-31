@@ -1,0 +1,21 @@
+{
+  "appId": "com.matrices.catalogue",
+  "appName": "Matrices Catalogue",
+  "webDir": "public",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "https",
+    "cleartext": true
+  },
+  "plugins": {
+    "Camera": {
+      "permissions": ["camera", "photos"]
+    },
+    "Geolocation": {
+      "permissions": ["location"]
+    },
+    "Filesystem": {
+      "permissions": ["publicStorage"]
+    }
+  }
+}

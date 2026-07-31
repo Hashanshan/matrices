@@ -10,6 +10,8 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
 
+import SyncButton from '@/components/mobile/sync-button';
+
 interface HeaderProps {
   searchQuery?: string;
   onSearchChange?: (query: string) => void;
@@ -87,8 +89,12 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
 
           {/* Right Section */}
           <div className="flex items-center gap-3 md:gap-6">
+            {/* Sync Button for Offline Bulk Data Sync */}
+            <SyncButton />
+
             {/* Cart Button */}
             <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }}>
+
               <Link href="/cart">
                 <div className="relative p-2.5 hover:bg-secondary rounded-2xl transition-colors cursor-pointer group" title="Shopping Cart">
                   <CartIcon size={24} className="text-foreground group-hover:text-accent transition-colors" />
