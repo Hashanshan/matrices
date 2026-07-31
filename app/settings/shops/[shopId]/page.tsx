@@ -7,7 +7,7 @@ import PinModal from '@/components/pin-modal';
 import Pagination from '@/components/pagination';
 import InvoicePdfModal from '@/components/invoice-pdf-modal';
 import { motion } from 'framer-motion';
-import { Store, Phone, MapPin, ShieldCheck, Heart, Search, Lock, ArrowLeft, FileText, CheckCircle2, Clock, AlertCircle, XCircle, ShoppingBag, DollarSign, Calendar, RefreshCw, Eye } from 'lucide-react';
+import { Store, Phone, MapPin, ShieldCheck, Heart, Search, Lock, ArrowLeft, FileText, CheckCircle2, Clock, AlertCircle, XCircle, ShoppingBag, DollarSign, Calendar, RefreshCw, Eye, Navigation, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
 import useSWR from 'swr';
 import { formatPrice } from '@/lib/currency';
@@ -17,6 +17,8 @@ interface Shop {
   name: string;
   phone: string;
   address: string;
+  mapUrl?: string;
+  imageUrl?: string;
   deliveredOrders: number;
   pendingOrders: number;
   totalSales: number;
@@ -270,7 +272,12 @@ export default function ShopSingleViewPage({ params }: { params: Promise<{ shopI
               </div>
 
               {/* Shop Single View Hero Card */}
-              <div className="bg-white/40 backdrop-blur-2xl border border-white/60 rounded-[2rem] sm:rounded-[2.5rem] p-5 sm:p-8 shadow-[0_20px_50px_rgba(0,0,0,0.06)] mb-6">
+              <div className="bg-white/40 backdrop-blur-2xl border border-white/60 rounded-[2rem] sm:rounded-[2.5rem] p-5 sm:p-8 shadow-[0_20px_50px_rgba(0,0,0,0.06)] mb-6 overflow-hidden">
+                {shop.imageUrl && (
+                  <div className="relative w-full h-48 sm:h-56 rounded-2xl sm:rounded-3xl overflow-hidden mb-6 border border-white/80 shadow-sm">
+                    <img src={shop.imageUrl} alt={shop.name} className="w-full h-full object-cover" />
+                  </div>
+                )}
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-gray-200/60">
                   <div>
                     <div className="flex items-center gap-2 mb-2">
@@ -291,6 +298,16 @@ export default function ShopSingleViewPage({ params }: { params: Promise<{ shopI
                       <span className="flex items-center gap-1.5">
                         <MapPin size={14} className="text-gray-500 shrink-0" /> {shop.address}
                       </span>
+                      {shop.mapUrl && (
+                        <a
+                          href={shop.mapUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 px-3 py-1 bg-[#0f172a] text-white rounded-full text-[0.65rem] font-black uppercase transition-all shadow-xs hover:bg-[#1e293b]"
+                        >
+                          <Navigation size={11} className="text-blue-400 shrink-0" /> VIEW MAP LOCATION <ExternalLink size={10} />
+                        </a>
+                      )}
                     </div>
                   </div>
 

@@ -73,3 +73,39 @@ export async function POST(
     return NextResponse.json({ msg: 'Internal proxy error' }, { status: 500 });
   }
 }
+
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ shopId: string }> }
+) {
+  try {
+    const { shopId } = await params;
+    const authHeader = request.headers.get('Authorization') || '';
+    const body = await request.json().catch(() => ({}));
+
+    const basePath = BACKEND_URL.endsWith('/api')
+      ? `/catelogue/shops/update/${shopId}`
+      : `/api/catelogue/shops/update/${shopId}`;
+
+    const backendRes = await fetch(`${BACKEND_URL}${basePath}`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': authHeader,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!backendRes.ok) {
+      const errorData = await backendRes.json().catch(() => ({ msg: 'Backend error' }));
+      return NextResponse.json(errorData, { status: backendRes.status });
+    }
+
+    const data = await backendRes.json();
+    return NextResponse.json(data);
+  } catch (err) {
+    console.error('[API Proxy] Error updating catalogue shop in backend:', err);
+    return NextResponse.json({ msg: 'Internal proxy error' }, { status: 500 });
+  }
+}
+
