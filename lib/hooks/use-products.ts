@@ -565,7 +565,7 @@ export function useProducts(options: UseProductsOptions = {}) {
       if (subVal) params.set('subcategory', subVal);
     }
     if (search) params.set('search', search);
-    if (productId && !search) params.set('productId', productId);
+    if (productId && !search) params.set('search', productId);
     if (prioritizeCategory) params.set('prioritizeCategory', prioritizeCategory);
     const currentLimit = pageIndex > 0 ? limit : (options.initialLimit || limit);
     params.set('limit', String(currentLimit));
@@ -631,7 +631,7 @@ export function useProducts(options: UseProductsOptions = {}) {
  * Uses stale-while-revalidate: returns IDB data immediately, then refreshes from API.
  */
 export function useAllProducts(options: Omit<UseProductsOptions, 'limit'> & { fallbackData?: ProductsResponse } = {}) {
-  const { sort = 'view', category, subcategory, search, fallbackData } = options;
+  const { sort = 'view', category, subcategory, search, productId, fallbackData } = options;
   const { dataMode } = useDataMode();
 
   const params = new URLSearchParams();
@@ -648,6 +648,7 @@ export function useAllProducts(options: Omit<UseProductsOptions, 'limit'> & { fa
     if (subVal) params.set('subcategory', subVal);
   }
   if (search) params.set('search', search);
+  if (productId && !search) params.set('search', productId);
 
   const key = `/api/products?${params.toString()}`;
 
