@@ -340,3 +340,20 @@ export async function getOfflineCatalogSummary(): Promise<{
 
   return { categories };
 }
+
+// ── Re-export Page-Specific Offline Functions ─────────────────────────────────
+export {
+  getOfflineCatalogueProducts,
+  getOfflineCatalogueFilters,
+  getOfflineGalleryProducts,
+  getOfflineViewProducts,
+} from './page-offline-functions';
+export type {
+  CatalogueProduct,
+  CatalogueProductsResponse,
+  CatalogueFiltersResponse,
+  CategoryFilter,
+  SubcategoryFilter,
+  OfflinePageOptions,
+} from './page-offline-functions';
+
