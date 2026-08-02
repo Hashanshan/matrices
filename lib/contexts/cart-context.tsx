@@ -2,6 +2,8 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Cart, CartItem, Order } from '../types';
+import { offlineDB } from '../offline/indexed-db';
+import { addToSyncQueue } from '../offline/pending-sync';
 
 interface CartContextType {
   cart: Cart;
@@ -122,6 +124,23 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem('orders', JSON.stringify(updatedOrders));
       return updatedOrders;
     });
+
+    // Save to IndexedDB and queue to SyncQueue for server push
+    const orderId = String(order.id || `ORD_${Date.now()}`);
+    offlineDB.getAll<any>('orders').then((existing) => {
+      const updated = [...existing, { id: orderId, orderId, ...order }];
+      return offlineDB.saveBatch('orders', updated);
+    }).catch(console.error);
+
+    addToSyncQueue({
+      operation: 'CREATE',
+      entity: 'Order',
+      entityId: orderId,
+      endpoint: '/api/orders',
+      method: 'POST',
+      payload: order,
+      title: `Placed Order #${orderId}`,
+    }).catch(console.error);
   };
 
   return (

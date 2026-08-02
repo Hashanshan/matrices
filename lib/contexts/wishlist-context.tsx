@@ -5,6 +5,7 @@ import useSWR from 'swr';
 import { CatalogueProduct } from '../hooks/use-products';
 import { resolveApiUrl, getAuthToken } from '../utils';
 import { offlineDB } from '../offline/indexed-db';
+import { addToSyncQueue } from '../offline/pending-sync';
 
 export interface WishlistCategory {
   name: string;
@@ -161,7 +162,7 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
     const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
 
     if (mode === 'offline' || isOffline) {
-      // Offline mode: Toggle category locally in IndexedDB
+      // Offline mode: Toggle category locally in IndexedDB & queue to SyncQueue
       const current = { ...wishlistData };
       const exists = (current.categories || []).some(c => c.name.toUpperCase() === name.trim().toUpperCase());
       if (exists) {
@@ -170,6 +171,15 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
         current.categories = [...(current.categories || []), { name, order: (current.categories?.length || 0) + 1 }];
       }
       await offlineDB.saveBatch('wishlist', [{ id: 'user_wishlist', ...current }]);
+      await addToSyncQueue({
+        operation: exists ? 'DELETE' : 'CREATE',
+        entity: 'Wishlist',
+        entityId: `cat_${name}`,
+        endpoint: '/api/wishlist/toggle',
+        method: 'POST',
+        payload: { type: 'category', item: { name } },
+        title: `${exists ? 'Removed' : 'Added'} Category Wishlist (${name})`,
+      });
       mutate({ success: true, wishlist: current }, { revalidate: false });
       return;
     }
@@ -203,7 +213,7 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
     const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
 
     if (mode === 'offline' || isOffline) {
-      // Offline mode: Toggle subcategory locally in IndexedDB
+      // Offline mode: Toggle subcategory locally in IndexedDB & queue
       const current = { ...wishlistData };
       const exists = (current.subcategories || []).some(
         s => s.category.toUpperCase() === category.trim().toUpperCase() && s.name.toUpperCase() === name.trim().toUpperCase()
@@ -216,6 +226,15 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
         current.subcategories = [...(current.subcategories || []), { category, name, order: (current.subcategories?.length || 0) + 1 }];
       }
       await offlineDB.saveBatch('wishlist', [{ id: 'user_wishlist', ...current }]);
+      await addToSyncQueue({
+        operation: exists ? 'DELETE' : 'CREATE',
+        entity: 'Wishlist',
+        entityId: `subcat_${name}`,
+        endpoint: '/api/wishlist/toggle',
+        method: 'POST',
+        payload: { type: 'subcategory', item: { category, name } },
+        title: `${exists ? 'Removed' : 'Added'} Subcategory Wishlist (${name})`,
+      });
       mutate({ success: true, wishlist: current }, { revalidate: false });
       return;
     }
@@ -248,7 +267,7 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
     const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
 
     if (mode === 'offline' || isOffline) {
-      // Offline mode: Toggle product locally in IndexedDB
+      // Offline mode: Toggle product locally in IndexedDB & queue
       const current = { ...wishlistData };
       const strId = String(productId).trim();
       const exists = (current.products || []).some(p => String(p.productId).trim() === strId);
@@ -284,6 +303,15 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
         }
       }
       await offlineDB.saveBatch('wishlist', [{ id: 'user_wishlist', ...current }]);
+      await addToSyncQueue({
+        operation: exists ? 'DELETE' : 'CREATE',
+        entity: 'Wishlist',
+        entityId: strId,
+        endpoint: '/api/wishlist/toggle',
+        method: 'POST',
+        payload: { type: 'product', item: { productId } },
+        title: `${exists ? 'Removed' : 'Added'} Product Wishlist (${strId})`,
+      });
       mutate({ success: true, wishlist: current }, { revalidate: false });
       return;
     }

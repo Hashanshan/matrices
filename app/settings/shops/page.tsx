@@ -17,6 +17,7 @@ import { formatPrice } from '@/lib/currency';
 
 import { resolveApiUrl, getAuthToken } from '@/lib/utils';
 import { offlineDB } from '@/lib/offline/indexed-db';
+import { addToSyncQueue } from '@/lib/offline/pending-sync';
 import { useDataMode } from '@/lib/contexts/data-mode-context';
 
 interface Shop {
@@ -302,11 +303,59 @@ export default function ShopsSettingsPage() {
     setIsSubmitting(true);
 
     try {
-      const token = getAuthToken();
       const isEdit = !!editingShop;
       const rawUrl = isEdit ? `/api/shops/${editingShop.shopId}` : '/api/shops/create';
-      const targetUrl = resolveApiUrl(rawUrl);
       const method = isEdit ? 'PUT' : 'POST';
+      const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+
+      const shopPayload = {
+        name: formName,
+        phone: formPhone,
+        address: formAddress,
+        mapUrl: formMapUrl,
+        imageUrl: formImageUrl,
+      };
+
+      if (dataMode === 'offline' || isOffline) {
+        const shopId = isEdit ? editingShop.shopId : `TMP_${Date.now()}`;
+        const newShopObj = {
+          id: shopId,
+          shopId,
+          ...shopPayload,
+          deliveredOrders: isEdit ? editingShop.deliveredOrders : 0,
+          pendingOrders: isEdit ? editingShop.pendingOrders : 0,
+          currentCredit: isEdit ? editingShop.currentCredit : 0,
+        };
+
+        const existingShops = await offlineDB.getAll<any>('shops').catch(() => []);
+        const filtered = existingShops.filter((s: any) => String(s.shopId || s.id) !== String(shopId));
+        await offlineDB.saveBatch('shops', [...filtered, newShopObj]);
+
+        await addToSyncQueue({
+          operation: isEdit ? 'UPDATE' : 'CREATE',
+          entity: 'Customer',
+          entityId: shopId,
+          endpoint: rawUrl,
+          method,
+          payload: shopPayload,
+          title: `${isEdit ? 'Updated' : 'Created'} Customer Shop (${formName})`,
+        });
+
+        Swal.fire({
+          icon: 'success',
+          title: isEdit ? 'Shop Saved Offline' : 'Shop Created Offline',
+          text: 'Saved locally to IndexedDB and queued in SyncQueue for server push.',
+          timer: 2500,
+          showConfirmButton: false,
+        });
+
+        handleCloseModal();
+        mutate(swrKey);
+        return;
+      }
+
+      const token = getAuthToken();
+      const targetUrl = resolveApiUrl(rawUrl);
 
       const res = await fetch(targetUrl, {
         method,
@@ -314,13 +363,7 @@ export default function ShopsSettingsPage() {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({
-          name: formName,
-          phone: formPhone,
-          address: formAddress,
-          mapUrl: formMapUrl,
-          imageUrl: formImageUrl,
-        }),
+        body: JSON.stringify(shopPayload),
       });
 
       const result = await res.json();

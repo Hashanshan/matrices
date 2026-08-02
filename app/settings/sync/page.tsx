@@ -6,20 +6,28 @@ import { useAuth } from '@/lib/contexts/auth-context';
 import { useSync } from '@/lib/contexts/sync-context';
 import { useDataMode } from '@/lib/contexts/data-mode-context';
 import PinModal from '@/components/pin-modal';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   RefreshCw, Database, HardDrive, Image as ImageIcon, Store, FileText,
-  Package, Layers, ShieldCheck, Wifi, WifiOff, CheckCircle2, AlertCircle,
-  Smartphone, Globe, Lock, ArrowRight, Server, Cpu
+  Package, Layers, ShieldCheck, Wifi, WifiOff, CheckCircle2, AlertTriangle,
+  Smartphone, Globe, Lock, ArrowUpRight, UploadCloud, RotateCcw, Download,
+  Trash2, X, AlertCircle, Eye, FileSpreadsheet, FileCode
 } from 'lucide-react';
 import Link from 'next/link';
+import Swal from 'sweetalert2';
 import { offlineDB, SyncMetadata } from '@/lib/offline/indexed-db';
 import { getStorageStats, StorageStats } from '@/lib/offline/image-cache';
 import { NativeAdapter } from '@/mobile/bridge/native-adapter';
+import { SyncQueueItem } from '@/lib/offline/pending-sync';
 
 export default function SyncSettingsPage() {
-  const { isPinVerified, resetPinVerification } = useAuth();
-  const { isSyncing, progress, syncStatusText, lastSyncedAt, isOffline, meta, triggerSync } = useSync();
+  const { isPinVerified, resetPinVerification, user } = useAuth();
+  const {
+    isSyncing, progress, syncStatusText, lastSyncedAt, isOffline, meta, triggerSync,
+    queueItems, pendingQueueCount, failedQueueCount, isPushing, pushStatusText,
+    pushChanges, retryFailedPush, deleteQueueItem, clearAllQueue, downloadReport
+  } = useSync();
+  
   const { dataMode, setDataMode } = useDataMode();
 
   const [showPinModal, setShowPinModal] = useState(true);
@@ -34,7 +42,10 @@ export default function SyncSettingsPage() {
     message: 'Checking...',
   });
 
-  // Load store stats and metadata from IndexedDB
+  // Report export options modal
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [selectedQueueItem, setSelectedQueueItem] = useState<SyncQueueItem | null>(null);
+
   const refreshStats = useCallback(async () => {
     try {
       const [m, stats, perm] = await Promise.all([
@@ -58,17 +69,17 @@ export default function SyncSettingsPage() {
     resetPinVerification();
     setPlatformInfo(NativeAdapter.getPlatformInfo());
     refreshStats();
-  }, []);
+  }, [refreshStats, resetPinVerification]);
 
   useEffect(() => {
     setShowPinModal(!isPinVerified);
   }, [isPinVerified]);
 
   useEffect(() => {
-    if (!isSyncing) {
+    if (!isSyncing && !isPushing) {
       refreshStats();
     }
-  }, [isSyncing, refreshStats]);
+  }, [isSyncing, isPushing, refreshStats]);
 
   const handleRequestPermission = async () => {
     const res = await NativeAdapter.requestStorage();
@@ -78,12 +89,31 @@ export default function SyncSettingsPage() {
     });
   };
 
+  const handleClearAllQueue = async () => {
+    const confirm = await Swal.fire({
+      icon: 'warning',
+      title: 'Clear Entire Sync Queue?',
+      text: 'This will remove all pending local changes that have not been uploaded to the server.',
+      showCancelButton: true,
+      confirmButtonText: 'Yes, Clear Queue',
+      cancelButtonText: 'Cancel',
+      confirmButtonColor: '#dc2626',
+    });
+
+    if (confirm.isConfirmed) {
+      await clearAllQueue();
+      Swal.fire({ icon: 'success', title: 'Queue Cleared', timer: 1500, showConfirmButton: false });
+    }
+  };
+
   const formattedDate = lastSyncedAt || dbMeta?.lastSyncedAt
     ? new Date(lastSyncedAt || dbMeta!.lastSyncedAt).toLocaleString(undefined, {
         dateStyle: 'medium',
         timeStyle: 'short',
       })
     : 'Never Synced';
+
+  const totalUnpushed = pendingQueueCount + failedQueueCount;
 
   return (
     <div className="min-h-screen bg-[url(/bg.png)] bg-cover bg-center bg-no-repeat bg-fixed flex flex-col font-sans">
@@ -125,7 +155,7 @@ export default function SyncSettingsPage() {
                     DATA SYNC & LOCAL STORAGE
                   </h1>
                   <p className="text-[0.7rem] sm:text-xs text-gray-500 font-bold tracking-wide mt-0.5 uppercase">
-                    MANAGE OFFLINE LOCAL STORAGE, IMAGE DOWNLOADS, AND APK SYNC DATA
+                    OFFLINE SYNCQUEUE MANAGEMENT, SEQUENTIAL PUSH ENGINE, AND CATALOG STORAGE
                   </p>
                 </div>
               </div>
@@ -153,77 +183,330 @@ export default function SyncSettingsPage() {
               </div>
             </div>
 
-            {/* Sync Command Card */}
-            <div className="bg-gradient-to-br from-[#0f172a] to-[#1e293b] text-white rounded-[2.5rem] p-6 sm:p-10 shadow-2xl relative overflow-hidden border border-white/20">
-              <div className="absolute right-0 top-0 translate-x-12 -translate-y-12 w-64 h-64 bg-accent/20 rounded-full blur-3xl pointer-events-none" />
-
-              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <span className="px-3.5 py-1 rounded-full text-[0.65rem] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 flex items-center gap-1.5">
-                      <CheckCircle2 size={13} /> {isOffline ? 'Offline Mode' : 'Server Connected'}
-                    </span>
-                    <span className="px-3.5 py-1 rounded-full text-[0.65rem] font-black uppercase tracking-wider bg-white/10 text-gray-200 border border-white/20 flex items-center gap-1.5">
-                      <Smartphone size={13} /> Platform: {platformInfo.isNative ? 'Android APK Native' : 'Web Browser'}
-                    </span>
-                  </div>
-
-                  <h2 className="text-xl sm:text-3xl font-black uppercase tracking-wide">
-                    FULL CATALOGUE & INVOICES SYNC
-                  </h2>
-                  <p className="text-gray-300 text-xs sm:text-sm font-medium max-w-xl">
-                    Download products, categories, assigned shops, invoices, and product images directly to your device local storage. Works smoothly offline once synchronized.
+            {/* Offline Status Warning Bar */}
+            {isOffline && (
+              <div className="bg-amber-500/15 border-2 border-amber-500/40 rounded-3xl p-4 sm:p-5 flex items-center gap-4 text-amber-900 shadow-md">
+                <div className="p-3 bg-amber-500 text-white rounded-2xl shrink-0">
+                  <WifiOff size={24} />
+                </div>
+                <div>
+                  <h4 className="text-sm sm:text-base font-black uppercase">DEVICE IS OFFLINE</h4>
+                  <p className="text-xs font-medium text-amber-800">
+                    Pushing local changes and downloading catalog data are disabled until you connect to a network. Local offline actions will continue to be saved to SQLite/IndexedDB & SyncQueue.
                   </p>
+                </div>
+              </div>
+            )}
 
-                  <div className="text-xs font-mono text-gray-400 pt-1">
-                    LAST SYNCHRONIZED: <span className="text-emerald-400 font-bold">{formattedDate}</span>
+            {/* Top Action Cards: Push Changes & Download Catalog */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              
+              {/* CARD 1: PUSH LOCAL CHANGES */}
+              <div className="bg-gradient-to-br from-[#0f172a] to-[#1e293b] text-white rounded-[2.5rem] p-6 sm:p-8 shadow-2xl relative overflow-hidden border border-white/20 flex flex-col justify-between">
+                <div className="absolute right-0 top-0 translate-x-12 -translate-y-12 w-64 h-64 bg-emerald-500/20 rounded-full blur-3xl pointer-events-none" />
+
+                <div className="space-y-4 relative z-10">
+                  <div className="flex items-center justify-between">
+                    <span className="px-3.5 py-1 rounded-full text-[0.65rem] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 flex items-center gap-1.5">
+                      <UploadCloud size={13} /> PUSH QUEUE PROCESS
+                    </span>
+                    <span className="text-xs font-mono font-bold text-gray-400">
+                      PENDING: <span className="text-emerald-400">{totalUnpushed}</span>
+                    </span>
                   </div>
+
+                  <div>
+                    <h2 className="text-xl sm:text-2xl font-black uppercase tracking-wide">
+                      PUSH LOCAL CHANGES TO SERVER
+                    </h2>
+                    <p className="text-gray-300 text-xs sm:text-sm font-medium mt-1">
+                      Uploads queued offline actions (orders, shop creations, wishlist edits) sequentially to the server. Halts immediately on failure to preserve data integrity.
+                    </p>
+                  </div>
+
+                  {totalUnpushed > 0 ? (
+                    <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl text-xs text-emerald-300 font-medium">
+                      🚀 <strong>{totalUnpushed} local operation(s)</strong> ready for FIFO sequential push.
+                    </div>
+                  ) : (
+                    <div className="p-3 bg-white/5 border border-white/10 rounded-2xl text-xs text-gray-400 font-medium">
+                      ✅ Sync queue empty. All local edits are synced with the server.
+                    </div>
+                  )}
                 </div>
 
-                <div className="flex flex-col sm:flex-row lg:flex-col gap-3 shrink-0">
+                <div className="pt-6 mt-6 border-t border-white/10 space-y-3 relative z-10">
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <motion.button
+                      whileHover={{ scale: isPushing || isOffline || totalUnpushed === 0 ? 1 : 1.02 }}
+                      whileTap={{ scale: isPushing || isOffline || totalUnpushed === 0 ? 1 : 0.98 }}
+                      onClick={() => pushChanges()}
+                      disabled={isPushing || isOffline || totalUnpushed === 0}
+                      className={`flex-1 px-6 py-4 rounded-full font-black text-xs sm:text-sm uppercase tracking-wider shadow-xl transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                        isOffline || totalUnpushed === 0
+                          ? 'bg-white/10 text-gray-400 border border-white/10 cursor-not-allowed'
+                          : isPushing
+                          ? 'bg-accent/40 text-white cursor-wait border border-accent/50'
+                          : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-500/30 border border-emerald-400'
+                      }`}
+                    >
+                      <UploadCloud size={18} className={isPushing ? 'animate-bounce' : ''} />
+                      {isPushing ? 'PUSHING QUEUE...' : 'PUSH LOCAL CHANGES NOW'}
+                    </motion.button>
+
+                    {failedQueueCount > 0 && (
+                      <button
+                        onClick={() => retryFailedPush()}
+                        disabled={isPushing || isOffline}
+                        className="px-5 py-4 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-full text-xs uppercase tracking-wider shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer shrink-0"
+                      >
+                        <RotateCcw size={16} /> RETRY FAILED ({failedQueueCount})
+                      </button>
+                    )}
+                  </div>
+
+                  {isPushing && (
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between text-xs font-bold text-gray-300">
+                        <span>{pushStatusText || 'Pushing changes step by step...'}</span>
+                      </div>
+                      <div className="w-full bg-white/10 h-2 rounded-full overflow-hidden">
+                        <div className="bg-gradient-to-r from-emerald-400 to-teal-300 h-full w-full animate-pulse rounded-full" />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* CARD 2: DOWNLOAD FULL CATALOG (SYNC) */}
+              <div className="bg-white/80 backdrop-blur-2xl rounded-[2.5rem] p-6 sm:p-8 border border-white/80 shadow-2xl flex flex-col justify-between relative overflow-hidden">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="px-3.5 py-1 rounded-full text-[0.65rem] font-black uppercase tracking-wider bg-blue-500/10 text-blue-700 border border-blue-300/40 flex items-center gap-1.5">
+                      <Download size={13} /> DOWNLOAD FRESH CATALOG
+                    </span>
+                    <span className="text-xs font-mono font-bold text-gray-500">
+                      SYNC MODE: <span className="text-blue-600 font-black">FULL REPLACE</span>
+                    </span>
+                  </div>
+
+                  <div>
+                    <h2 className="text-xl sm:text-2xl font-black text-[#0f172a] uppercase tracking-wide">
+                      DOWNLOAD LATEST SERVER CATALOG
+                    </h2>
+                    <p className="text-gray-500 text-xs sm:text-sm font-medium mt-1">
+                      Fetches fresh products, categories, assigned salesrep shops, orders, and images. Overwrites local database and image cache with latest server dataset.
+                    </p>
+                  </div>
+
+                  {totalUnpushed > 0 ? (
+                    <div className="p-3.5 bg-amber-50 border-2 border-amber-300 rounded-2xl flex items-start gap-3 text-amber-900 text-xs font-medium">
+                      <AlertTriangle size={18} className="text-amber-600 shrink-0 mt-0.5" />
+                      <div>
+                        <strong className="font-black uppercase">SYNC BLOCKED:</strong> Cannot sync. Please push all local changes first. You have <strong>{totalUnpushed}</strong> pending change(s) in SyncQueue.
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-3 bg-gray-100 border border-gray-200 rounded-2xl text-xs text-gray-600 font-mono">
+                      LAST SYNCHRONIZED: <span className="font-bold text-[#0f172a]">{formattedDate}</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="pt-6 mt-6 border-t border-gray-100 space-y-3">
                   <motion.button
-                    whileHover={{ scale: isSyncing || isOffline ? 1 : 1.03 }}
-                    whileTap={{ scale: isSyncing || isOffline ? 1 : 0.97 }}
+                    whileHover={{ scale: isSyncing || isOffline || totalUnpushed > 0 ? 1 : 1.02 }}
+                    whileTap={{ scale: isSyncing || isOffline || totalUnpushed > 0 ? 1 : 0.98 }}
                     onClick={() => triggerSync()}
-                    disabled={isSyncing || isOffline}
-                    className={`px-8 py-4 rounded-full font-black text-xs sm:text-sm uppercase tracking-wider shadow-xl transition-all flex items-center justify-center gap-3 cursor-pointer ${
-                      isOffline
-                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 cursor-not-allowed'
+                    disabled={isSyncing || isOffline || totalUnpushed > 0}
+                    className={`w-full px-6 py-4 rounded-full font-black text-xs sm:text-sm uppercase tracking-wider shadow-xl transition-all flex items-center justify-center gap-3 cursor-pointer ${
+                      isOffline || totalUnpushed > 0
+                        ? 'bg-gray-200 text-gray-400 border border-gray-300 cursor-not-allowed'
                         : isSyncing
-                        ? 'bg-accent/30 text-white border border-accent/50 cursor-wait'
-                        : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black shadow-emerald-500/30 border border-emerald-400'
+                        ? 'bg-blue-600/30 text-blue-900 border border-blue-400 cursor-wait'
+                        : 'bg-[#0f172a] hover:bg-[#1e293b] text-white shadow-slate-900/20'
                     }`}
                   >
                     <RefreshCw size={18} className={isSyncing ? 'animate-spin' : ''} />
                     {isSyncing ? `SYNCING (${progress}%)` : 'SYNC ALL DATA NOW'}
                   </motion.button>
 
-                  <button
-                    onClick={handleRequestPermission}
-                    className="px-6 py-3 rounded-full font-bold text-xs uppercase tracking-wider bg-white/10 hover:bg-white/20 text-white border border-white/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
-                  >
-                    <ShieldCheck size={16} /> VERIFY PERMISSIONS
-                  </button>
+                  {isSyncing && (
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between text-xs font-bold text-gray-600">
+                        <span>{syncStatusText}</span>
+                        <span>{progress}%</span>
+                      </div>
+                      <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
+                        <div
+                          className="bg-blue-600 h-full transition-all duration-300 rounded-full"
+                          style={{ width: `${progress}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* QUEUE STATUS SCREEN TABLE & RECOVERY SECTION */}
+            <div className="bg-white/80 backdrop-blur-2xl rounded-[2.5rem] p-6 sm:p-8 border border-white/80 shadow-xl space-y-6">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-200/80 pb-5">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Database size={22} className="text-[#0f172a]" />
+                    <h3 className="text-xl font-black text-[#0f172a] uppercase">SYNC QUEUE STATUS SCREEN</h3>
+                  </div>
+                  <p className="text-xs text-gray-500 font-bold uppercase mt-0.5">
+                    SEQUENTIAL FIFO QUEUE (001, 002, 003...) FOR ALL OFFLINE MODIFICATIONS
+                  </p>
+                </div>
+
+                {/* Queue Control Buttons */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  {failedQueueCount > 0 && (
+                    <button
+                      onClick={() => setShowReportModal(true)}
+                      className="px-4 py-2.5 bg-rose-600 hover:bg-rose-500 text-white font-black text-xs uppercase tracking-wider rounded-full shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Download size={14} /> FAILURE REPORT ({failedQueueCount})
+                    </button>
+                  )}
+
+                  {queueItems.length > 0 && (
+                    <button
+                      onClick={handleClearAllQueue}
+                      className="px-4 py-2.5 bg-gray-100 hover:bg-rose-50 text-gray-600 hover:text-rose-700 font-bold text-xs uppercase tracking-wider rounded-full border border-gray-200 transition-all flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Trash2 size={14} /> CLEAR QUEUE
+                    </button>
+                  )}
                 </div>
               </div>
 
-              {isSyncing && (
-                <div className="mt-6 pt-6 border-t border-white/10 space-y-2">
-                  <div className="flex justify-between text-xs font-bold text-gray-300">
-                    <span>{syncStatusText}</span>
-                    <span>{progress}%</span>
-                  </div>
-                  <div className="w-full bg-white/10 h-2.5 rounded-full overflow-hidden">
-                    <div
-                      className="bg-gradient-to-r from-emerald-400 to-teal-300 h-full transition-all duration-300 rounded-full"
-                      style={{ width: `${progress}%` }}
-                    />
-                  </div>
+              {/* Queue Items Table */}
+              {queueItems.length === 0 ? (
+                <div className="py-12 text-center text-gray-400 space-y-3">
+                  <CheckCircle2 size={48} className="mx-auto text-emerald-500/40" />
+                  <p className="text-sm font-bold uppercase text-gray-500">SyncQueue is empty</p>
+                  <p className="text-xs text-gray-400 max-w-sm mx-auto">
+                    Any actions you take offline (adding to wishlist, creating customer shops, placing orders) will automatically appear in this queue.
+                  </p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-gray-200 text-[0.65rem] font-black text-gray-400 uppercase tracking-wider">
+                        <th className="py-3 px-4">QUEUE ID</th>
+                        <th className="py-3 px-4">OPERATION</th>
+                        <th className="py-3 px-4">ENTITY</th>
+                        <th className="py-3 px-4">ENTITY ID / TITLE</th>
+                        <th className="py-3 px-4">STATUS</th>
+                        <th className="py-3 px-4 text-right">ACTION</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 text-xs font-medium">
+                      {queueItems.map((item) => {
+                        const isFailed = item.status === 'FAILED';
+                        const isSuccess = item.status === 'SUCCESS';
+                        const isProcessing = item.status === 'PROCESSING';
+
+                        return (
+                          <tr
+                            key={item.id}
+                            className={`transition-colors ${
+                              isFailed
+                                ? 'bg-rose-50/80 hover:bg-rose-100/80'
+                                : isProcessing
+                                ? 'bg-amber-50/80'
+                                : isSuccess
+                                ? 'bg-emerald-50/30'
+                                : 'hover:bg-gray-50/60'
+                            }`}
+                          >
+                            <td className="py-3.5 px-4 font-mono font-bold text-[#0f172a]">
+                              #{item.queueId || '001'}
+                            </td>
+
+                            <td className="py-3.5 px-4">
+                              <span
+                                className={`px-2.5 py-1 rounded-full text-[0.65rem] font-black uppercase tracking-wider ${
+                                  item.operation === 'CREATE'
+                                    ? 'bg-blue-100 text-blue-800 border border-blue-200'
+                                    : item.operation === 'DELETE'
+                                    ? 'bg-rose-100 text-rose-800 border border-rose-200'
+                                    : 'bg-amber-100 text-amber-800 border border-amber-200'
+                                }`}
+                              >
+                                {item.operation}
+                              </span>
+                            </td>
+
+                            <td className="py-3.5 px-4 font-bold text-gray-700 uppercase">
+                              {item.entity}
+                            </td>
+
+                            <td className="py-3.5 px-4">
+                              <div className="font-mono font-bold text-[#0f172a]">{item.entityId}</div>
+                              <div className="text-[0.65rem] text-gray-500 font-sans truncate max-w-[200px]">
+                                {item.title}
+                              </div>
+                            </td>
+
+                            <td className="py-3.5 px-4">
+                              {isSuccess && (
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[0.65rem] font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                  ✅ Success
+                                </span>
+                              )}
+                              {isFailed && (
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[0.65rem] font-black uppercase bg-rose-100 text-rose-800 border border-rose-300">
+                                  ❌ Failed
+                                </span>
+                              )}
+                              {isProcessing && (
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[0.65rem] font-black uppercase bg-amber-100 text-amber-800 border border-amber-300 animate-pulse">
+                                  🔄 Processing
+                                </span>
+                              )}
+                              {item.status === 'PENDING' && (
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[0.65rem] font-black uppercase bg-gray-100 text-gray-700 border border-gray-300">
+                                  ⏳ Waiting
+                                </span>
+                              )}
+                            </td>
+
+                            <td className="py-3.5 px-4 text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                {isFailed && (
+                                  <button
+                                    onClick={() => setSelectedQueueItem(item)}
+                                    className="p-1.5 text-rose-700 hover:bg-rose-200/60 rounded-lg transition-all cursor-pointer"
+                                    title="View failure details"
+                                  >
+                                    <Eye size={16} />
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => deleteQueueItem(item.id)}
+                                  className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-gray-200/60 rounded-lg transition-all cursor-pointer"
+                                  title="Remove item"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>
 
-            {/* Storage & Images Card */}
+            {/* Storage & Local Entity Counters */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {/* Image Storage Card */}
               <div className="bg-white/80 backdrop-blur-2xl rounded-[2.5rem] p-6 border border-white/80 shadow-lg space-y-4">
@@ -305,102 +588,181 @@ export default function SyncSettingsPage() {
                 </div>
               </div>
             </div>
-
-            {/* Detailed Data Sync Breakdown */}
-            <div className="bg-white/80 backdrop-blur-2xl rounded-[2.5rem] p-6 sm:p-8 border border-white/80 shadow-lg space-y-6">
-              <div className="flex items-center justify-between border-b border-gray-200/60 pb-4">
-                <div className="flex items-center gap-3">
-                  <Database className="text-[#0f172a]" size={24} />
-                  <div>
-                    <h3 className="text-lg font-black text-[#0f172a] uppercase">LOCALDB SYNCHRONIZED ENTITIES</h3>
-                    <p className="text-xs text-gray-500 font-bold uppercase">Data stored safely in offline IndexedDB database</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setDataMode(dataMode === 'online' ? 'offline' : 'online')}
-                  className={`px-4 py-2 rounded-full text-xs font-black uppercase tracking-wider border transition-all ${
-                    dataMode === 'offline'
-                      ? 'bg-amber-500/10 text-amber-700 border-amber-300'
-                      : 'bg-emerald-500/10 text-emerald-700 border-emerald-300'
-                  }`}
-                >
-                  Active Mode: {dataMode.toUpperCase()}
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                <div className="p-4 bg-gray-50/80 rounded-2xl border border-gray-200/60 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Package size={20} className="text-blue-600" />
-                    <div>
-                      <div className="text-xs font-black text-[#0f172a] uppercase">PRODUCTS</div>
-                      <div className="text-[0.65rem] text-gray-500 font-medium uppercase">Catalog items</div>
-                    </div>
-                  </div>
-                  <span className="text-sm font-black text-[#0f172a] font-mono">{dbMeta?.totalProducts ?? 0}</span>
-                </div>
-
-                <div className="p-4 bg-gray-50/80 rounded-2xl border border-gray-200/60 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Layers size={20} className="text-indigo-600" />
-                    <div>
-                      <div className="text-xs font-black text-[#0f172a] uppercase">CATEGORIES</div>
-                      <div className="text-[0.65rem] text-gray-500 font-medium uppercase">Main categories</div>
-                    </div>
-                  </div>
-                  <span className="text-sm font-black text-[#0f172a] font-mono">{dbMeta?.totalCategories ?? 0}</span>
-                </div>
-
-                <div className="p-4 bg-gray-50/80 rounded-2xl border border-gray-200/60 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Layers size={20} className="text-teal-600" />
-                    <div>
-                      <div className="text-xs font-black text-[#0f172a] uppercase">SUBCATEGORIES</div>
-                      <div className="text-[0.65rem] text-gray-500 font-medium uppercase">Sub-groupings</div>
-                    </div>
-                  </div>
-                  <span className="text-sm font-black text-[#0f172a] font-mono">{dbMeta?.totalSubcategories ?? 0}</span>
-                </div>
-
-                <div className="p-4 bg-gray-50/80 rounded-2xl border border-gray-200/60 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Store size={20} className="text-amber-600" />
-                    <div>
-                      <div className="text-xs font-black text-[#0f172a] uppercase">CUSTOMER SHOPS</div>
-                      <div className="text-[0.65rem] text-gray-500 font-medium uppercase">Assigned salesrep shops</div>
-                    </div>
-                  </div>
-                  <span className="text-sm font-black text-[#0f172a] font-mono">{dbMeta?.totalShops ?? 0}</span>
-                </div>
-
-                <div className="p-4 bg-gray-50/80 rounded-2xl border border-gray-200/60 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <FileText size={20} className="text-rose-600" />
-                    <div>
-                      <div className="text-xs font-black text-[#0f172a] uppercase">INVOICES & ORDERS</div>
-                      <div className="text-[0.65rem] text-gray-500 font-medium uppercase">Sales history & bills</div>
-                    </div>
-                  </div>
-                  <span className="text-sm font-black text-[#0f172a] font-mono">{dbMeta?.totalOrders ?? 0}</span>
-                </div>
-
-                <div className="p-4 bg-gray-50/80 rounded-2xl border border-gray-200/60 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <ShieldCheck size={20} className="text-emerald-600" />
-                    <div>
-                      <div className="text-xs font-black text-[#0f172a] uppercase">STORAGE PERMISSION</div>
-                      <div className="text-[0.65rem] text-gray-500 font-medium uppercase truncate max-w-[120px]">{permissionState.message}</div>
-                    </div>
-                  </div>
-                  <span className={`text-xs font-black uppercase px-2 py-0.5 rounded-full ${permissionState.granted ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'}`}>
-                    {permissionState.granted ? 'Granted' : 'Pending'}
-                  </span>
-                </div>
-              </div>
-            </div>
           </motion.div>
         )}
       </main>
+
+      {/* Failure Item Details Modal */}
+      <AnimatePresence>
+        {selectedQueueItem && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl border border-gray-100 space-y-5"
+            >
+              <div className="flex items-center justify-between border-b border-gray-100 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-rose-100 text-rose-700 rounded-2xl">
+                    <AlertCircle size={24} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-black text-[#0f172a] uppercase">PUSH FAILURE DETAILS</h3>
+                    <p className="text-xs font-mono text-gray-500">Queue ID: #{selectedQueueItem.queueId}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setSelectedQueueItem(null)}
+                  className="p-2 text-gray-400 hover:text-gray-700 rounded-full hover:bg-gray-100 transition-all cursor-pointer"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="space-y-3 text-xs">
+                <div className="p-3.5 bg-gray-50 rounded-2xl border border-gray-200/80 space-y-1">
+                  <div className="text-[0.65rem] font-black text-gray-400 uppercase">OPERATION & ENTITY</div>
+                  <div className="font-bold text-[#0f172a] text-sm">
+                    {selectedQueueItem.operation} {selectedQueueItem.entity}
+                  </div>
+                  <div className="font-mono text-gray-600">ID: {selectedQueueItem.entityId}</div>
+                </div>
+
+                <div className="p-3.5 bg-rose-50 rounded-2xl border border-rose-200 space-y-1">
+                  <div className="text-[0.65rem] font-black text-rose-700 uppercase">FAILURE REASON</div>
+                  <div className="font-bold text-rose-900 text-sm">
+                    {selectedQueueItem.errorMessage || 'Unknown server or network error'}
+                  </div>
+                </div>
+
+                <div className="p-3.5 bg-gray-50 rounded-2xl border border-gray-200/80 space-y-1">
+                  <div className="text-[0.65rem] font-black text-gray-400 uppercase">ENDPOINT & METHOD</div>
+                  <div className="font-mono text-gray-700">
+                    {selectedQueueItem.method} {selectedQueueItem.endpoint}
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-gray-100 flex justify-end">
+                <button
+                  onClick={() => setSelectedQueueItem(null)}
+                  className="px-6 py-2.5 bg-[#0f172a] text-white rounded-full font-bold text-xs uppercase tracking-wider hover:bg-[#1e293b] cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Download Failure Report Options Modal */}
+      <AnimatePresence>
+        {showReportModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-gray-100 space-y-6"
+            >
+              <div className="flex items-center justify-between border-b border-gray-100 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-rose-100 text-rose-700 rounded-2xl">
+                    <FileText size={24} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-black text-[#0f172a] uppercase">DOWNLOAD FAILURE REPORT</h3>
+                    <p className="text-xs text-gray-500 font-medium">Export failed queue items for audit</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowReportModal(false)}
+                  className="p-2 text-gray-400 hover:text-gray-700 rounded-full hover:bg-gray-100 transition-all cursor-pointer"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                <button
+                  onClick={() => {
+                    downloadReport('pdf', (user as any)?.name);
+                    setShowReportModal(false);
+                  }}
+                  className="w-full p-4 bg-gray-50 hover:bg-rose-50/80 border border-gray-200 hover:border-rose-300 rounded-2xl text-left transition-all flex items-center justify-between group cursor-pointer"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 bg-rose-500 text-white rounded-xl">
+                      <FileText size={20} />
+                    </div>
+                    <div>
+                      <div className="text-xs font-black text-[#0f172a] uppercase group-hover:text-rose-900">
+                        PDF REPORT (RECOMMENDED)
+                      </div>
+                      <div className="text-[0.65rem] text-gray-500 font-medium">
+                        Printable formatted report for sharing and printing
+                      </div>
+                    </div>
+                  </div>
+                  <Download size={18} className="text-gray-400 group-hover:text-rose-600" />
+                </button>
+
+                <button
+                  onClick={() => {
+                    downloadReport('csv', (user as any)?.name);
+                    setShowReportModal(false);
+                  }}
+                  className="w-full p-4 bg-gray-50 hover:bg-emerald-50/80 border border-gray-200 hover:border-emerald-300 rounded-2xl text-left transition-all flex items-center justify-between group cursor-pointer"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 bg-emerald-600 text-white rounded-xl">
+                      <FileSpreadsheet size={20} />
+                    </div>
+                    <div>
+                      <div className="text-xs font-black text-[#0f172a] uppercase group-hover:text-emerald-900">
+                        CSV EXCEL EXPORT
+                      </div>
+                      <div className="text-[0.65rem] text-gray-500 font-medium">
+                        Structured tabular file for Microsoft Excel / Sheets
+                      </div>
+                    </div>
+                  </div>
+                  <Download size={18} className="text-gray-400 group-hover:text-emerald-600" />
+                </button>
+
+                <button
+                  onClick={() => {
+                    downloadReport('json', (user as any)?.name);
+                    setShowReportModal(false);
+                  }}
+                  className="w-full p-4 bg-gray-50 hover:bg-indigo-50/80 border border-gray-200 hover:border-indigo-300 rounded-2xl text-left transition-all flex items-center justify-between group cursor-pointer"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 bg-indigo-600 text-white rounded-xl">
+                      <FileCode size={20} />
+                    </div>
+                    <div>
+                      <div className="text-xs font-black text-[#0f172a] uppercase group-hover:text-indigo-900">
+                        JSON DEBUG FILE
+                      </div>
+                      <div className="text-[0.65rem] text-gray-500 font-medium">
+                        Raw JSON dataset for developers & tech support
+                      </div>
+                    </div>
+                  </div>
+                  <Download size={18} className="text-gray-400 group-hover:text-indigo-600" />
+                </button>
+              </div>
+
+              <div className="pt-2 text-center text-[0.65rem] text-gray-400 font-mono">
+                Report generated for: <span className="font-bold text-gray-700">{(user as any)?.name || 'Salesrep'}</span> ({new Date().toISOString().split('T')[0]})
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

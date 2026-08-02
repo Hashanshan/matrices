@@ -4,7 +4,7 @@
  */
 
 const DB_NAME = 'MatricesCatalogueOfflineDB';
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 export interface SyncMetadata {
   lastSyncedAt: string;
@@ -27,7 +27,7 @@ export interface ImageMapRecord {
 class OfflineDB {
   private dbPromise: Promise<IDBDatabase> | null = null;
 
-  private getDB(): Promise<IDBDatabase> {
+  public getDB(): Promise<IDBDatabase> {
     if (typeof window === 'undefined') {
       return Promise.reject(new Error('IndexedDB is not available in SSR'));
     }
@@ -81,6 +81,12 @@ class OfflineDB {
         // Pending Actions store for offline changes sync
         if (!db.objectStoreNames.contains('pending_actions')) {
           db.createObjectStore('pending_actions', { keyPath: 'id' });
+        }
+        // Sync Queue store for structured sequential push queue
+        if (!db.objectStoreNames.contains('sync_queue')) {
+          const queueStore = db.createObjectStore('sync_queue', { keyPath: 'id' });
+          queueStore.createIndex('queueId', 'queueId', { unique: false });
+          queueStore.createIndex('status', 'status', { unique: false });
         }
       };
 

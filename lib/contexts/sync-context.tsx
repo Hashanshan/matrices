@@ -8,6 +8,18 @@ import { resolveApiUrl, getAuthToken } from '../utils';
 import SyncProgressModal from '@/components/sync-progress-modal';
 import PinModal from '@/components/pin-modal';
 import { useAuth } from './auth-context';
+import {
+  SyncQueueItem,
+  getSyncQueue,
+  processSyncQueueSequential,
+  retrySyncQueue,
+  deleteSyncQueueItem,
+  clearSyncQueue,
+  downloadFailureReportPDF,
+  downloadFailureReportCSV,
+  downloadFailureReportJSON,
+} from '../offline/pending-sync';
+import Swal from 'sweetalert2';
 
 interface SyncContextType {
   isSyncing: boolean;
@@ -16,14 +28,29 @@ interface SyncContextType {
   lastSyncedAt: string | null;
   isOffline: boolean;
   meta: SyncMetadata | null;
+  
+  // Sync Queue management states
+  queueItems: SyncQueueItem[];
+  pendingQueueCount: number;
+  failedQueueCount: number;
+  isPushing: boolean;
+  pushStatusText: string;
+  
+  // Functions
   triggerSync: () => Promise<boolean>;
+  pushChanges: () => Promise<boolean>;
+  retryFailedPush: () => Promise<boolean>;
+  deleteQueueItem: (id: string) => Promise<void>;
+  clearAllQueue: () => Promise<void>;
+  downloadReport: (format: 'pdf' | 'csv' | 'json', userName?: string) => void;
   checkPermissions: () => Promise<void>;
+  refreshQueue: () => Promise<void>;
 }
 
 const SyncContext = createContext<SyncContextType | undefined>(undefined);
 
 export function SyncProvider({ children }: { children: React.ReactNode }) {
-  const { isPinVerified } = useAuth();
+  const { isPinVerified, user } = useAuth();
   const [isSyncing, setIsSyncing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [syncStatusText, setSyncStatusText] = useState('Idle');
@@ -31,10 +58,25 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
   const [meta, setMeta] = useState<SyncMetadata | null>(null);
   const [isOffline, setIsOffline] = useState(false);
   const [showPinModal, setShowPinModal] = useState(false);
-  // Resolves after the user dismisses the pin modal; true if verified
+  
+  // Queue state
+  const [queueItems, setQueueItems] = useState<SyncQueueItem[]>([]);
+  const [isPushing, setIsPushing] = useState(false);
+  const [pushStatusText, setPushStatusText] = useState('');
+
+  // Resolves after user dismisses PIN modal
   const afterPinResolve = useRef<((ok: boolean) => void) | null>(null);
 
-  // Initialize network status listener & metadata
+  const refreshQueue = useCallback(async () => {
+    try {
+      const items = await getSyncQueue();
+      setQueueItems(items);
+    } catch (err) {
+      console.warn('Failed to load queue in SyncContext:', err);
+    }
+  }, []);
+
+  // Initialize network status listener, metadata & queue listener
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
@@ -42,11 +84,13 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
     const handleOnline = () => setIsOffline(false);
     const handleOffline = () => setIsOffline(true);
+    const handleQueueChange = () => refreshQueue();
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
+    window.addEventListener('matrices-sync-queue-updated', handleQueueChange);
 
-    // Load initial sync metadata from IndexedDB
+    // Initial load
     offlineDB.getMeta().then((m) => {
       if (m) {
         setMeta(m);
@@ -54,23 +98,182 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       }
     }).catch(console.error);
 
+    refreshQueue();
+
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('matrices-sync-queue-updated', handleQueueChange);
     };
-  }, []);
+  }, [refreshQueue]);
 
   const checkPermissions = useCallback(async () => {
     await NativeAdapter.requestAllPermissions();
   }, []);
 
+  const pendingQueueCount = queueItems.filter((i) => i.status === 'PENDING').length;
+  const failedQueueCount = queueItems.filter((i) => i.status === 'FAILED').length;
+
+  /**
+   * Execute Push Process: Sequential FIFO processing
+   * Halts immediately on failure
+   */
+  const pushChanges = useCallback(async (): Promise<boolean> => {
+    if (isPushing) return false;
+    if (typeof window !== 'undefined' && !navigator.onLine) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Offline Mode Active',
+        text: 'Cannot push changes while offline. Please connect to internet.',
+        confirmButtonColor: '#0f172a',
+      });
+      return false;
+    }
+
+    const unpushed = queueItems.filter((i) => i.status === 'PENDING' || i.status === 'FAILED');
+    if (unpushed.length === 0) {
+      Swal.fire({
+        icon: 'info',
+        title: 'Queue Empty',
+        text: 'No local changes pending to push.',
+        confirmButtonColor: '#0f172a',
+      });
+      return true;
+    }
+
+    setIsPushing(true);
+    setPushStatusText('Preparing offline changes...');
+
+    try {
+      const result = await processSyncQueueSequential((step, total, item, status, msg) => {
+        setPushStatusText(msg || `Processing item ${step} of ${total}...`);
+      });
+
+      await refreshQueue();
+
+      if (result.failedCount > 0 && result.stoppedAt) {
+        const item = result.stoppedAt;
+        Swal.fire({
+          icon: 'error',
+          title: 'Push Failed',
+          html: `
+            <div style="text-align: left; font-size: 13px;" class="space-y-2">
+              <p><strong>Operation:</strong> ${item.operation} ${item.entity}</p>
+              <p><strong>ID:</strong> <code>${item.entityId}</code></p>
+              <p><strong>Reason:</strong> <span style="color: #dc2626; font-weight: 700;">${result.errorReason || item.errorMessage}</span></p>
+              <hr class="my-2 border-gray-200"/>
+              <p class="text-xs text-gray-500">Processing stopped immediately to preserve queue order. Fix the issue or retry failed item.</p>
+            </div>
+          `,
+          confirmButtonColor: '#0f172a',
+        });
+        return false;
+      }
+
+      Swal.fire({
+        icon: 'success',
+        title: 'Push Complete!',
+        text: `Successfully synced ${result.successCount} local offline operations to the server.`,
+        confirmButtonColor: '#0f172a',
+      });
+      return true;
+    } catch (err: any) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Push Aborted',
+        text: err?.message || 'Error processing sync queue',
+        confirmButtonColor: '#0f172a',
+      });
+      return false;
+    } finally {
+      setIsPushing(false);
+      setPushStatusText('');
+      refreshQueue();
+    }
+  }, [isPushing, queueItems, refreshQueue]);
+
+  /**
+   * Retry failed items in push queue
+   */
+  const retryFailedPush = useCallback(async (): Promise<boolean> => {
+    if (isPushing) return false;
+    setIsPushing(true);
+    setPushStatusText('Retrying failed operations...');
+
+    try {
+      const result = await retrySyncQueue((step, total, item, status, msg) => {
+        setPushStatusText(msg || `Retrying item ${step} of ${total}...`);
+      });
+
+      await refreshQueue();
+
+      if (result.failedCount > 0 && result.stoppedAt) {
+        const item = result.stoppedAt;
+        Swal.fire({
+          icon: 'error',
+          title: 'Push Retry Failed',
+          html: `
+            <div style="text-align: left; font-size: 13px;">
+              <p><strong>Operation:</strong> ${item.operation} ${item.entity}</p>
+              <p><strong>ID:</strong> <code>${item.entityId}</code></p>
+              <p><strong>Reason:</strong> <span style="color: #dc2626; font-weight: 700;">${result.errorReason || item.errorMessage}</span></p>
+            </div>
+          `,
+          confirmButtonColor: '#0f172a',
+        });
+        return false;
+      }
+
+      Swal.fire({
+        icon: 'success',
+        title: 'Retry Successful!',
+        text: 'All remaining operations pushed to server.',
+        confirmButtonColor: '#0f172a',
+      });
+      return true;
+    } catch (err: any) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Retry Failed',
+        text: err?.message || 'Failed to retry queue',
+        confirmButtonColor: '#0f172a',
+      });
+      return false;
+    } finally {
+      setIsPushing(false);
+      setPushStatusText('');
+      refreshQueue();
+    }
+  }, [isPushing, refreshQueue]);
+
+  /**
+   * Execute Sync (Download fresh catalog from server)
+   */
   const executeSync = useCallback(async (): Promise<boolean> => {
+    // RULE ENFORCEMENT: Check pending queue before proceeding
+    const items = await getSyncQueue();
+    const pendingOrFailed = items.filter((i) => i.status === 'PENDING' || i.status === 'FAILED');
+
+    if (pendingOrFailed.length > 0) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Sync Blocked',
+        html: `
+          <div style="text-align: left; font-size: 13px;">
+            <p style="font-weight: 700; color: #b45309;">Cannot sync. Please push all local changes first.</p>
+            <p style="margin-top: 8px;">You have <strong>${pendingOrFailed.length}</strong> pending or failed operations in your SyncQueue. Uploading catalog now would overwrite local edits.</p>
+          </div>
+        `,
+        confirmButtonColor: '#0f172a',
+      });
+      return false;
+    }
+
     setIsSyncing(true);
     setProgress(5);
     setSyncStatusText('Requesting storage permission...');
 
     try {
-      // ── Step 0: ensure native storage permission is granted ────────────────
       const { storage } = await NativeAdapter.requestAllPermissions();
       if (!storage.granted) {
         setSyncStatusText('Storage permission denied – sync aborted.');
@@ -80,11 +283,10 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
       const token = getAuthToken();
       const headers = {
-        'Authorization': token ? `Bearer ${token}` : '',
+        Authorization: token ? `Bearer ${token}` : '',
         'Content-Type': 'application/json',
       };
 
-      // ── Step 1: Products & Categories ──────────────────────────────────────
       setProgress(20);
       setSyncStatusText('Connecting to Magnum Server...');
 
@@ -115,8 +317,6 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       if (productsRes.status === 'fulfilled' && productsRes.value.ok) {
         const json = await productsRes.value.json();
         products = json.data || json.products || (Array.isArray(json) ? json : []);
-      } else if (productsRes.status === 'fulfilled') {
-        console.warn('Products fetch failed:', productsRes.value.status);
       }
 
       if (filtersRes.status === 'fulfilled' && filtersRes.value.ok) {
@@ -125,7 +325,6 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         subcategories = json.subcategories || json.data?.subcategories || [];
       }
 
-      // ── Step 2: Shops ──────────────────────────────────────────────────────
       setProgress(50);
       setSyncStatusText('Syncing Customer Shops assigned to logged-in salesrep...');
       if (shopsRes.status === 'fulfilled' && shopsRes.value.ok) {
@@ -133,7 +332,6 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         shops = json.data || json.shops || (Array.isArray(json) ? json : []);
       }
 
-      // ── Step 3: Orders ─────────────────────────────────────────────────────
       setProgress(65);
       setSyncStatusText('Syncing Salesrep Invoices & Orders...');
       if (ordersRes.status === 'fulfilled' && ordersRes.value.ok) {
@@ -145,7 +343,6 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         wishlist = await wishlistRes.value.json();
       }
 
-      // ── Step 4: Format & persist to IndexedDB ─────────────────────────────
       setProgress(78);
       setSyncStatusText(`Saving ${products.length} products, ${shops.length} shops, and ${orders.length} orders offline...`);
 
@@ -214,15 +411,17 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       }));
 
       const rawWishlist = wishlist?.wishlist || wishlist || {};
-      const formattedWishlist = [{
-        id: 'user_wishlist',
-        categories: rawWishlist.categories || [],
-        subcategories: rawWishlist.subcategories || [],
-        products: rawWishlist.products || [],
-        fullProducts: rawWishlist.fullProducts || [],
-      }];
+      const formattedWishlist = [
+        {
+          id: 'user_wishlist',
+          categories: rawWishlist.categories || [],
+          subcategories: rawWishlist.subcategories || [],
+          products: rawWishlist.products || [],
+          fullProducts: rawWishlist.fullProducts || [],
+        },
+      ];
 
-      // Clear all old synced data prior to persisting fresh dataset
+      // Delete all old sync data
       await offlineDB.clearAllData();
 
       await offlineDB.saveBatch('categories', formattedCategories);
@@ -232,7 +431,6 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       await offlineDB.saveBatch('orders', formattedOrders);
       await offlineDB.saveBatch('wishlist', formattedWishlist);
 
-      // ── Step 5: Cache & Download Images directly to LocalDB / Filesystem ──
       setProgress(88);
       setSyncStatusText('Downloading & storing images locally for offline use...');
 
@@ -267,7 +465,6 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       setMeta(newMeta);
       setLastSyncedAt(newMeta.lastSyncedAt);
 
-      // Auto-switch to offline mode upon successful sync
       localStorage.setItem('matrices_data_mode', 'offline');
       window.dispatchEvent(new Event('matrices-data-mode-change'));
 
@@ -279,23 +476,22 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       setSyncStatusText(`Sync Failed: ${err.message || 'Server connection error'}`);
       return false;
     } finally {
-      // Small delay so user can read "Sync Complete!" before the modal closes
       setTimeout(() => setIsSyncing(false), 1800);
     }
   }, []);
 
-  /**
-   * Trigger sync – always asks for PIN first if not yet verified,
-   * then proceeds to executeSync once the user authenticates.
-   */
   const triggerSync = useCallback(async (): Promise<boolean> => {
     if (isSyncing) return false;
     if (typeof window !== 'undefined' && !navigator.onLine) {
-      alert('Cannot sync while offline. Please connect to a network.');
+      Swal.fire({
+        icon: 'warning',
+        title: 'Offline Mode Active',
+        text: 'Cannot sync fresh catalog while offline. Please connect to a network.',
+        confirmButtonColor: '#0f172a',
+      });
       return false;
     }
 
-    // If PIN not yet verified, show modal and wait for user to verify
     if (!isPinVerified) {
       return new Promise<boolean>((resolve) => {
         afterPinResolve.current = resolve;
@@ -318,6 +514,33 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     afterPinResolve.current = null;
   }, []);
 
+  const deleteQueueItem = useCallback(
+    async (id: string) => {
+      await deleteSyncQueueItem(id);
+      await refreshQueue();
+    },
+    [refreshQueue]
+  );
+
+  const clearAllQueue = useCallback(async () => {
+    await clearSyncQueue();
+    await refreshQueue();
+  }, [refreshQueue]);
+
+  const downloadReport = useCallback(
+    (format: 'pdf' | 'csv' | 'json', userName?: string) => {
+      const name = userName || (user as any)?.name || 'Salesrep';
+      if (format === 'pdf') {
+        downloadFailureReportPDF(name, queueItems);
+      } else if (format === 'csv') {
+        downloadFailureReportCSV(name, queueItems);
+      } else if (format === 'json') {
+        downloadFailureReportJSON(name, queueItems);
+      }
+    },
+    [queueItems, user]
+  );
+
   return (
     <SyncContext.Provider
       value={{
@@ -327,17 +550,24 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         lastSyncedAt,
         isOffline,
         meta,
+        queueItems,
+        pendingQueueCount,
+        failedQueueCount,
+        isPushing,
+        pushStatusText,
         triggerSync,
+        pushChanges,
+        retryFailedPush,
+        deleteQueueItem,
+        clearAllQueue,
+        downloadReport,
         checkPermissions,
+        refreshQueue,
       }}
     >
       {children}
       <SyncProgressModal />
-      <PinModal
-        isOpen={showPinModal}
-        onClose={handlePinClose}
-        onSuccess={handlePinSuccess}
-      />
+      <PinModal isOpen={showPinModal} onClose={handlePinClose} onSuccess={handlePinSuccess} />
     </SyncContext.Provider>
   );
 }
