@@ -47,20 +47,40 @@ interface Order {
 }
 
 import { resolveApiUrl, getAuthToken } from '@/lib/utils';
+import { offlineDB } from '@/lib/offline/indexed-db';
 
 const fetcher = async (url: string) => {
+  const mode = typeof window !== 'undefined' ? (localStorage.getItem('matrices_data_mode') as string) : 'online';
+  const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+
+  // Extract orderId from URL like /api/orders/ORD123
+  const extractId = () => {
+    const parts = url.split('/');
+    return parts[parts.length - 1]?.split('?')[0] || '';
+  };
+
+  const getOfflineOrder = async () => {
+    const rawOrders = await offlineDB.getAll<any>('orders').catch(() => []);
+    const id = extractId();
+    const found = rawOrders.find((o: any) =>
+      String(o.orderId) === id || String(o.id) === id || String(o._id) === id
+    );
+    return found ? { success: true, order: found } : { success: false, order: null };
+  };
+
+  if (mode === 'offline' || isOffline) return getOfflineOrder();
+
   const token = getAuthToken();
   const targetUrl = resolveApiUrl(url);
-  const res = await fetch(targetUrl, {
-    headers: {
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-  });
-  if (!res.ok) {
-    const error = await res.json().catch(() => ({ msg: 'Failed to load order details' }));
-    throw new Error(error.msg || 'Failed to fetch');
+  try {
+    const res = await fetch(targetUrl, {
+      headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    });
+    if (!res.ok) throw new Error('Failed to fetch order');
+    return res.json();
+  } catch {
+    return getOfflineOrder();
   }
-  return res.json();
 };
 
 import { useParams, useSearchParams } from 'next/navigation';

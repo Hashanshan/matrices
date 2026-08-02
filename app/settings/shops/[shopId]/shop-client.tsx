@@ -64,20 +64,45 @@ interface Order {
 }
 
 import { resolveApiUrl, getAuthToken } from '@/lib/utils';
+import { offlineDB } from '@/lib/offline/indexed-db';
 
 const fetcher = async (url: string) => {
+  const mode = typeof window !== 'undefined' ? (localStorage.getItem('matrices_data_mode') as string) : 'online';
+  const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+
+  const extractShopId = () => {
+    try {
+      const match = url.match(/\/byid\/([^?]+)/);
+      return match ? match[1] : '';
+    } catch { return ''; }
+  };
+
+  const getOfflineShop = async () => {
+    const rawShops = await offlineDB.getAll<any>('shops').catch(() => []);
+    const rawOrders = await offlineDB.getAll<any>('orders').catch(() => []);
+    const id = extractShopId();
+    const shop = rawShops.find((s: any) =>
+      String(s.shopId) === id || String(s.id) === id
+    );
+    const shopOrders = rawOrders.filter((o: any) =>
+      String(o.shop?.shopId) === id || String(o.shopId) === id
+    );
+    return { success: true, shop: shop || null, orders: shopOrders, totalOrders: shopOrders.length, totalPages: 1 };
+  };
+
+  if (mode === 'offline' || isOffline) return getOfflineShop();
+
   const token = getAuthToken();
   const targetUrl = resolveApiUrl(url);
-  const res = await fetch(targetUrl, {
-    headers: {
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-  });
-  if (!res.ok) {
-    const error = await res.json().catch(() => ({ msg: 'Failed to load shop details' }));
-    throw new Error(error.msg || 'Failed to fetch');
+  try {
+    const res = await fetch(targetUrl, {
+      headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    });
+    if (!res.ok) throw new Error('Failed to fetch shop');
+    return res.json();
+  } catch {
+    return getOfflineShop();
   }
-  return res.json();
 };
 
 import { useParams, useSearchParams } from 'next/navigation';

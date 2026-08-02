@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Matrices Catalogue</string>
-    <string name="title_activity_main">Matrices Catalogue</string>
+    <string name="app_name">Matrices</string>
+    <string name="title_activity_main">Matrices</string>
     <string name="package_name">com.matrices.catalogue</string>
     <string name="custom_url_scheme">com.matrices.catalogue</string>
 </resources>

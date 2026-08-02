@@ -16,6 +16,8 @@ import Swal from 'sweetalert2';
 import { formatPrice } from '@/lib/currency';
 
 import { resolveApiUrl, getAuthToken } from '@/lib/utils';
+import { offlineDB } from '@/lib/offline/indexed-db';
+import { useDataMode } from '@/lib/contexts/data-mode-context';
 import SyncButton from '@/components/mobile/sync-button';
 
 interface Shop {
@@ -34,18 +36,62 @@ interface Shop {
 }
 
 const fetcher = async (url: string) => {
+  const mode = typeof window !== 'undefined' ? (localStorage.getItem('matrices_data_mode') as string) : 'online';
+  const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+
+  const parseQuery = () => {
+    try {
+      const u = new URL(url, 'http://x');
+      return (u.searchParams.get('searchQuery') || '').toLowerCase().trim();
+    } catch {
+      return '';
+    }
+  };
+
+  if (mode === 'offline' || isOffline) {
+    const rawShops = await offlineDB.getAll<any>('shops').catch(() => []);
+    const search = parseQuery();
+    const filtered = search
+      ? rawShops.filter((s: any) =>
+          (s.name || '').toLowerCase().includes(search) ||
+          (s.shopId || '').toLowerCase().includes(search) ||
+          (s.phone || '').toLowerCase().includes(search)
+        )
+      : rawShops;
+
+    return {
+      success: true,
+      shops: filtered,
+      totalRecords: filtered.length,
+      totalPages: 1,
+    };
+  }
+
   const token = getAuthToken();
   const targetUrl = resolveApiUrl(url);
-  const res = await fetch(targetUrl, {
-    headers: {
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-  });
-  if (!res.ok) {
-    const error = await res.json().catch(() => ({ msg: 'Failed to load shops' }));
-    throw new Error(error.msg || 'Failed to fetch');
+  try {
+    const res = await fetch(targetUrl, {
+      headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    });
+    if (!res.ok) throw new Error('Failed to fetch shops');
+    return res.json();
+  } catch {
+    const rawShops = await offlineDB.getAll<any>('shops').catch(() => []);
+    const search = parseQuery();
+    const filtered = search
+      ? rawShops.filter((s: any) =>
+          (s.name || '').toLowerCase().includes(search) ||
+          (s.shopId || '').toLowerCase().includes(search) ||
+          (s.phone || '').toLowerCase().includes(search)
+        )
+      : rawShops;
+    return {
+      success: true,
+      shops: filtered,
+      totalRecords: filtered.length,
+      totalPages: 1,
+    };
   }
-  return res.json();
 };
 
 export default function ShopsSettingsPage() {
@@ -77,6 +123,8 @@ export default function ShopsSettingsPage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const mobileCameraInputRef = useRef<HTMLInputElement | null>(null);
 
+  const { dataMode } = useDataMode();
+
   // Build SWR query key
   const queryParams = new URLSearchParams();
   if (searchQuery) queryParams.set('searchQuery', searchQuery);
@@ -84,6 +132,7 @@ export default function ShopsSettingsPage() {
   queryParams.set('limit', '9');
   queryParams.set('sortField', 'updatedAt');
   queryParams.set('sortOrder', '-1');
+  queryParams.set('_mode', dataMode);
 
   const swrKey = `/api/shops?${queryParams.toString()}`;
   const { data, isLoading } = useSWR(swrKey, fetcher, {

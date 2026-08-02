@@ -42,7 +42,21 @@ export function DataModeProvider({ children }: { children: React.ReactNode }) {
 
       setIsReady(true);
     };
+
     init();
+
+    // Listen for storage or sync completion updates
+    const handleExternalChange = () => {
+      init();
+    };
+
+    window.addEventListener('matrices-data-mode-change', handleExternalChange);
+    window.addEventListener('storage', handleExternalChange);
+
+    return () => {
+      window.removeEventListener('matrices-data-mode-change', handleExternalChange);
+      window.removeEventListener('storage', handleExternalChange);
+    };
   }, []);
 
   const setDataMode = useCallback((mode: DataMode) => {

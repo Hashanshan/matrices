@@ -15,7 +15,12 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: 'Matrices',
-  // description: 'Matrices: Your gateway to premium tech products with stunning visuals, advanced filtering, and seamless shopping experience',
+  description: 'Matrices Product Catalogue and Invoice System',
+  icons: {
+    icon: '/app_logo.png',
+    shortcut: '/app_logo.png',
+    apple: '/app_logo.png',
+  },
 }
 
 export const viewport: Viewport = {

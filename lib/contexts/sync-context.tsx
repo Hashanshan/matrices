@@ -156,27 +156,41 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         order: c.order ?? idx,
       }));
 
-      const formattedSubcategories = subcategories.map((s: any, idx: number) => ({
-        id: String(s._id || s.id || s.subcategoryId || `subcat_${idx}`),
-        name: s.name || s.subcategoryName || 'Subcategory',
-        categoryId: String(s.categoryId || s.category?._id || s.category || ''),
-        order: s.order ?? idx,
-      }));
+      const formattedSubcategories = subcategories.map((s: any, idx: number) => {
+        const catName = s.categoryName || s.category?.name || (typeof s.category === 'string' ? s.category : '') || '';
+        return {
+          id: String(s._id || s.id || s.subcategoryId || `subcat_${idx}`),
+          name: s.name || s.subcategoryName || 'Subcategory',
+          categoryId: String(s.categoryId || s.category?._id || s.category || ''),
+          category: catName,
+          categoryName: catName,
+          image: s.image || s.imageUrl || '',
+          order: s.order ?? idx,
+        };
+      });
 
-      const formattedProducts = products.map((p: any, idx: number) => ({
-        id: String(p._id || p.id || p.productId || `prod_${idx}`),
-        productId: String(p.productId || p._id || p.id || `prod_${idx}`),
-        name: p.name || p.productName || 'Unnamed Product',
-        code: p.code || p.productCode || '',
-        description: p.description || '',
-        price: p.price || 0,
-        categoryId: String(p.categoryId || p.category?._id || p.category || ''),
-        subcategoryId: String(p.subcategoryId || p.subcategory?._id || p.subcategory || ''),
-        categoryName: p.categoryName || p.category?.name || '',
-        subcategoryName: p.subcategoryName || p.subcategory?.name || '',
-        imageUrl: p.image || p.imageUrl || '',
-        images: p.images || (p.image ? [p.image] : []),
-      }));
+      const formattedProducts = products.map((p: any, idx: number) => {
+        const catName = p.categoryName || p.category?.name || (typeof p.category === 'string' ? p.category : '') || p.categories || '';
+        const subName = p.subcategoryName || p.subcategory?.name || (typeof p.subcategory === 'string' ? p.subcategory : '') || p.subcategories || '';
+        const img = p.image || p.imageUrl || (Array.isArray(p.images) && p.images[0] ? p.images[0] : '');
+        return {
+          id: String(p._id || p.id || p.productId || `prod_${idx}`),
+          productId: String(p.productId || p._id || p.id || `prod_${idx}`),
+          name: p.name || p.productName || 'Unnamed Product',
+          code: p.code || p.productCode || '',
+          description: p.description || '',
+          price: p.price || 0,
+          categoryId: String(p.categoryId || p.category?._id || p.category || ''),
+          subcategoryId: String(p.subcategoryId || p.subcategory?._id || p.subcategory || ''),
+          categoryName: catName,
+          categories: catName,
+          subcategoryName: subName,
+          subcategories: subName,
+          image: img,
+          imageUrl: img,
+          images: p.images || (img ? [img] : []),
+        };
+      });
 
       const formattedShops = shops.map((s: any, idx: number) => ({
         id: String(s._id || s.id || s.shopId || `shop_${idx}`),
@@ -199,23 +213,21 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         status: o.status || 'PENDING',
       }));
 
-      const wishlistItems: any[] = Array.isArray(wishlist)
-        ? wishlist
-        : wishlist?.items ?? wishlist?.products ?? (wishlist ? [wishlist] : []);
-      const formattedWishlist = wishlistItems.map((w: any, idx: number) => ({
-        id: String(w._id || w.id || w.productId || `wish_${idx}`),
-        ...w,
-      }));
+      const rawWishlist = wishlist?.wishlist || wishlist || {};
+      const formattedWishlist = [{
+        id: 'user_wishlist',
+        categories: rawWishlist.categories || [],
+        subcategories: rawWishlist.subcategories || [],
+        products: rawWishlist.products || [],
+        fullProducts: rawWishlist.fullProducts || [],
+      }];
 
       await offlineDB.saveBatch('categories', formattedCategories);
       await offlineDB.saveBatch('subcategories', formattedSubcategories);
       await offlineDB.saveBatch('products', formattedProducts);
       await offlineDB.saveBatch('shops', formattedShops);
       await offlineDB.saveBatch('orders', formattedOrders);
-
-      if (formattedWishlist.length > 0) {
-        await offlineDB.saveBatch('wishlist', formattedWishlist);
-      }
+      await offlineDB.saveBatch('wishlist', formattedWishlist);
 
       // ── Step 5: Cache images ────────────────────────────────────────────────
       setProgress(88);
@@ -243,6 +255,10 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       await offlineDB.setMeta(newMeta);
       setMeta(newMeta);
       setLastSyncedAt(newMeta.lastSyncedAt);
+
+      // Auto-switch to offline mode upon successful sync
+      localStorage.setItem('matrices_data_mode', 'offline');
+      window.dispatchEvent(new Event('matrices-data-mode-change'));
 
       setProgress(100);
       setSyncStatusText('Sync Complete!');

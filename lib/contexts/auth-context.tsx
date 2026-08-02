@@ -46,6 +46,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     const handleAuthError = () => {
+      const mode = typeof window !== 'undefined' ? localStorage.getItem('matrices_data_mode') : null;
+      if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+      if (mode === 'offline') return;
       logout();
       window.location.href = '/';
     };

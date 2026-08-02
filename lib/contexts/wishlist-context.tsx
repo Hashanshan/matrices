@@ -157,9 +157,25 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
   );
 
   const toggleCategoryWishlist = async (name: string) => {
+    const mode = getDataMode();
+    const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+
+    if (mode === 'offline' || isOffline) {
+      // Offline mode: Toggle category locally in IndexedDB
+      const current = { ...wishlistData };
+      const exists = (current.categories || []).some(c => c.name.toUpperCase() === name.trim().toUpperCase());
+      if (exists) {
+        current.categories = (current.categories || []).filter(c => c.name.toUpperCase() !== name.trim().toUpperCase());
+      } else {
+        current.categories = [...(current.categories || []), { name, order: (current.categories?.length || 0) + 1 }];
+      }
+      await offlineDB.saveBatch('wishlist', [{ id: 'user_wishlist', ...current }]);
+      mutate({ success: true, wishlist: current }, { revalidate: false });
+      return;
+    }
+
     const token = getAuthToken();
     try {
-      // Optimistic mutate
       mutate(async () => {
         const targetUrl = resolveApiUrl('/api/wishlist/toggle');
         const res = await fetch(targetUrl, {
@@ -171,6 +187,10 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
           body: JSON.stringify({ type: 'category', item: { name } }),
         });
         const updated = await res.json();
+        // Update IndexedDB snapshot with the latest server data
+        if (updated?.success && updated?.wishlist) {
+          await offlineDB.saveBatch('wishlist', [{ id: 'user_wishlist', ...updated.wishlist }]);
+        }
         return updated;
       }, { revalidate: true });
     } catch (err) {
@@ -179,6 +199,27 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
   };
 
   const toggleSubcategoryWishlist = async (category: string, name: string) => {
+    const mode = getDataMode();
+    const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+
+    if (mode === 'offline' || isOffline) {
+      // Offline mode: Toggle subcategory locally in IndexedDB
+      const current = { ...wishlistData };
+      const exists = (current.subcategories || []).some(
+        s => s.category.toUpperCase() === category.trim().toUpperCase() && s.name.toUpperCase() === name.trim().toUpperCase()
+      );
+      if (exists) {
+        current.subcategories = (current.subcategories || []).filter(
+          s => !(s.category.toUpperCase() === category.trim().toUpperCase() && s.name.toUpperCase() === name.trim().toUpperCase())
+        );
+      } else {
+        current.subcategories = [...(current.subcategories || []), { category, name, order: (current.subcategories?.length || 0) + 1 }];
+      }
+      await offlineDB.saveBatch('wishlist', [{ id: 'user_wishlist', ...current }]);
+      mutate({ success: true, wishlist: current }, { revalidate: false });
+      return;
+    }
+
     const token = getAuthToken();
     try {
       mutate(async () => {
@@ -192,6 +233,9 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
           body: JSON.stringify({ type: 'subcategory', item: { category, name } }),
         });
         const updated = await res.json();
+        if (updated?.success && updated?.wishlist) {
+          await offlineDB.saveBatch('wishlist', [{ id: 'user_wishlist', ...updated.wishlist }]);
+        }
         return updated;
       }, { revalidate: true });
     } catch (err) {
@@ -200,6 +244,50 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
   };
 
   const toggleProductWishlist = async (productId: string) => {
+    const mode = getDataMode();
+    const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+
+    if (mode === 'offline' || isOffline) {
+      // Offline mode: Toggle product locally in IndexedDB
+      const current = { ...wishlistData };
+      const strId = String(productId).trim();
+      const exists = (current.products || []).some(p => String(p.productId).trim() === strId);
+      if (exists) {
+        current.products = (current.products || []).filter(p => String(p.productId).trim() !== strId);
+        current.fullProducts = (current.fullProducts || []).filter(p => p.product && String(p.product.productId || p.product.id).trim() !== strId);
+      } else {
+        // Find product details in local products store to populate fullProducts
+        const allProducts = await offlineDB.getAll<any>('products').catch(() => []);
+        const foundProd = allProducts.find(p => String(p.productId || p.id).trim() === strId);
+        
+        current.products = [...(current.products || []), { productId, order: (current.products?.length || 0) + 1 }];
+        if (foundProd) {
+          current.fullProducts = [
+            ...(current.fullProducts || []),
+            {
+              wishlistId: `wish_local_${Date.now()}`,
+              order: (current.fullProducts?.length || 0) + 1,
+              addedAt: new Date().toISOString(),
+              product: {
+                id: foundProd.id || foundProd.productId,
+                name: foundProd.name || '',
+                productId: foundProd.productId || foundProd.id,
+                categories: foundProd.categoryName || foundProd.categories || '',
+                subcategories: foundProd.subcategoryName || foundProd.subcategories || '',
+                image: foundProd.imageUrl || foundProd.image || '',
+                sellPrice: foundProd.price || 0,
+                price: foundProd.price || 0,
+                description: foundProd.description || '',
+              }
+            }
+          ];
+        }
+      }
+      await offlineDB.saveBatch('wishlist', [{ id: 'user_wishlist', ...current }]);
+      mutate({ success: true, wishlist: current }, { revalidate: false });
+      return;
+    }
+
     const token = getAuthToken();
     try {
       mutate(async () => {
@@ -213,6 +301,9 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
           body: JSON.stringify({ type: 'product', item: { productId } }),
         });
         const updated = await res.json();
+        if (updated?.success && updated?.wishlist) {
+          await offlineDB.saveBatch('wishlist', [{ id: 'user_wishlist', ...updated.wishlist }]);
+        }
         return updated;
       }, { revalidate: true });
     } catch (err) {
@@ -221,6 +312,31 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
   };
 
   const reorderWishlist = async (type: 'category' | 'subcategory' | 'product', items: any[]) => {
+    const mode = getDataMode();
+    const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+
+    if (mode === 'offline' || isOffline) {
+      // Offline mode: Reorder locally in IndexedDB
+      const current = { ...wishlistData };
+      if (type === 'category') {
+        current.categories = items.map((name, idx) => ({ name, order: idx + 1 }));
+      } else if (type === 'subcategory') {
+        current.subcategories = items.map((item, idx) => ({ category: item.category, name: item.name, order: idx + 1 }));
+      } else if (type === 'product') {
+        // Rearrange products & fullProducts matching items order
+        const reorderedFull: any[] = [];
+        items.forEach((id, idx) => {
+          const found = (current.fullProducts || []).find(p => (p.wishlistId || p.product?.productId || p.product?.id) === id);
+          if (found) reorderedFull.push({ ...found, order: idx + 1 });
+        });
+        current.fullProducts = reorderedFull;
+        current.products = reorderedFull.map((p, idx) => ({ productId: p.product?.productId || p.product?.id || '', order: idx + 1 }));
+      }
+      await offlineDB.saveBatch('wishlist', [{ id: 'user_wishlist', ...current }]);
+      mutate({ success: true, wishlist: current }, { revalidate: false });
+      return;
+    }
+
     const token = getAuthToken();
     try {
       mutate(async () => {
@@ -234,6 +350,9 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
           body: JSON.stringify({ type, items }),
         });
         const updated = await res.json();
+        if (updated?.success && updated?.wishlist) {
+          await offlineDB.saveBatch('wishlist', [{ id: 'user_wishlist', ...updated.wishlist }]);
+        }
         return updated;
       }, { revalidate: true });
     } catch (err) {

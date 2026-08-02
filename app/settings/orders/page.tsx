@@ -49,21 +49,52 @@ interface Order {
 }
 
 import { resolveApiUrl, getAuthToken } from '@/lib/utils';
+import { offlineDB } from '@/lib/offline/indexed-db';
 import SyncButton from '@/components/mobile/sync-button';
 
 const fetcher = async (url: string) => {
+  const mode = typeof window !== 'undefined' ? (localStorage.getItem('matrices_data_mode') as string) : 'online';
+  const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+
+  const parseQuery = () => {
+    try {
+      const u = new URL(url, 'http://x');
+      return {
+        search: (u.searchParams.get('searchQuery') || '').toLowerCase().trim(),
+        status: (u.searchParams.get('status') || '').toLowerCase().trim(),
+      };
+    } catch { return { search: '', status: '' }; }
+  };
+
+  const getOfflineOrders = async () => {
+    const rawOrders = await offlineDB.getAll<any>('orders').catch(() => []);
+    const { search, status } = parseQuery();
+    let filtered = rawOrders;
+    if (search) {
+      filtered = filtered.filter((o: any) =>
+        (o.orderId || '').toLowerCase().includes(search) ||
+        (o.shop?.name || '').toLowerCase().includes(search)
+      );
+    }
+    if (status && status !== 'all') {
+      filtered = filtered.filter((o: any) => (o.status || '').toLowerCase() === status);
+    }
+    return { success: true, orders: filtered, totalRecords: filtered.length, totalPages: 1 };
+  };
+
+  if (mode === 'offline' || isOffline) return getOfflineOrders();
+
   const token = getAuthToken();
   const targetUrl = resolveApiUrl(url);
-  const res = await fetch(targetUrl, {
-    headers: {
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-  });
-  if (!res.ok) {
-    const error = await res.json().catch(() => ({ msg: 'Failed to load orders' }));
-    throw new Error(error.msg || 'Failed to fetch');
+  try {
+    const res = await fetch(targetUrl, {
+      headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    });
+    if (!res.ok) throw new Error('Failed to fetch orders');
+    return res.json();
+  } catch {
+    return getOfflineOrders();
   }
-  return res.json();
 };
 
 export default function SettingsOrdersPage() {
