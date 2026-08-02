@@ -183,23 +183,23 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
   };
 
   // Handle SweetAlert for no exact match
-  useEffect(() => {
-    if (exactMatchFound === false && products.length > 0 && filters.searchQuery) {
-      MySwal.fire({
-        title: 'No exact match found',
-        text: 'Do you want to continue to view related products?',
-        icon: 'info',
-        showCancelButton: true,
-        confirmButtonText: 'Continue',
-        confirmButtonColor: '#0f172a',
-        cancelButtonColor: '#64748b'
-      }).then((result) => {
-        if (!result.isConfirmed) {
-           setFilters(prev => ({ ...prev, searchQuery: '' }));
-        }
-      });
-    }
-  }, [exactMatchFound, products.length, filters.searchQuery]);
+  // useEffect(() => {
+  //   if (exactMatchFound === false && products.length > 0 && filters.searchQuery) {
+  //     MySwal.fire({
+  //       title: 'No exact match found',
+  //       text: 'Do you want to continue to view related products?',
+  //       icon: 'info',
+  //       showCancelButton: true,
+  //       confirmButtonText: 'Continue',
+  //       confirmButtonColor: '#0f172a',
+  //       cancelButtonColor: '#64748b'
+  //     }).then((result) => {
+  //       if (!result.isConfirmed) {
+  //          setFilters(prev => ({ ...prev, searchQuery: '' }));
+  //       }
+  //     });
+  //   }
+  // }, [exactMatchFound, products.length, filters.searchQuery]);
 
   const { wishlist, isProductWishlisted } = useWishlist();
 

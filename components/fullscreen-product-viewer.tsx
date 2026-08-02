@@ -157,7 +157,7 @@ export default function FullscreenProductViewer({
           setDisplayImg(resolved);
         }
       })
-      .catch(() => {});
+      .catch(() => { });
 
     return () => { cancelled = true; };
   }, [currentProduct?.image, currentProduct?.id]);
@@ -177,25 +177,25 @@ export default function FullscreenProductViewer({
   }, [searchOpen]);
 
   // Handle SweetAlert for no exact match
-  useEffect(() => {
-    if (exactMatchFound === false && validProducts.length > 0 && viewerSearchQuery) {
-      MySwal.fire({
-        title: 'No exact match found',
-        text: 'Do you want to continue to view related products?',
-        icon: 'info',
-        showCancelButton: true,
-        confirmButtonText: 'Continue',
-        confirmButtonColor: '#0f172a',
-        cancelButtonColor: '#64748b'
-      }).then((result) => {
-        if (!result.isConfirmed) {
-          setViewerSearchQuery('');
-          onSearch('');
-          setCurrentIndex(0);
-        }
-      });
-    }
-  }, [exactMatchFound, validProducts.length, viewerSearchQuery, onSearch]);
+  // useEffect(() => {
+  //   if (exactMatchFound === false && validProducts.length > 0 && viewerSearchQuery) {
+  //     MySwal.fire({
+  //       title: 'No exact match found',
+  //       text: 'Do you want to continue to view related products?',
+  //       icon: 'info',
+  //       showCancelButton: true,
+  //       confirmButtonText: 'Continue',
+  //       confirmButtonColor: '#0f172a',
+  //       cancelButtonColor: '#64748b'
+  //     }).then((result) => {
+  //       if (!result.isConfirmed) {
+  //         setViewerSearchQuery('');
+  //         onSearch('');
+  //         setCurrentIndex(0);
+  //       }
+  //     });
+  //   }
+  // }, [exactMatchFound, validProducts.length, viewerSearchQuery, onSearch]);
 
   const handleSwipe = useCallback((newDirection: 'left' | 'right') => {
     setDirection(newDirection);
@@ -679,11 +679,10 @@ function ThumbnailStrip({
           onClick={() => onSelect(idx)}
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.95 }}
-          className={`flex-shrink-0 w-14 h-14 rounded-xl overflow-hidden border-2 transition-all backdrop-blur-sm ${
-            idx === currentIndex
+          className={`flex-shrink-0 w-14 h-14 rounded-xl overflow-hidden border-2 transition-all backdrop-blur-sm ${idx === currentIndex
               ? 'border-white shadow-xl ring-2 ring-white/50 scale-110'
               : 'border-white/40 hover:border-white/80'
-          }`}
+            }`}
         >
           <SmartImage
             src={product.image || (product as any).imageUrl || ''}

@@ -8,11 +8,11 @@
  * 
  * Implemented directly against live API controller specifications:
  * - Cursor & Page Pagination
- * - Image URL Regex Filtering (/^https?:\/\/.+/i or valid local path)
+ * - Image URL Regex Filtering (/^https?:\/\/.+/i or valid local path) with safety fallback
  * - Wishlist Score Ranking (Products -> Subcategories -> Categories -> Default)
  * - Search Score Ranking (Exact ID/Code [100] -> Regex [20] -> Numeric [15] -> Name [6] -> Description [5] -> Subcat [4] -> Cat [3])
  * - Category Prioritization
- * - Dynamic Price Range Aggregation
+ * - Dynamic Price Range Aggregation (MongoDB $group pipeline equivalent)
  * - Wishlist-First Filter Sorting
  */
 
@@ -102,6 +102,20 @@ function extractStr(val: any): string {
   return String(val).trim();
 }
 
+/** Extract category name from product record matching MongoDB $category field */
+function getProductCategory(p: any): string {
+  if (!p) return '';
+  const raw = p.category || p.categoryName || p.categories || (typeof p.category === 'object' ? p.category?.name : '');
+  return extractStr(raw).toUpperCase();
+}
+
+/** Extract subcategory name from product record matching MongoDB $subCategory field */
+function getProductSubcategory(p: any): string {
+  if (!p) return '';
+  const raw = p.subCategory || p.subcategoryName || p.subcategories || p.subcategory || (typeof p.subcategory === 'object' ? p.subcategory?.name : '');
+  return extractStr(raw).toUpperCase();
+}
+
 /** Fetch user wishlist object from IndexedDB */
 async function getOfflineWishlist(): Promise<any | null> {
   try {
@@ -144,12 +158,19 @@ export async function getOfflineCatalogueProducts(
   const rawProducts = await offlineDB.getAll<any>('products').catch(() => []);
   const wishlist = await getOfflineWishlist();
 
-  // 2. Base filter: valid image URL & not deleted
-  let products = rawProducts.filter((p: any) => {
-    if (p.isDeleted === true) return false;
+  // Non-deleted base product set
+  const nonDeleted = rawProducts.filter((p: any) => p.isDeleted !== true);
+
+  // 2. Base filter: valid image URL
+  let products = nonDeleted.filter((p: any) => {
     const img = p.image || p.imageUrl || (Array.isArray(p.images) && p.images[0]) || '';
     return isValidImageUrl(img);
   });
+
+  // Safety fallback: if strict image URL filter returned 0 items but non-deleted products exist, use all non-deleted products
+  if (products.length === 0 && nonDeleted.length > 0) {
+    products = nonDeleted;
+  }
 
   // 3. Identify prioritized product if productId query parameter is provided
   let prioritizedProduct: any = null;
@@ -184,7 +205,7 @@ export async function getOfflineCatalogueProducts(
     if (catList.length > 0) {
       const catRegexes = catList.map((c) => new RegExp(`^${escapeRegex(c)}$`, 'i'));
       products = products.filter((p: any) => {
-        const pCat = extractStr(p.categoryName || p.categories || p.category);
+        const pCat = getProductCategory(p);
         return catRegexes.some((rx) => rx.test(pCat));
       });
     }
@@ -199,7 +220,7 @@ export async function getOfflineCatalogueProducts(
     if (subList.length > 0) {
       const subRegexes = subList.map((s) => new RegExp(`^${escapeRegex(s)}$`, 'i'));
       products = products.filter((p: any) => {
-        const pSub = extractStr(p.subcategoryName || p.subcategories || p.subcategory || p.subCategory);
+        const pSub = getProductSubcategory(p);
         return subRegexes.some((rx) => rx.test(pSub));
       });
     }
@@ -242,8 +263,8 @@ export async function getOfflineCatalogueProducts(
     const pProdId = String(p.productId || p._id || p.id || '');
     if (wishlistProdScoreMap.has(pProdId)) return wishlistProdScoreMap.get(pProdId)!;
 
-    const pCat = extractStr(p.categoryName || p.categories || p.category);
-    const pSub = extractStr(p.subcategoryName || p.subcategories || p.subcategory || p.subCategory);
+    const pCat = getProductCategory(p);
+    const pSub = getProductSubcategory(p);
 
     for (const b of wishlistSubBranches) {
       if (b.categoryRx.test(pCat) && b.nameRx.test(pSub)) return b.score;
@@ -293,8 +314,8 @@ export async function getOfflineCatalogueProducts(
 
       if (isMatch) {
         exactMatchFound = true;
-        const pSub = extractStr(p.subcategoryName || p.subcategories || p.subcategory || p.subCategory);
-        const pCat = extractStr(p.categoryName || p.categories || p.category);
+        const pSub = getProductSubcategory(p);
+        const pCat = getProductCategory(p);
         if (pSub) searchSubCategories.add(pSub.toUpperCase());
         if (pCat) searchCategories.add(pCat.toUpperCase());
       }
@@ -306,8 +327,8 @@ export async function getOfflineCatalogueProducts(
       const pCode = String(p.productCode || p.code || '');
       const pName = String(p.name || '');
       const pDesc = String(p.description || '');
-      const pSub = extractStr(p.subcategoryName || p.subcategories || p.subcategory || p.subCategory).toUpperCase();
-      const pCat = extractStr(p.categoryName || p.categories || p.category).toUpperCase();
+      const pSub = getProductSubcategory(p).toUpperCase();
+      const pCat = getProductCategory(p).toUpperCase();
 
       let score = 0;
       if (exactIdRx.test(pProdId) || exactIdRx.test(pCode)) score = 100;
@@ -334,7 +355,7 @@ export async function getOfflineCatalogueProducts(
   const prioCatRx = prioritizeCategory ? new RegExp(`^${escapeRegex(prioritizeCategory)}$`, 'i') : null;
   const getIsPriority = (p: any): number => {
     if (!prioCatRx) return 1;
-    const pCat = extractStr(p.categoryName || p.categories || p.category);
+    const pCat = getProductCategory(p);
     return prioCatRx.test(pCat) ? 0 : 1;
   };
 
@@ -371,10 +392,10 @@ export async function getOfflineCatalogueProducts(
     const priceB = Number(b.sellPrice || b.price || 0);
     const nameA = String(a.name || '').toUpperCase();
     const nameB = String(b.name || '').toUpperCase();
-    const subA = extractStr(a.subcategoryName || a.subcategories || a.subcategory || a.subCategory).toUpperCase();
-    const subB = extractStr(b.subcategoryName || b.subcategories || b.subcategory || b.subCategory).toUpperCase();
-    const catA = extractStr(a.categoryName || a.categories || a.category).toUpperCase();
-    const catB = extractStr(b.categoryName || b.categories || b.category).toUpperCase();
+    const subA = getProductSubcategory(a).toUpperCase();
+    const subB = getProductSubcategory(b).toUpperCase();
+    const catA = getProductCategory(a).toUpperCase();
+    const catB = getProductCategory(b).toUpperCase();
 
     if (sort === 'view') {
       if (subA !== subB) return subA.localeCompare(subB);
@@ -421,8 +442,8 @@ export async function getOfflineCatalogueProducts(
   const mappedProducts: CatalogueProduct[] = finalProducts.map((p: any) => {
     const pIdStr = String(p._id || p.id || p.productId || '');
     const pCodeStr = String(p.productId || p.productCode || p.code || pIdStr);
-    const catStr = extractStr(p.categoryName || p.categories || p.category).toUpperCase();
-    const subStr = extractStr(p.subcategoryName || p.subcategories || p.subcategory || p.subCategory).toUpperCase();
+    const catStr = getProductCategory(p).toUpperCase();
+    const subStr = getProductSubcategory(p).toUpperCase();
     const imgStr = p.image || p.imageUrl || (Array.isArray(p.images) && p.images[0]) || '';
     const sellPriceVal = Number(p.sellPrice || p.price || 0);
 
@@ -457,27 +478,39 @@ export async function getOfflineCatalogueProducts(
 /**
  * GET /api/catelogue/products/filters (Offline equivalent)
  * 
- * Returns dynamic filter options including distinct categories, their subcategories,
- * and absolute min/max price range.
- * Wishlisted categories and subcategories are prioritized first.
+ * Replicates live MongoDB aggregation pipeline:
+ * - Match image: /^https?:\/\/.+/i and isDeleted: false
+ * - Group 1 by { category: "$category", subCategory: "$subCategory" }
+ * - Group 2 by category, pushing subcategories with name, image, count
+ * - Calculates minPrice & maxPrice stats
+ * - Sorts Wishlisted categories/subcategories FIRST (by order), then A-Z
  */
 export async function getOfflineCatalogueFilters(): Promise<CatalogueFiltersResponse> {
-  const rawProducts = await offlineDB.getAll<any>('products').catch(() => []);
-  const dbCategories = await offlineDB.getAll<any>('categories').catch(() => []);
-  const wishlist = await getOfflineWishlist();
+  const [rawProducts, dbCategories, wishlist] = await Promise.all([
+    offlineDB.getAll<any>('products').catch(() => []),
+    offlineDB.getAll<any>('categories').catch(() => []),
+    getOfflineWishlist(),
+  ]);
 
-  // 1. Filter valid products
-  const validProducts = rawProducts.filter((p: any) => {
-    if (p.isDeleted === true) return false;
+  // 1. Match filter (non-deleted products)
+  const nonDeleted = rawProducts.filter((p: any) => p.isDeleted !== true);
+
+  // Filter valid image URLs (/^https?:\/\/.+/i or valid local path)
+  let matchingProducts = nonDeleted.filter((p: any) => {
     const img = p.image || p.imageUrl || (Array.isArray(p.images) && p.images[0]) || '';
     return isValidImageUrl(img);
   });
 
-  // 2. Price stats min/max calculation
+  // Safety fallback: if strict image filter leaves 0 products, use all non-deleted products
+  if (matchingProducts.length === 0 && nonDeleted.length > 0) {
+    matchingProducts = nonDeleted;
+  }
+
+  // 2. Aggregate price stats (minPrice, maxPrice)
   let minPrice = Infinity;
   let maxPrice = -Infinity;
 
-  validProducts.forEach((p: any) => {
+  matchingProducts.forEach((p: any) => {
     const val = Number(p.sellPrice || p.price || 0);
     if (val > 0) {
       if (val < minPrice) minPrice = val;
@@ -488,7 +521,7 @@ export async function getOfflineCatalogueFilters(): Promise<CatalogueFiltersResp
   const finalMinPrice = minPrice !== Infinity ? Math.floor(minPrice) : 0;
   const finalMaxPrice = maxPrice !== -Infinity ? Math.ceil(maxPrice) : 40000;
 
-  // 3. Category & Subcategory Aggregation Map
+  // 3. Two-stage MongoDB Aggregation Equivalent (Category -> Subcategories)
   const catMap = new Map<string, {
     name: string;
     image: string;
@@ -496,13 +529,12 @@ export async function getOfflineCatalogueFilters(): Promise<CatalogueFiltersResp
     subcats: Map<string, { name: string; image: string; count: number }>;
   }>();
 
-  validProducts.forEach((p: any) => {
-    const rawCat = extractStr(p.categoryName || p.categories || p.category);
-    if (!rawCat) return;
-    const catName = rawCat.toUpperCase();
+  // Aggregate directly from matching products (Single Source of Truth)
+  matchingProducts.forEach((p: any) => {
+    const catName = getProductCategory(p);
+    if (!catName) return;
 
-    const rawSub = extractStr(p.subcategoryName || p.subcategories || p.subcategory || p.subCategory);
-    const subName = rawSub ? rawSub.toUpperCase() : '';
+    const subName = getProductSubcategory(p);
     const img = p.image || p.imageUrl || (Array.isArray(p.images) && p.images[0]) || '';
 
     if (!catMap.has(catName)) {
@@ -516,7 +548,9 @@ export async function getOfflineCatalogueFilters(): Promise<CatalogueFiltersResp
 
     const catObj = catMap.get(catName)!;
     catObj.totalCount += 1;
-    if (!catObj.image && img) catObj.image = img;
+    if (!catObj.image && img) {
+      catObj.image = img;
+    }
 
     if (subName) {
       if (!catObj.subcats.has(subName)) {
@@ -528,40 +562,49 @@ export async function getOfflineCatalogueFilters(): Promise<CatalogueFiltersResp
       }
       const subObj = catObj.subcats.get(subName)!;
       subObj.count += 1;
-      if (!subObj.image && img) subObj.image = img;
+      if (!subObj.image && img) {
+        subObj.image = img;
+      }
     }
   });
 
-  // Blend dbCategories store items if available
-  if (dbCategories.length > 0) {
+  // Blend any categories/subcategories from synced dbCategories store
+  if (Array.isArray(dbCategories) && dbCategories.length > 0) {
     dbCategories.forEach((c: any) => {
       const cName = extractStr(c.name || c.categoryName).toUpperCase();
-      if (cName && !catMap.has(cName)) {
-        const cImg = c.image || c.imageUrl || c.categoryImage || '';
-        const subMap = new Map<string, { name: string; image: string; count: number }>();
-        if (Array.isArray(c.subcategories)) {
-          c.subcategories.forEach((s: any) => {
-            const sName = extractStr(typeof s === 'string' ? s : s.name || s.subcategoryName).toUpperCase();
-            if (sName) {
-              subMap.set(sName, {
-                name: sName,
-                image: (typeof s === 'object' ? s.image || s.imageUrl : '') || '',
-                count: typeof s === 'object' ? Number(s.count || 0) : 0,
-              });
-            }
-          });
-        }
+      if (!cName) return;
+
+      const cImg = c.image || c.imageUrl || c.categoryImage || '';
+      if (!catMap.has(cName)) {
         catMap.set(cName, {
           name: cName,
           image: cImg,
-          totalCount: Number(c.totalCount || 0),
-          subcats: subMap,
+          totalCount: Number(c.totalCount || c.count || 0),
+          subcats: new Map(),
+        });
+      }
+
+      const catObj = catMap.get(cName)!;
+      if (!catObj.image && cImg) catObj.image = cImg;
+
+      if (Array.isArray(c.subcategories)) {
+        c.subcategories.forEach((s: any) => {
+          const sName = extractStr(typeof s === 'string' ? s : s.name || s.subcategoryName).toUpperCase();
+          if (sName && !catObj.subcats.has(sName)) {
+            const sImg = (typeof s === 'object' ? s.image || s.imageUrl : '') || '';
+            const sCount = typeof s === 'object' ? Number(s.count || 0) : 0;
+            catObj.subcats.set(sName, {
+              name: sName,
+              image: sImg,
+              count: sCount,
+            });
+          }
         });
       }
     });
   }
 
-  // 4. Wishlist Priority Maps
+  // 4. Process Wishlist Priority Maps
   const wishlistedCatMap = new Map<string, number>();
   (wishlist?.categories || []).forEach((c: any, idx: number) => {
     if (c.name) wishlistedCatMap.set(String(c.name).toUpperCase(), c.order ?? idx);
@@ -574,9 +617,10 @@ export async function getOfflineCatalogueFilters(): Promise<CatalogueFiltersResp
     }
   });
 
-  // 5. Format & Sort Subcategories & Categories
+  // 5. Format & Sort Subcategories & Categories (matching backend sort logic)
   const formattedCategories: CategoryFilter[] = Array.from(catMap.values()).map((catObj) => {
-    const sortedSubcategories = Array.from(catObj.subcats.values());
+    const sortedSubcategories = Array.from(catObj.subcats.values())
+      .filter((s) => s.name);
 
     // Sort subcategories: Wishlisted FIRST (by order), then A-Z
     sortedSubcategories.sort((a, b) => {
