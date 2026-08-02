@@ -294,7 +294,7 @@ const fetcher = async <T = any>(url: string): Promise<T> => {
         prioritizeCategory: u.searchParams.get('prioritizeCategory') || undefined,
         subcategory: u.searchParams.get('subcategory') || undefined,
         search: u.searchParams.get('search') || undefined,
-        productId: u.searchParams.get('productId') || undefined,
+        productId: u.searchParams.get('productId') || u.searchParams.get('search') || undefined,
         page: parseInt(u.searchParams.get('page') || '1', 10),
         limit: parseInt(u.searchParams.get('limit') || '20', 10),
       };
@@ -435,7 +435,7 @@ export function useProducts(options: UseProductsOptions = {}) {
       if (subVal) params.set('subcategory', subVal);
     }
     if (search) params.set('search', search);
-    if (productId) params.set('productId', productId);
+    if (productId) params.set('search', productId); // Send productId as search query to the API
     if (prioritizeCategory) params.set('prioritizeCategory', prioritizeCategory);
     const currentLimit = pageIndex > 0 ? limit : (options.initialLimit || limit);
     params.set('limit', String(currentLimit));

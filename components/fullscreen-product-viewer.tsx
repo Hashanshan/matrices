@@ -243,10 +243,10 @@ export default function FullscreenProductViewer({
 
   const pageFlipVariants = {
     enter: (dir: 'left' | 'right') => ({
-      rotateY: dir === 'left' ? -90 : 90,
+      rotateY: dir === 'left' ? -12 : 12,
       opacity: 0,
-      scale: 0.95,
-      filter: 'brightness(0.8)',
+      scale: 0.98,
+      filter: 'brightness(0.95)',
     }),
     center: {
       zIndex: 1,
@@ -257,10 +257,10 @@ export default function FullscreenProductViewer({
     },
     exit: (dir: 'left' | 'right') => ({
       zIndex: 0,
-      rotateY: dir === 'left' ? 45 : -45,
+      rotateY: dir === 'left' ? 6 : -6,
       opacity: 0,
-      scale: 0.95,
-      filter: 'brightness(0.8)',
+      scale: 0.98,
+      filter: 'brightness(0.95)',
     }),
   };
 
@@ -340,8 +340,8 @@ export default function FullscreenProductViewer({
             exit="exit"
             transition={{
               type: 'tween',
-              ease: [0.25, 0.46, 0.45, 0.94],
-              duration: 0.6,
+              ease: 'easeOut',
+              duration: 0.08,
             }}
             className="absolute inset-0 flex items-center justify-center p-4 sm:p-8"
             style={{
