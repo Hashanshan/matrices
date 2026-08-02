@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { offlineDB } from '../offline/indexed-db';
+import { prewarmImageCache } from '../offline/image-cache';
 
 export type DataMode = 'online' | 'offline';
 
@@ -41,6 +42,8 @@ export function DataModeProvider({ children }: { children: React.ReactNode }) {
       }
 
       setIsReady(true);
+      // Pre-warm offline image memory map for instant zero-latency image renders
+      prewarmImageCache().catch(() => {});
     };
 
     init();

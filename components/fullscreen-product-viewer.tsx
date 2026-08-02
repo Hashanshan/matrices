@@ -161,9 +161,9 @@ export default function FullscreenProductViewer({
     return () => { cancelled = true; };
   }, [currentProduct?.image, currentProduct?.id]);
 
-  // Load more when reaching the last few slides
+  // Load more when approaching the end — pre-fetch 5 slides before the boundary
   useEffect(() => {
-    if (currentIndex >= validProducts.length - 3 && hasMore && !isLoadingMore) {
+    if (validProducts.length > 0 && currentIndex >= validProducts.length - 5 && hasMore && !isLoadingMore) {
       loadMore();
     }
   }, [currentIndex, validProducts.length, hasMore, isLoadingMore, loadMore]);
@@ -199,9 +199,19 @@ export default function FullscreenProductViewer({
   const handleSwipe = useCallback((newDirection: 'left' | 'right') => {
     setDirection(newDirection);
     if (newDirection === 'right') {
-      setCurrentIndex((prev) => (prev === 0 ? validProducts.length - 1 : prev - 1));
+      // Go back — allow wrapping to end only when no more data to load
+      setCurrentIndex((prev) => {
+        if (prev === 0) return hasMore ? 0 : validProducts.length - 1;
+        return prev - 1;
+      });
     } else {
-      setCurrentIndex((prev) => (prev === validProducts.length - 1 ? 0 : prev + 1));
+      // Go forward — clamp at last item when more data is loading, wrap only when fully loaded
+      setCurrentIndex((prev) => {
+        if (prev >= validProducts.length - 1) {
+          return hasMore ? validProducts.length - 1 : 0;
+        }
+        return prev + 1;
+      });
     }
     // Reset modal and states on product change
     setIsModalOpen(false);
@@ -209,7 +219,7 @@ export default function FullscreenProductViewer({
     setSelectedColor(null);
     setSelectedSize(null);
     setNotes('');
-  }, [validProducts.length]);
+  }, [validProducts.length, hasMore]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -233,9 +243,10 @@ export default function FullscreenProductViewer({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleSwipe]);
 
+  // Only reset if index has gone stale beyond bounds (e.g. after a search that shrinks results)
   useEffect(() => {
     if (currentIndex >= validProducts.length && validProducts.length > 0) {
-      setCurrentIndex(0);
+      setCurrentIndex(validProducts.length - 1);
     }
   }, [validProducts.length, currentIndex]);
 
@@ -594,54 +605,17 @@ export default function FullscreenProductViewer({
 
         {/* Thumbnail Navigation */}
         {!imageZoomed && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="absolute bottom-6 sm:bottom-8 left-1/2 -translate-x-1/2 flex gap-2 overflow-x-auto px-4 max-w-xs sm:max-w-2xl justify-center z-20 hidden sm:flex pb-2"
-          >
-            {products.map((product, idx) => (
-              <motion.button
-                key={product.id}
-                onClick={() => {
-                  setDirection(idx > currentIndex ? 'left' : 'right');
-                  setCurrentIndex(idx);
-                }}
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.95 }}
-                className={`flex-shrink-0 w-14 h-14 rounded-xl overflow-hidden border-2 transition-all backdrop-blur-sm ${idx === currentIndex
-                  ? 'border-white shadow-xl ring-2 ring-white/50 scale-110'
-                  : 'border-white/40 hover:border-white/80'
-                  }`}
-              >
-                <img
-                  src={product.image}
-                  alt={product.name}
-                  className="w-full h-full object-cover animate-fade-in"
-                />
-              </motion.button>
-            ))}
-            {hasMore && (
-              <div
-                ref={(node) => {
-                  if (!node) return;
-                  const observer = new IntersectionObserver(entries => {
-                    if (entries[0].isIntersecting && !isLoadingMore) {
-                      loadMore();
-                    }
-                  }, { threshold: 0.1 });
-                  observer.observe(node);
-                  return () => observer.disconnect();
-                }}
-                className="flex-shrink-0 w-14 h-14 flex items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm border-2 border-white/20"
-              >
-                {isLoadingMore ? (
-                  <div className="w-5 h-5 border-2 border-white/50 border-t-white rounded-full animate-spin" />
-                ) : (
-                  <span className="text-white text-xs font-bold">+</span>
-                )}
-              </div>
-            )}
-          </motion.div>
+          <ThumbnailStrip
+            products={validProducts}
+            currentIndex={currentIndex}
+            hasMore={hasMore}
+            isLoadingMore={isLoadingMore}
+            onSelect={(idx) => {
+              setDirection(idx > currentIndex ? 'left' : 'right');
+              setCurrentIndex(idx);
+            }}
+            onLoadMore={loadMore}
+          />
         )}
 
         {/* Swipe Hint - Mobile */}
@@ -665,3 +639,89 @@ export default function FullscreenProductViewer({
     </div>
   );
 }
+
+interface ThumbnailStripProps {
+  products: Product[];
+  currentIndex: number;
+  hasMore: boolean;
+  isLoadingMore: boolean;
+  onSelect: (index: number) => void;
+  onLoadMore: () => void;
+}
+
+function ThumbnailStrip({
+  products,
+  currentIndex,
+  hasMore,
+  isLoadingMore,
+  onSelect,
+  onLoadMore,
+}: ThumbnailStripProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const activeEl = containerRef.current.children[currentIndex] as HTMLElement;
+    if (activeEl) {
+      activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    }
+  }, [currentIndex]);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="absolute bottom-6 sm:bottom-8 left-1/2 -translate-x-1/2 flex gap-2 overflow-x-auto px-4 max-w-xs sm:max-w-2xl justify-center z-20 hidden sm:flex pb-2 no-scrollbar"
+      ref={containerRef}
+    >
+      {products.map((product, idx) => (
+        <motion.button
+          key={`${product.id}-${idx}`}
+          onClick={() => onSelect(idx)}
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.95 }}
+          className={`flex-shrink-0 w-14 h-14 rounded-xl overflow-hidden border-2 transition-all backdrop-blur-sm ${
+            idx === currentIndex
+              ? 'border-white shadow-xl ring-2 ring-white/50 scale-110'
+              : 'border-white/40 hover:border-white/80'
+          }`}
+        >
+          <img
+            src={product.image || '/placeholder.png'}
+            alt={product.name || 'Thumbnail'}
+            className="w-full h-full object-cover animate-fade-in"
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = '/placeholder.png';
+            }}
+          />
+        </motion.button>
+      ))}
+
+      {hasMore && (
+        <div
+          ref={(node) => {
+            if (!node) return;
+            const observer = new IntersectionObserver(
+              (entries) => {
+                if (entries[0].isIntersecting && !isLoadingMore) {
+                  onLoadMore();
+                }
+              },
+              { threshold: 0.1 }
+            );
+            observer.observe(node);
+            return () => observer.disconnect();
+          }}
+          className="flex-shrink-0 w-14 h-14 flex items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm border-2 border-white/20"
+        >
+          {isLoadingMore ? (
+            <div className="w-5 h-5 border-2 border-white/50 border-t-white rounded-full animate-spin" />
+          ) : (
+            <span className="text-white text-xs font-bold">+</span>
+          )}
+        </div>
+      )}
+    </motion.div>
+  );
+}
+

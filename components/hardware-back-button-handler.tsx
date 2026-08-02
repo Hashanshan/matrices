@@ -5,20 +5,20 @@ import { useRouter, usePathname } from 'next/navigation';
 
 // Global history stack persisted across re-renders
 const navHistory: string[] = [];
+let lastBackPressTime = 0;
 
 export default function HardwareBackButtonHandler() {
   const router = useRouter();
   const pathname = usePathname();
   const prevPathname = useRef<string | null>(null);
 
-  // Track every pathname change into our custom history stack
+  // Track every pathname change into custom history stack
   useEffect(() => {
     if (!pathname) return;
 
-    // Avoid duplicate consecutive entries (e.g. fast re-renders)
+    // Avoid duplicate consecutive entries
     if (navHistory.length === 0 || navHistory[navHistory.length - 1] !== pathname) {
       navHistory.push(pathname);
-      // Keep stack bounded to last 50 entries
       if (navHistory.length > 50) navHistory.shift();
     }
 
@@ -27,48 +27,70 @@ export default function HardwareBackButtonHandler() {
 
   useEffect(() => {
     const goBack = () => {
-      // Pop the current page off the stack
+      // 1. If SweetAlert or modal is open, trigger escape key to close it first
+      const swalContainer = document.querySelector('.swal2-container');
+      if (swalContainer) {
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+        return;
+      }
+
+      // 2. Pop current page off stack
       if (navHistory.length > 0 && navHistory[navHistory.length - 1] === pathname) {
         navHistory.pop();
       }
 
       if (navHistory.length > 0) {
-        // Navigate to the previous entry in our stack
         const target = navHistory[navHistory.length - 1];
         router.replace(target);
-      } else if (pathname !== '/') {
-        // Fallback: try browser back, then go to catalogue
-        try {
-          router.back();
-        } catch {
-          router.replace('/catalogue');
+      } else if (pathname !== '/' && pathname !== '/catalogue') {
+        router.replace('/catalogue');
+      } else {
+        // We are on home / catalogue root
+        const now = Date.now();
+        if (now - lastBackPressTime < 2000) {
+          // Double back press -> exit app natively if in Capacitor
+          const capApp = (window as any)?.Capacitor?.Plugins?.App;
+          if (capApp && typeof capApp.exitApp === 'function') {
+            capApp.exitApp();
+          }
+        } else {
+          lastBackPressTime = now;
         }
       }
-      // If already on root '/', do nothing (prevent app exit flicker)
     };
 
-    // ── Capacitor native back button (Android hardware / iOS gesture) ──────────
+    // ── 1. Android Native Document backbutton Event (Capacitor Android WebView) ──
+    const handleDocumentBack = (e: Event) => {
+      e.preventDefault();
+      e.stopPropagation();
+      goBack();
+    };
+    document.addEventListener('backbutton', handleDocumentBack, false);
+
+    // ── 2. Capacitor Plugin Listener Fallback ────────────────────────────────
     const capApp = (window as any)?.Capacitor?.Plugins?.App;
     let capacitorListener: any = null;
 
     if (capApp && typeof capApp.addListener === 'function') {
       capApp
-        .addListener('backButton', () => {
+        .addListener('backButton', (data: any) => {
           goBack();
         })
         .then((l: any) => {
           capacitorListener = l;
         })
-        .catch(() => {/* ignore */});
+        .catch(() => {});
     }
 
-    // ── Browser popstate fallback (for web / PWA testing) ─────────────────────
-    const handlePopstate = () => {
+    // ── 3. Browser PopState Listener ──────────────────────────────────────────
+    const handlePopstate = (e: PopStateEvent) => {
+      e.preventDefault();
       goBack();
     };
     window.addEventListener('popstate', handlePopstate);
 
     return () => {
+      document.removeEventListener('backbutton', handleDocumentBack, false);
       if (capacitorListener && typeof capacitorListener.remove === 'function') {
         capacitorListener.remove();
       }
@@ -78,3 +100,4 @@ export default function HardwareBackButtonHandler() {
 
   return null;
 }
+
