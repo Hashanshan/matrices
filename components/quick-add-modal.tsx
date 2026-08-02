@@ -281,7 +281,7 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="fixed inset-0 z-[60] bg-white/95 backdrop-blur-md flex items-center justify-center p-4 sm:p-8 cursor-zoom-out"
+                className="fixed inset-0 z-[60] bg-white/95 backdrop-blur-md flex items-center justify-center p-4 sm:p-8 cursor-zoom-out h-screen max-h-screen overflow-hidden"
                 onClick={() => setIsZoomed(false)}
               >
                 <button
@@ -290,13 +290,11 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
                 >
                   <X size={24} className="text-gray-800" />
                 </button>
-                <div className="relative w-full h-full max-w-6xl max-h-full">
+                <div className="relative w-full h-full max-w-6xl max-h-[100vh] flex items-center justify-center overflow-hidden">
                   <SmartImage
                     src={product.image || product.imageUrl || ''}
                     alt={product.name}
-                    fill
-                    className="object-contain"
-                    sizes="100vw"
+                    className="w-full h-full max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-4rem)] max-w-full flex items-center justify-center [&>img]:max-h-[calc(100vh-2rem)] sm:[&>img]:max-h-[calc(100vh-4rem)] [&>img]:w-auto [&>img]:h-auto [&>img]:max-w-full [&>img]:object-contain"
                   />
                 </div>
               </motion.div>
