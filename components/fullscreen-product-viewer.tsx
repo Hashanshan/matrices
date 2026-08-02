@@ -173,9 +173,9 @@ export default function FullscreenProductViewer({
         cancelButtonColor: '#64748b'
       }).then((result) => {
         if (!result.isConfirmed) {
-           setViewerSearchQuery('');
-           onSearch('');
-           setCurrentIndex(0);
+          setViewerSearchQuery('');
+          onSearch('');
+          setCurrentIndex(0);
         }
       });
     }
@@ -243,7 +243,7 @@ export default function FullscreenProductViewer({
 
   const pageFlipVariants = {
     enter: (dir: 'left' | 'right') => ({
-      rotateY: dir === 'left' ? -12 : 12,
+      rotateY: dir === 'left' ? -90 : 90,
       opacity: 0,
       scale: 0.98,
       filter: 'brightness(0.95)',
@@ -257,7 +257,7 @@ export default function FullscreenProductViewer({
     },
     exit: (dir: 'left' | 'right') => ({
       zIndex: 0,
-      rotateY: dir === 'left' ? 6 : -6,
+      rotateY: dir === 'left' ? 45 : -45,
       opacity: 0,
       scale: 0.98,
       filter: 'brightness(0.95)',
@@ -313,7 +313,7 @@ export default function FullscreenProductViewer({
           <h2 className="text-2xl font-black uppercase tracking-wider mb-2">NO PRODUCTS FOUND</h2>
           <p className="text-gray-400 text-sm max-w-sm mx-auto">TRY SEARCHING FOR OTHER ITEMS OR CLEAR THE SEARCH FILTER</p>
         </div>
-        
+
         <div className="w-full max-w-7xl">
           <RelatedProducts />
         </div>
