@@ -2,6 +2,7 @@ import useSWRInfinite from 'swr/infinite';
 import useSWR from 'swr';
 import { resolveApiUrl, getAuthToken } from '../utils';
 import { offlineDB } from '../offline/indexed-db';
+import { useDataMode } from '../contexts/data-mode-context';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -132,13 +133,18 @@ async function getOfflineFilters(): Promise<FiltersResponse> {
   };
 }
 
-// ─── Fetcher (network → IndexedDB fallback) ──────────────────────────────────
+// ─── Fetcher (data-mode-aware: offline-first or network-first) ──────────────
+
+/** Read the current data mode from localStorage (avoids React context in SWR fetcher) */
+const getDataMode = (): 'online' | 'offline' => {
+  if (typeof window === 'undefined') return 'online';
+  return (localStorage.getItem('matrices_data_mode') as 'online' | 'offline') || 'online';
+};
 
 const fetcher = async <T = any>(url: string): Promise<T> => {
   const token = getAuthToken();
-  const targetUrl = resolveApiUrl(url);
 
-  // Parse options from the URL for offline fallback
+  // Parse URL params for offline helpers
   const parseOptions = () => {
     try {
       const u = new URL(url, 'http://x');
@@ -154,44 +160,45 @@ const fetcher = async <T = any>(url: string): Promise<T> => {
     }
   };
 
-  // If already offline, skip the network call entirely
-  if (typeof navigator !== 'undefined' && !navigator.onLine) {
-    if (url.includes('/api/products/filters')) {
-      return getOfflineFilters() as unknown as T;
+  const isProductsFilters = url.includes('/api/products/filters');
+  const isProducts = url.includes('/api/products');
+
+  // ── OFFLINE MODE: serve from IndexedDB, skip network ──────────────────────
+  const mode = getDataMode();
+  if (mode === 'offline' || (typeof navigator !== 'undefined' && !navigator.onLine)) {
+    const meta = await offlineDB.getMeta().catch(() => null);
+    if (meta && meta.totalProducts > 0) {
+      if (isProductsFilters) return getOfflineFilters() as unknown as T;
+      if (isProducts) return getOfflineProducts(parseOptions()) as unknown as T;
     }
-    if (url.includes('/api/products')) {
-      return getOfflineProducts(parseOptions()) as unknown as T;
+    // No synced data — if user explicitly chose offline, return empty; otherwise fall through
+    if (mode === 'offline') {
+      if (isProductsFilters) return { success: true, categories: [], priceRange: { min: 0, max: 40000 } } as unknown as T;
+      if (isProducts) return { success: true, count: 0, totalCount: 0, hasNextPage: false, nextCursor: null, data: [] } as unknown as T;
     }
-    throw new Error('Offline');
   }
 
+  // ── ONLINE MODE: network fetch with IndexedDB fallback on failure ──────────
+  const targetUrl = resolveApiUrl(url);
   try {
     const res = await fetch(targetUrl, {
-      headers: {
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
+      headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     });
 
     if (!res.ok) {
       if (res.status === 401 || res.status === 403) {
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new Event('auth-error'));
-        }
+        if (typeof window !== 'undefined') window.dispatchEvent(new Event('auth-error'));
       }
       throw new Error(`HTTP ${res.status}`);
     }
 
     return res.json();
   } catch (err) {
-    // Network error → fall back to IndexedDB
-    const hasOfflineData = await offlineDB.getMeta().then(m => m !== null).catch(() => false);
-    if (hasOfflineData) {
-      if (url.includes('/api/products/filters')) {
-        return getOfflineFilters() as unknown as T;
-      }
-      if (url.includes('/api/products')) {
-        return getOfflineProducts(parseOptions()) as unknown as T;
-      }
+    // Network error fallback → try IndexedDB
+    const meta = await offlineDB.getMeta().catch(() => null);
+    if (meta && meta.totalProducts > 0) {
+      if (isProductsFilters) return getOfflineFilters() as unknown as T;
+      if (isProducts) return getOfflineProducts(parseOptions()) as unknown as T;
     }
     throw err;
   }
@@ -236,10 +243,12 @@ export function useProducts(options: UseProductsOptions = {}) {
     return params.toString();
   };
 
+  const { dataMode } = useDataMode();
+
   const getKey = (pageIndex: number, previousPageData: ProductsResponse | null) => {
-    if (pageIndex === 0) return `/api/products?${buildQuery(0)}`;
+    if (pageIndex === 0) return `/api/products?${buildQuery(0)}&_mode=${dataMode}`;
     if (previousPageData && !previousPageData.hasNextPage) return null;
-    return `/api/products?${buildQuery(pageIndex)}`;
+    return `/api/products?${buildQuery(pageIndex)}&_mode=${dataMode}`;
   };
 
   const {
@@ -292,10 +301,12 @@ export function useProducts(options: UseProductsOptions = {}) {
  */
 export function useAllProducts(options: Omit<UseProductsOptions, 'limit'> & { fallbackData?: ProductsResponse } = {}) {
   const { sort = 'view', category, subcategory, search, fallbackData } = options;
+  const { dataMode } = useDataMode();
 
   const params = new URLSearchParams();
   params.set('sort', sort);
   params.set('limit', '500');
+  params.set('_mode', dataMode);
   if (category) {
     const catVal = Array.isArray(category) ? category.join(',') : category;
     if (catVal) params.set('category', catVal);
@@ -349,7 +360,8 @@ export interface FiltersResponse {
 
 export function useFilters(options: { fallbackData?: FiltersResponse } = {}) {
   const { fallbackData } = options;
-  const key = '/api/products/filters';
+  const { dataMode } = useDataMode();
+  const key = `/api/products/filters?_mode=${dataMode}`;
 
   const { data, error, isLoading, isValidating, mutate } = useSWR<FiltersResponse>(key, fetcher, {
     fallbackData,

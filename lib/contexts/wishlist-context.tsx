@@ -59,28 +59,41 @@ interface WishlistContextType {
 
 const WishlistContext = createContext<WishlistContextType | undefined>(undefined);
 
+/** Read data mode from localStorage (mirrors data-mode-context) */
+const getDataMode = () =>
+  typeof window !== 'undefined'
+    ? (localStorage.getItem('matrices_data_mode') as 'online' | 'offline') || 'online'
+    : 'online';
+
+/** Read wishlist snapshot from IndexedDB */
+const readOfflineWishlist = async (): Promise<WishlistData> => {
+  try {
+    const items = await offlineDB.getAll<any>('wishlist');
+    const first = items[0];
+    if (first) {
+      return {
+        categories: first.categories || [],
+        subcategories: first.subcategories || [],
+        products: first.products || [],
+        fullProducts: first.fullProducts || [],
+      };
+    }
+  } catch { /* ignore */ }
+  return { categories: [], subcategories: [], products: [], fullProducts: [] };
+};
+
 const fetcher = async (url: string): Promise<WishlistResponse> => {
   const token = getAuthToken();
   if (!token) {
     return { success: true, wishlist: { categories: [], subcategories: [], products: [], fullProducts: [] } };
   }
 
-  // Offline → return synced wishlist from IndexedDB
-  if (typeof navigator !== 'undefined' && !navigator.onLine) {
-    try {
-      const items = await offlineDB.getAll<any>('wishlist');
-      const first = items[0];
-      if (first) {
-        const wishlist: WishlistData = {
-          categories: first.categories || [],
-          subcategories: first.subcategories || [],
-          products: first.products || [],
-          fullProducts: first.fullProducts || [],
-        };
-        return { success: true, wishlist };
-      }
-    } catch { /* ignore */ }
-    return { success: true, wishlist: { categories: [], subcategories: [], products: [], fullProducts: [] } };
+  const mode = getDataMode();
+  const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+
+  // Offline mode OR device offline → serve from IndexedDB
+  if (mode === 'offline' || isOffline) {
+    return { success: true, wishlist: await readOfflineWishlist() };
   }
 
   const targetUrl = resolveApiUrl(url);
@@ -92,20 +105,7 @@ const fetcher = async (url: string): Promise<WishlistResponse> => {
     return res.json();
   } catch {
     // Network error → fall back to IndexedDB
-    try {
-      const items = await offlineDB.getAll<any>('wishlist');
-      const first = items[0];
-      if (first) {
-        const wishlist: WishlistData = {
-          categories: first.categories || [],
-          subcategories: first.subcategories || [],
-          products: first.products || [],
-          fullProducts: first.fullProducts || [],
-        };
-        return { success: true, wishlist };
-      }
-    } catch { /* ignore */ }
-    return { success: true, wishlist: { categories: [], subcategories: [], products: [], fullProducts: [] } };
+    return { success: true, wishlist: await readOfflineWishlist() };
   }
 };
 

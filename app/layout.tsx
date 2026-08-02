@@ -30,7 +30,8 @@ export const viewport: Viewport = {
 }
 
 import { SyncProvider } from '@/lib/contexts/sync-context'
-import OfflineBanner from '@/components/mobile/offline-banner'
+import { DataModeProvider } from '@/lib/contexts/data-mode-context'
+import DataModeBanner from '@/components/mobile/data-mode-banner'
 
 export default function RootLayout({
   children,
@@ -69,11 +70,13 @@ export default function RootLayout({
             <CartProvider>
               <WishlistProvider>
                 <SyncProvider>
-                  <OfflineBanner />
-                  <AuthGuard>
-                    {children}
-                    {process.env.NODE_ENV === 'production' && <Analytics />}
-                  </AuthGuard>
+                  <DataModeProvider>
+                    <DataModeBanner />
+                    <AuthGuard>
+                      {children}
+                      {process.env.NODE_ENV === 'production' && <Analytics />}
+                    </AuthGuard>
+                  </DataModeProvider>
                 </SyncProvider>
               </WishlistProvider>
             </CartProvider>
