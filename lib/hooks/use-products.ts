@@ -71,7 +71,12 @@ async function getOfflineProducts(options: {
 
   // If a specific productId is requested, bring it to the very front
   if (options.productId) {
-    const targetIdx = filtered.findIndex((p: any) => p.productId === options.productId || p.id === options.productId);
+    const targetStr = options.productId.toLowerCase().trim();
+    const targetIdx = filtered.findIndex((p: any) =>
+      String(p.productId || '').toLowerCase().trim() === targetStr ||
+      String(p.id || '').toLowerCase().trim() === targetStr ||
+      String(p.code || '').toLowerCase().trim() === targetStr
+    );
     if (targetIdx > 0) {
       const targetProd = filtered[targetIdx];
       filtered.splice(targetIdx, 1);
@@ -110,18 +115,87 @@ async function getOfflineFilters(): Promise<FiltersResponse> {
   ]);
 
   if (dbCategories.length > 0) {
-    const categories: CategoryFilter[] = dbCategories.map((c: any) => ({
-      name: c.name || '',
-      image: c.image || '',
-      totalCount: dbProducts.filter((p: any) => (p.categoryName || p.categories || '').toLowerCase() === (c.name || '').toLowerCase()).length,
-      subcategories: dbSubcategories
-        .filter((s: any) => (s.categoryName || s.category || '').toLowerCase() === (c.name || '').toLowerCase())
-        .map((s: any) => ({
-          name: s.name || '',
-          image: s.image || '',
-          count: dbProducts.filter((p: any) => (p.subcategoryName || p.subcategories || '').toLowerCase() === (s.name || '').toLowerCase()).length,
-        })),
-    }));
+    const categories: CategoryFilter[] = dbCategories.map((c: any) => {
+      const cNameClean = (c.name || c.categoryName || '').trim().toLowerCase();
+      const cIdClean = String(c.id || c._id || c.categoryId || '').trim();
+
+      // Tier 1: Check subcategories from dbSubcategories table
+      let subList: SubcategoryFilter[] = dbSubcategories
+        .filter((s: any) => {
+          const sCatName = (s.categoryName || s.category || s.category?.name || '').trim().toLowerCase();
+          const sCatId = String(s.categoryId || s.category?._id || '').trim();
+          return (sCatName && sCatName === cNameClean) || (sCatId && sCatId === cIdClean);
+        })
+        .map((s: any) => {
+          const sName = (s.name || s.subcategoryName || '').trim();
+          const sNameLower = sName.toLowerCase();
+          return {
+            name: sName,
+            image: s.image || s.imageUrl || '',
+            count: dbProducts.filter((p: any) => {
+              const pSub = (p.subcategoryName || p.subcategories || p.subcategory || '').trim().toLowerCase();
+              return pSub === sNameLower;
+            }).length,
+          };
+        });
+
+      // Tier 2: Check subcategories array stored directly on category object
+      if (subList.length === 0 && Array.isArray(c.subcategories) && c.subcategories.length > 0) {
+        subList = c.subcategories.map((s: any) => {
+          const sName = typeof s === 'string' ? s.trim() : (s.name || s.subcategoryName || '').trim();
+          const sImage = typeof s === 'string' ? '' : (s.image || s.imageUrl || '');
+          const sNameLower = sName.toLowerCase();
+          return {
+            name: sName,
+            image: sImage,
+            count: dbProducts.filter((p: any) => {
+              const pSub = (p.subcategoryName || p.subcategories || p.subcategory || '').trim().toLowerCase();
+              return pSub === sNameLower;
+            }).length,
+          };
+        });
+      }
+
+      // Tier 3: Extract subcategories directly from offline products for this category
+      if (subList.length === 0) {
+        const subMap = new Map<string, { image: string; count: number; name: string }>();
+        dbProducts.forEach((p: any) => {
+          const pCat = (p.categoryName || p.categories || p.category || '').trim().toLowerCase();
+          if (pCat === cNameClean) {
+            const pSub = (p.subcategoryName || p.subcategories || p.subcategory || '').trim();
+            if (pSub) {
+              const pSubLower = pSub.toLowerCase();
+              const existing = subMap.get(pSubLower) || { image: p.image || p.imageUrl || '', count: 0, name: pSub };
+              existing.count += 1;
+              if (!existing.image && (p.image || p.imageUrl)) {
+                existing.image = p.image || p.imageUrl;
+              }
+              subMap.set(pSubLower, existing);
+            }
+          }
+        });
+
+        subMap.forEach((val) => {
+          subList.push({
+            name: val.name,
+            image: val.image,
+            count: val.count,
+          });
+        });
+      }
+
+      const totalProdCount = dbProducts.filter((p: any) => {
+        const pCat = (p.categoryName || p.categories || p.category || '').trim().toLowerCase();
+        return pCat === cNameClean;
+      }).length;
+
+      return {
+        name: c.name || c.categoryName || '',
+        image: c.image || c.imageUrl || '',
+        totalCount: totalProdCount > 0 ? totalProdCount : (c.totalCount || 0),
+        subcategories: subList,
+      };
+    });
 
     return {
       success: true,
@@ -244,6 +318,7 @@ interface UseProductsOptions {
   category?: string | string[];
   subcategory?: string | string[];
   search?: string;
+  productId?: string;
   limit?: number;
   initialLimit?: number;
   prioritizeCategory?: string;
@@ -255,7 +330,7 @@ interface UseProductsOptions {
  * Falls back to IndexedDB when offline.
  */
 export function useProducts(options: UseProductsOptions = {}) {
-  const { sort, category, subcategory, search, limit = 20, prioritizeCategory, fallbackData } = options;
+  const { sort, category, subcategory, search, productId, limit = 20, prioritizeCategory, fallbackData } = options;
 
   const buildQuery = (pageIndex: number) => {
     const params = new URLSearchParams();
@@ -269,9 +344,11 @@ export function useProducts(options: UseProductsOptions = {}) {
       if (subVal) params.set('subcategory', subVal);
     }
     if (search) params.set('search', search);
+    if (productId) params.set('productId', productId);
     if (prioritizeCategory) params.set('prioritizeCategory', prioritizeCategory);
     const currentLimit = pageIndex > 0 ? limit : (options.initialLimit || limit);
     params.set('limit', String(currentLimit));
+    params.set('page', String(pageIndex + 1));
     params.set('page', String(pageIndex + 1));
     return params.toString();
   };

@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useFilters } from '@/lib/hooks/use-products';
 import { useWishlist } from '@/lib/contexts/wishlist-context';
+import SmartImage from '@/components/smart-image';
 
 export default function CategoriesPage({ fallbackData }: { fallbackData?: any } = {}) {
   const router = useRouter();
@@ -187,10 +188,11 @@ export default function CategoriesPage({ fallbackData }: { fallbackData?: any } 
                         <div className="p-3 sm:p-4 pb-0 flex flex-col z-0">
                           <div className="aspect-[3/4] rounded-[1.5rem] overflow-hidden bg-[#eef1f6] flex items-center justify-center p-6 shadow-inner border border-black/5 relative">
                             {cat.image ? (
-                              <img
+                              <SmartImage
                                 src={cat.image}
                                 alt={cat.name}
-                                className="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform duration-700 ease-out mix-blend-multiply drop-shadow-xl"
+                                fill
+                                className="object-contain p-4 group-hover:scale-105 transition-transform duration-700 ease-out mix-blend-multiply drop-shadow-xl"
                               />
                             ) : (
                               <div className="text-gray-400 font-semibold uppercase">NO IMAGE</div>
@@ -260,10 +262,11 @@ export default function CategoriesPage({ fallbackData }: { fallbackData?: any } 
                         <div className="p-3 sm:p-4 pb-0 flex flex-col z-0">
                           <div className="aspect-[3/4] rounded-[1.5rem] overflow-hidden bg-[#eef1f6] flex items-center justify-center p-6 shadow-inner border border-black/5 relative">
                             {sub.image ? (
-                              <img
+                              <SmartImage
                                 src={sub.image}
                                 alt={sub.name}
-                                className="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform duration-700 ease-out mix-blend-multiply drop-shadow-xl"
+                                fill
+                                className="object-contain p-4 group-hover:scale-105 transition-transform duration-700 ease-out mix-blend-multiply drop-shadow-xl"
                               />
                             ) : (
                               <div className="text-gray-400 font-semibold uppercase">NO IMAGE</div>

@@ -30,6 +30,8 @@ export default function SingleViewPage({ fallbackData, initialProductId, initial
     sort: sortBy,
     search: searchQuery,
     productId: initialProductId,
+    category: initialCategory,
+    subcategory: initialSubcategory,
     prioritizeCategory: initialCategory,
     fallbackData: fallbackData ? [fallbackData] : undefined,
     initialLimit: 20,

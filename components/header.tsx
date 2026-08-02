@@ -4,11 +4,12 @@ import { useState } from 'react';
 import { useAuth } from '@/lib/contexts/auth-context';
 import { useCart } from '@/lib/contexts/cart-context';
 import { useSync } from '@/lib/contexts/sync-context';
+import { useDataMode } from '@/lib/contexts/data-mode-context';
 import { Input } from '@/components/ui/input';
 import {
   Menu, X, ShoppingCart as CartIcon, LogOut,
   Heart, ShieldCheck, Store, FileText, RefreshCw,
-  Home, BookOpen, Grid,
+  Home, BookOpen, Grid, Database, Wifi, WifiOff
 } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -25,8 +26,17 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
   const { user, logout } = useAuth();
   const { cart } = useCart();
   const { triggerSync } = useSync();
+  const { dataMode, toggleDataMode, hasSyncedData } = useDataMode();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+
+  const handleDataModeToggle = async () => {
+    if (dataMode === 'online' && !hasSyncedData) {
+      alert('No synced offline data found. Please sync your catalog first from Settings -> Data Sync.');
+      return;
+    }
+    await toggleDataMode();
+  };
 
   const handleLogout = () => {
     logout();
@@ -166,6 +176,28 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
                         );
                       })}
 
+                      {/* Data Mode Switch Button */}
+                      <button
+                        onClick={handleDataModeToggle}
+                        className={`w-full flex items-center justify-between px-5 py-3.5 font-black text-xs uppercase tracking-wider rounded-full transition-all border shadow-xs cursor-pointer ${
+                          dataMode === 'offline'
+                            ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
+                            : 'bg-blue-50 text-blue-900 border-blue-200 hover:bg-blue-100'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          {dataMode === 'offline' ? (
+                            <Database size={18} className="text-emerald-600" />
+                          ) : (
+                            <Wifi size={18} className="text-blue-600" />
+                          )}
+                          <span>Mode: {dataMode.toUpperCase()}</span>
+                        </div>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] uppercase font-mono ${dataMode === 'offline' ? 'bg-emerald-600 text-white' : 'bg-blue-600 text-white'}`}>
+                          {dataMode === 'offline' ? 'Offline' : 'Online'}
+                        </span>
+                      </button>
+
                       {/* <Link
                         href="/settings/sync"
                         onClick={() => setShowProfileMenu(false)}
@@ -290,6 +322,28 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
                               </Link>
                             );
                           })}
+
+                          {/* Data Mode Switch Button in Hamburger */}
+                          <button
+                            onClick={() => { closeAll(); handleDataModeToggle(); }}
+                            className={`w-full flex items-center justify-between px-5 py-3.5 font-black text-xs uppercase tracking-wider rounded-full transition-all border shadow-xs cursor-pointer ${
+                              dataMode === 'offline'
+                                ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                                : 'bg-blue-50 text-blue-900 border-blue-200'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5">
+                              {dataMode === 'offline' ? (
+                                <Database size={18} className="text-emerald-600" />
+                              ) : (
+                                <Wifi size={18} className="text-blue-600" />
+                              )}
+                              <span>Mode: {dataMode.toUpperCase()}</span>
+                            </div>
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] uppercase font-mono ${dataMode === 'offline' ? 'bg-emerald-600 text-white' : 'bg-blue-600 text-white'}`}>
+                              {dataMode === 'offline' ? 'Offline' : 'Online'}
+                            </span>
+                          </button>
 
                           {/* <Link
                             href="/settings/sync"

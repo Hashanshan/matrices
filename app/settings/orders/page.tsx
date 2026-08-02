@@ -127,11 +127,7 @@ export default function SettingsOrdersPage() {
   const totalOrders: number = data?.totalOrders || orders.length;
   const totalPages: number = data?.totalPages || 1;
 
-  // Require Security PIN verification on visit
-  useEffect(() => {
-    resetPinVerification();
-  }, []);
-
+  // Show PIN modal if not yet verified
   useEffect(() => {
     setShowPinModal(!isPinVerified);
   }, [isPinVerified]);

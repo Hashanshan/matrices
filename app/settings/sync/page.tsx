@@ -66,10 +66,9 @@ export default function SyncSettingsPage() {
   }, []);
 
   useEffect(() => {
-    resetPinVerification();
     setPlatformInfo(NativeAdapter.getPlatformInfo());
     refreshStats();
-  }, [refreshStats, resetPinVerification]);
+  }, [refreshStats]);
 
   useEffect(() => {
     setShowPinModal(!isPinVerified);

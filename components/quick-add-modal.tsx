@@ -8,11 +8,10 @@ import { X, Minus, Plus, Check, ShoppingCart, ZoomIn } from 'lucide-react';
 import { useCart } from '@/lib/contexts/cart-context';
 import { Button } from '@/components/ui/button';
 import { formatPrice } from '@/lib/currency';
-import Image from 'next/image';
+import SmartImage from './smart-image';
+import { getCachedImageUrl } from '@/lib/offline/image-cache';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
-
-import { getCachedImageUrl } from '@/lib/offline/image-cache';
 
 const MySwal = withReactContent(Swal);
 
@@ -115,8 +114,8 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
 
               {/* Left Side: Large Image */}
               <div className="w-full md:w-1/2 bg-[#f8f9fc] relative p-8 flex items-center justify-center h-[40vh] min-h-[300px] md:h-auto md:min-h-[500px] cursor-zoom-in group shrink-0" onClick={() => setIsZoomed(true)}>
-                <Image
-                  src={displayImg || '/placeholder.png'}
+                <SmartImage
+                  src={product?.image || product?.imageUrl || ''}
                   alt={product.name}
                   fill
                   className="object-contain p-8 mix-blend-multiply group-hover:scale-105 transition-transform duration-500"

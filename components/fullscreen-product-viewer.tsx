@@ -12,6 +12,7 @@ import QuickAddModal from './quick-add-modal';
 import Link from 'next/link';
 import RelatedProducts from './related-products';
 import { Menu, Home, Grid, BookOpen } from 'lucide-react';
+import { getCachedImageUrl } from '@/lib/offline/image-cache';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 
@@ -57,29 +58,53 @@ export default function FullscreenProductViewer({
   const { cart } = useCart();
 
   const hasSetInitialIndex = useRef(false);
+  const [displayImg, setDisplayImg] = useState<string>('');
+
+  const validProducts = useMemo(
+    () => (products || []).filter((p): p is Product => Boolean(p && (p.image || p.name || p.id))),
+    [products]
+  );
+
+  const currentProduct = validProducts[currentIndex] || validProducts[0] || null;
 
   // Find index of deep-linked product on initial load or change
   useEffect(() => {
-    if (initialProductId && products.length > 0 && !hasSetInitialIndex.current) {
-      const idx = products.findIndex(p => p.productId === initialProductId || p.id === initialProductId);
+    if (initialProductId && validProducts.length > 0) {
+      const targetStr = String(initialProductId).trim().toLowerCase();
+      const idx = validProducts.findIndex(p => 
+        String(p.productId || '').trim().toLowerCase() === targetStr || 
+        String(p.id || '').trim().toLowerCase() === targetStr ||
+        String(p.code || '').trim().toLowerCase() === targetStr
+      );
       if (idx >= 0) {
         setCurrentIndex(idx);
         hasSetInitialIndex.current = true;
       }
     }
-  }, [initialProductId, products]);
+  }, [initialProductId, validProducts]);
 
-  // Reset index to 0 when search returns new products (but not on loadMore)
+  // Resolve offline image URL for current product
   useEffect(() => {
-    setCurrentIndex(0);
-  }, [products[0]?.id]);
+    const rawUrl = currentProduct?.image || '';
+    if (rawUrl) {
+      if (rawUrl.startsWith('data:') || rawUrl.startsWith('blob:')) {
+        setDisplayImg(rawUrl);
+      } else {
+        getCachedImageUrl(rawUrl).then((resolved) => {
+          setDisplayImg(resolved || rawUrl);
+        }).catch(() => setDisplayImg(rawUrl));
+      }
+    } else {
+      setDisplayImg('');
+    }
+  }, [currentProduct?.image, currentProduct?.id]);
 
   // Load more when reaching the last few slides
   useEffect(() => {
-    if (currentIndex >= products.length - 3 && hasMore && !isLoadingMore) {
+    if (currentIndex >= validProducts.length - 3 && hasMore && !isLoadingMore) {
       loadMore();
     }
-  }, [currentIndex, products.length, hasMore, isLoadingMore, loadMore]);
+  }, [currentIndex, validProducts.length, hasMore, isLoadingMore, loadMore]);
 
   // Focus search input when opened
   useEffect(() => {
@@ -90,7 +115,7 @@ export default function FullscreenProductViewer({
 
   // Handle SweetAlert for no exact match
   useEffect(() => {
-    if (exactMatchFound === false && products.length > 0 && viewerSearchQuery) {
+    if (exactMatchFound === false && validProducts.length > 0 && viewerSearchQuery) {
       MySwal.fire({
         title: 'No exact match found',
         text: 'Do you want to continue to view related products?',
@@ -107,14 +132,14 @@ export default function FullscreenProductViewer({
         }
       });
     }
-  }, [exactMatchFound, products.length, viewerSearchQuery, onSearch]);
+  }, [exactMatchFound, validProducts.length, viewerSearchQuery, onSearch]);
 
   const handleSwipe = useCallback((newDirection: 'left' | 'right') => {
     setDirection(newDirection);
     if (newDirection === 'right') {
-      setCurrentIndex((prev) => (prev === 0 ? products.length - 1 : prev - 1));
+      setCurrentIndex((prev) => (prev === 0 ? validProducts.length - 1 : prev - 1));
     } else {
-      setCurrentIndex((prev) => (prev === products.length - 1 ? 0 : prev + 1));
+      setCurrentIndex((prev) => (prev === validProducts.length - 1 ? 0 : prev + 1));
     }
     // Reset modal and states on product change
     setIsModalOpen(false);
@@ -122,7 +147,7 @@ export default function FullscreenProductViewer({
     setSelectedColor(null);
     setSelectedSize(null);
     setNotes('');
-  }, [products.length]);
+  }, [validProducts.length]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -146,18 +171,11 @@ export default function FullscreenProductViewer({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleSwipe]);
 
-  const validProducts = useMemo(
-    () => (products || []).filter((p): p is Product => Boolean(p && (p.image || p.name))),
-    [products]
-  );
-
   useEffect(() => {
     if (currentIndex >= validProducts.length && validProducts.length > 0) {
       setCurrentIndex(0);
     }
   }, [validProducts.length, currentIndex]);
-
-  const currentProduct = validProducts[currentIndex] || validProducts[0] || null;
 
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX;
@@ -292,9 +310,12 @@ export default function FullscreenProductViewer({
               transition={{ duration: 0.3 }}
             >
               <img
-                src={currentProduct?.image || ''}
-                alt={currentProduct?.name || ''}
+                src={displayImg || currentProduct?.image || '/placeholder.png'}
+                alt={currentProduct?.name || 'Product Image'}
                 className="w-full h-full object-contain rounded-3xl shadow-2xl"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = '/placeholder.png';
+                }}
               />
               <div className="absolute bottom-4 right-4 bg-white/80 text-[#0f172a] px-4 py-1.5 rounded-full text-xs font-semibold shadow-sm opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity uppercase">
                 CLICK TO ZOOM

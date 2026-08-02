@@ -31,7 +31,23 @@ function hashPin(pin: string): string {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [isPinVerified, setIsPinVerified] = useState(false);
+  const [isPinVerified, setIsPinVerified] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return sessionStorage.getItem('matrices_pin_verified') === 'true';
+    }
+    return false;
+  });
+
+  const markPinVerified = (verified: boolean) => {
+    setIsPinVerified(verified);
+    if (typeof window !== 'undefined') {
+      if (verified) {
+        sessionStorage.setItem('matrices_pin_verified', 'true');
+      } else {
+        sessionStorage.removeItem('matrices_pin_verified');
+      }
+    }
+  };
 
   useEffect(() => {
     const savedUser = localStorage.getItem('user');
@@ -59,14 +75,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = (newUser: UserProfile) => {
     setUser(newUser);
     setIsLoggedIn(true);
-    setIsPinVerified(false);
+    markPinVerified(false);
     localStorage.setItem('user', JSON.stringify(newUser));
   };
 
   const logout = () => {
     setUser(null);
     setIsLoggedIn(false);
-    setIsPinVerified(false);
+    markPinVerified(false);
     localStorage.removeItem('user');
     localStorage.removeItem('token');
     document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
@@ -90,7 +106,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (storedHash) {
           const inputHash = hashPin(params.pin);
           if (inputHash === storedHash) {
-            setIsPinVerified(true);
+            markPinVerified(true);
             return { success: true, msg: 'PIN verified (offline)' };
           } else {
             return { success: false, msg: 'Incorrect PIN (offline mode)' };
@@ -117,7 +133,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       const data = await res.json();
       if (res.ok && data.success) {
-        setIsPinVerified(true);
+        markPinVerified(true);
 
         // Persist PIN hash offline for future offline access
         if (params.pin) {
@@ -150,7 +166,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
           const storedHash = await offlineDB.getSecure('pin_hash');
           if (storedHash && hashPin(params.pin) === storedHash) {
-            setIsPinVerified(true);
+            markPinVerified(true);
             return { success: true, msg: 'PIN verified (offline fallback)' };
           }
         } catch { /* ignore */ }
@@ -161,7 +177,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const resetPinVerification = () => {
-    setIsPinVerified(false);
+    markPinVerified(false);
   };
 
   return (

@@ -15,6 +15,11 @@ export default function DataModeBanner() {
   if (!isReady) return null;
 
   const isUsingOffline = dataMode === 'offline';
+
+  // Do not render top sticky banner in online mode when device is connected
+  if (!isUsingOffline && !isOffline) {
+    return null;
+  }
   const syncedCount = meta?.totalProducts ?? 0;
 
   const handleToggle = async () => {

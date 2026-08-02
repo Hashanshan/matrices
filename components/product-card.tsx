@@ -12,6 +12,8 @@ import { useWishlist } from '@/lib/contexts/wishlist-context';
 
 import { getCachedImageUrl } from '@/lib/offline/image-cache';
 
+import SmartImage from './smart-image';
+
 interface ProductCardProps {
   product: Product;
   index?: number;
@@ -19,7 +21,6 @@ interface ProductCardProps {
 
 export default function ProductCard({ product, index = 0 }: ProductCardProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [displayImg, setDisplayImg] = useState<string>(product.image || product.imageUrl || '');
   const router = useRouter();
 
   const { isProductWishlisted, toggleProductWishlist } = useWishlist();
@@ -27,14 +28,7 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
   const targetProductId = product.productId || product.id || '';
   const isFavorite = isProductWishlisted(targetProductId);
 
-  useEffect(() => {
-    const rawUrl = product.image || product.imageUrl || '';
-    if (rawUrl) {
-      getCachedImageUrl(rawUrl).then((resolved) => {
-        if (resolved) setDisplayImg(resolved);
-      });
-    }
-  }, [product.image, product.imageUrl]);
+  const rawImg = product.image || product.imageUrl || '';
 
   const handleQuickAdd = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -66,11 +60,11 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
           <div className="p-3 sm:p-4 pb-0 flex flex-col z-0">
             {/* Image Container */}
             <div
-              onClick={() => router.push(`/view?productId=${product.productId || product.id}`)}
+              onClick={() => router.push(`/view?productId=${product.productId || product.id || product.code}`)}
               className="relative aspect-[4/5] rounded-[1.5rem] overflow-hidden bg-[#eef1f6] flex items-center justify-center p-6 shadow-inner cursor-pointer z-0 border border-black/5"
             >
-              <Image
-                src={displayImg || '/placeholder.png'}
+              <SmartImage
+                src={rawImg}
                 alt={product.name}
                 fill
                 className="object-contain w-full h-full p-4 group-hover:scale-105 transition-transform duration-700 ease-out mix-blend-multiply drop-shadow-xl"

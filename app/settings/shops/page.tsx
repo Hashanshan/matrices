@@ -143,11 +143,7 @@ export default function ShopsSettingsPage() {
   const totalRecords: number = data?.totalRecords || shops.length;
   const totalPages: number = data?.totalPages || 1;
 
-  // Require Security PIN verification on visit
-  useEffect(() => {
-    resetPinVerification();
-  }, []);
-
+  // Show PIN modal if not yet verified
   useEffect(() => {
     setShowPinModal(!isPinVerified);
   }, [isPinVerified]);

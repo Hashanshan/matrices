@@ -28,10 +28,7 @@ export default function SecuritySettingsPage() {
   const [formMsg, setFormMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
 
-  // Require PIN on every visit to /settings/security
-  useEffect(() => {
-    resetPinVerification();
-  }, []);
+  // Show PIN modal if not yet verified
 
   // Sync user profile values when context loads
   useEffect(() => {
