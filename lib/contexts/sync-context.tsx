@@ -9,6 +9,7 @@ import { resolveApiUrl, getAuthToken } from '../utils';
 import SyncProgressModal from '@/components/sync-progress-modal';
 import PinModal from '@/components/pin-modal';
 import { useAuth } from './auth-context';
+import { mutate } from 'swr';
 import {
   SyncQueueItem,
   getSyncQueue,
@@ -474,9 +475,12 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       setProgress(90);
       setSyncStatusText('Finalizing sync & building local index...');
 
-      // Invalidate all in-memory caches so fresh data is served on next query
+      // Invalidate all in-memory image & search caches
       invalidateImageMemoryMap();
       invalidateProductIndex();
+
+      // Trigger global SWR cache invalidation so all UI pages immediately re-query fresh LocalDB data
+      mutate(() => true, undefined, { revalidate: true });
 
       const newMeta: SyncMetadata = {
         lastSyncedAt: new Date().toISOString(),

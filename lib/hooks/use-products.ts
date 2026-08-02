@@ -637,8 +637,8 @@ export function useFilters(options: { fallbackData?: FiltersResponse } = {}) {
     fallbackData: fallbackData && fallbackData.categories && fallbackData.categories.length > 0 ? fallbackData : undefined,
     revalidateOnFocus: false,
     revalidateOnReconnect: true,
-    // Filters are stable — revalidate once every 2 minutes
-    dedupingInterval: 120000,
+    // Short deduping so fresh synced filters update immediately
+    dedupingInterval: 2000,
     keepPreviousData: true,
   });
 
