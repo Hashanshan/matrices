@@ -256,7 +256,7 @@ export default function CategoriesPage({ fallbackData }: { fallbackData?: any } 
                       className="relative group"
                     >
                       <div
-                        onClick={() => router.push(`/view?category=${encodeURIComponent(selectedCategory || '')}&subcategory=${encodeURIComponent(sub.name)}`)}
+                        onClick={() => router.push(`/gallery?category=${encodeURIComponent(selectedCategory || '')}&subcategory=${encodeURIComponent(sub.name)}`)}
                         className="relative rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.1)] transition-all duration-300 flex flex-col bg-white/20 backdrop-blur-2xl overflow-hidden border border-white/60 h-full cursor-pointer"
                       >
                         <div className="p-3 sm:p-4 pb-0 flex flex-col z-0">

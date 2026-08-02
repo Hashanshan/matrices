@@ -185,24 +185,30 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
     }
 
     const token = getAuthToken();
+    const nameUpper = name.trim().toUpperCase();
+    const exists = (wishlistData.categories || []).some(c => c.name.toUpperCase() === nameUpper);
+    const updatedCategories = exists
+      ? (wishlistData.categories || []).filter(c => c.name.toUpperCase() !== nameUpper)
+      : [...(wishlistData.categories || []), { name, order: (wishlistData.categories?.length || 0) + 1 }];
+
+    const optimistic: WishlistData = { ...wishlistData, categories: updatedCategories };
+    mutate({ success: true, wishlist: optimistic }, { revalidate: false });
+
     try {
-      mutate(async () => {
-        const targetUrl = resolveApiUrl('/api/wishlist/toggle');
-        const res = await fetch(targetUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify({ type: 'category', item: { name } }),
-        });
-        const updated = await res.json();
-        // Update IndexedDB snapshot with the latest server data
-        if (updated?.success && updated?.wishlist) {
-          await offlineDB.saveBatch('wishlist', [{ id: 'user_wishlist', ...updated.wishlist }]);
-        }
-        return updated;
-      }, { revalidate: true });
+      const targetUrl = resolveApiUrl('/api/wishlist/toggle');
+      const res = await fetch(targetUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ type: 'category', item: { name } }),
+      });
+      const updated = await res.json();
+      if (updated?.success && updated?.wishlist) {
+        await offlineDB.saveBatch('wishlist', [{ id: 'user_wishlist', ...updated.wishlist }]);
+        mutate(updated, { revalidate: false });
+      }
     } catch (err) {
       console.error('Failed to toggle category wishlist', err);
     }
@@ -240,23 +246,33 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
     }
 
     const token = getAuthToken();
+    const catUpper = category.trim().toUpperCase();
+    const subUpper = name.trim().toUpperCase();
+    const exists = (wishlistData.subcategories || []).some(
+      s => s.category.toUpperCase() === catUpper && s.name.toUpperCase() === subUpper
+    );
+    const updatedSubcategories = exists
+      ? (wishlistData.subcategories || []).filter(s => !(s.category.toUpperCase() === catUpper && s.name.toUpperCase() === subUpper))
+      : [...(wishlistData.subcategories || []), { category, name, order: (wishlistData.subcategories?.length || 0) + 1 }];
+
+    const optimistic: WishlistData = { ...wishlistData, subcategories: updatedSubcategories };
+    mutate({ success: true, wishlist: optimistic }, { revalidate: false });
+
     try {
-      mutate(async () => {
-        const targetUrl = resolveApiUrl('/api/wishlist/toggle');
-        const res = await fetch(targetUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify({ type: 'subcategory', item: { category, name } }),
-        });
-        const updated = await res.json();
-        if (updated?.success && updated?.wishlist) {
-          await offlineDB.saveBatch('wishlist', [{ id: 'user_wishlist', ...updated.wishlist }]);
-        }
-        return updated;
-      }, { revalidate: true });
+      const targetUrl = resolveApiUrl('/api/wishlist/toggle');
+      const res = await fetch(targetUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ type: 'subcategory', item: { category, name } }),
+      });
+      const updated = await res.json();
+      if (updated?.success && updated?.wishlist) {
+        await offlineDB.saveBatch('wishlist', [{ id: 'user_wishlist', ...updated.wishlist }]);
+        mutate(updated, { revalidate: false });
+      }
     } catch (err) {
       console.error('Failed to toggle subcategory wishlist', err);
     }
@@ -317,23 +333,39 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
     }
 
     const token = getAuthToken();
+    const strId = String(productId).trim();
+    const exists = (wishlistData.products || []).some(p => String(p.productId).trim() === strId);
+    const updatedProducts = exists
+      ? (wishlistData.products || []).filter(p => String(p.productId).trim() !== strId)
+      : [...(wishlistData.products || []), { productId: strId, order: (wishlistData.products?.length || 0) + 1 }];
+
+    const updatedFullProducts = exists
+      ? (wishlistData.fullProducts || []).filter(p => p.product && String(p.product.productId || p.product.id).trim() !== strId)
+      : wishlistData.fullProducts;
+
+    const optimistic: WishlistData = {
+      ...wishlistData,
+      products: updatedProducts,
+      fullProducts: updatedFullProducts,
+    };
+
+    mutate({ success: true, wishlist: optimistic }, { revalidate: false });
+
     try {
-      mutate(async () => {
-        const targetUrl = resolveApiUrl('/api/wishlist/toggle');
-        const res = await fetch(targetUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify({ type: 'product', item: { productId } }),
-        });
-        const updated = await res.json();
-        if (updated?.success && updated?.wishlist) {
-          await offlineDB.saveBatch('wishlist', [{ id: 'user_wishlist', ...updated.wishlist }]);
-        }
-        return updated;
-      }, { revalidate: true });
+      const targetUrl = resolveApiUrl('/api/wishlist/toggle');
+      const res = await fetch(targetUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ type: 'product', item: { productId } }),
+      });
+      const updated = await res.json();
+      if (updated?.success && updated?.wishlist) {
+        await offlineDB.saveBatch('wishlist', [{ id: 'user_wishlist', ...updated.wishlist }]);
+        mutate(updated, { revalidate: false });
+      }
     } catch (err) {
       console.error('Failed to toggle product wishlist', err);
     }

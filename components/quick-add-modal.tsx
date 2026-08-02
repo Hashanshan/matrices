@@ -291,8 +291,8 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
                   <X size={24} className="text-gray-800" />
                 </button>
                 <div className="relative w-full h-full max-w-6xl max-h-full">
-                  <Image
-                    src={product.image}
+                  <SmartImage
+                    src={product.image || product.imageUrl || ''}
                     alt={product.name}
                     fill
                     className="object-contain"

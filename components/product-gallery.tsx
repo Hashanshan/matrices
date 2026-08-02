@@ -260,40 +260,54 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
     });
   }, [apiCategories, wishlist.subcategories]);
 
-  // Group products by category, prioritizing wishlisted products FIRST within each category
+  // Group products by category, prioritizing wishlisted products FIRST within each category (O(N) linear time)
   const groupedProducts = useMemo(() => {
     const groups: { [category: string]: Product[] } = {};
-    const categoryNames = CATEGORIES.filter(c => c !== 'All');
 
-    const wishlistedProdOrderMap = new Map<string, number>();
-    (wishlist.products || []).forEach((p, idx) => {
-      wishlistedProdOrderMap.set(String(p.productId).trim(), p.order ?? idx);
-    });
+    // 1. Single O(N) pass to group products by category
+    for (let i = 0; i < filteredProducts.length; i++) {
+      const p = filteredProducts[i];
+      const cat = p.categories || 'Uncategorized';
+      if (!groups[cat]) groups[cat] = [];
+      groups[cat].push(p);
+    }
 
-    categoryNames.forEach((cat) => {
-      const productsInCategory = filteredProducts.filter((p: any) => p.categories === cat);
-      if (productsInCategory.length > 0) {
-        // Sort products so Wishlisted items show FIRST
-        productsInCategory.sort((a: any, b: any) => {
-          const aId = String(a.productId || a.id || '').trim();
-          const bId = String(b.productId || b.id || '').trim();
-          const aWish = wishlistedProdOrderMap.has(aId);
-          const bWish = wishlistedProdOrderMap.has(bId);
+    // 2. Wishlist priority sorting per category bucket
+    if (wishlist.products && wishlist.products.length > 0) {
+      const wishlistedProdOrderMap = new Map<string, number>();
+      wishlist.products.forEach((p, idx) => {
+        wishlistedProdOrderMap.set(String(p.productId).trim(), p.order ?? idx);
+      });
 
-          if (aWish && bWish) {
-            return (wishlistedProdOrderMap.get(aId) ?? 0) - (wishlistedProdOrderMap.get(bId) ?? 0);
+      Object.keys(groups).forEach(cat => {
+        const prods = groups[cat];
+        const wishArr: Product[] = [];
+        const nonWishArr: Product[] = [];
+
+        for (let i = 0; i < prods.length; i++) {
+          const p = prods[i];
+          const pId = String(p.productId || p.id || '').trim();
+          if (wishlistedProdOrderMap.has(pId)) {
+            wishArr.push(p);
+          } else {
+            nonWishArr.push(p);
           }
-          if (aWish) return -1;
-          if (bWish) return 1;
-          return 0; // Maintain original sort
-        });
+        }
 
-        groups[cat] = productsInCategory;
-      }
-    });
+        if (wishArr.length > 0) {
+          wishArr.sort((a, b) => {
+            const aId = String(a.productId || a.id || '').trim();
+            const bId = String(b.productId || b.id || '').trim();
+            return (wishlistedProdOrderMap.get(aId) ?? 0) - (wishlistedProdOrderMap.get(bId) ?? 0);
+          });
+        }
+
+        groups[cat] = [...wishArr, ...nonWishArr];
+      });
+    }
 
     return groups;
-  }, [filteredProducts, CATEGORIES, wishlist.products]);
+  }, [filteredProducts, wishlist.products]);
 
   // Sort category entries so Wishlisted categories appear FIRST on /gallery page
   const sortedGroupedEntries = useMemo(() => {

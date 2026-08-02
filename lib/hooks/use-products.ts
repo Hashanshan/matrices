@@ -69,18 +69,54 @@ async function getOfflineProducts(options: {
     return true;
   });
 
-  // If a specific productId is requested, bring it to the very front
+  // If a specific productId is requested, bring it to the very front and group same subcategory/category next
   if (options.productId) {
     const targetStr = options.productId.toLowerCase().trim();
-    const targetIdx = filtered.findIndex((p: any) =>
-      String(p.productId || '').toLowerCase().trim() === targetStr ||
-      String(p.id || '').toLowerCase().trim() === targetStr ||
-      String(p.code || '').toLowerCase().trim() === targetStr
-    );
-    if (targetIdx > 0) {
+    const targetClean = options.productId.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+
+    const targetIdx = filtered.findIndex((p: any) => {
+      const pProdId = String(p.productId || '').trim().toLowerCase();
+      const pId = String(p.id || '').trim().toLowerCase();
+      const pCode = String(p.code || p.productCode || '').trim().toLowerCase();
+      const pName = String(p.name || '').trim().toLowerCase();
+
+      if (pProdId === targetStr || pId === targetStr || pCode === targetStr) return true;
+      if (targetClean) {
+        const cProdId = pProdId.replace(/[^a-zA-Z0-9]/g, '');
+        const cCode = pCode.replace(/[^a-zA-Z0-9]/g, '');
+        const cId = pId.replace(/[^a-zA-Z0-9]/g, '');
+        const cName = pName.replace(/[^a-zA-Z0-9]/g, '');
+        if (cProdId === targetClean || cCode === targetClean || cId === targetClean) return true;
+        if (cName.includes(targetClean)) return true;
+      }
+      if (pName.includes(targetStr) || pCode.includes(targetStr) || pProdId.includes(targetStr)) return true;
+      return false;
+    });
+    if (targetIdx >= 0) {
       const targetProd = filtered[targetIdx];
-      filtered.splice(targetIdx, 1);
-      filtered.unshift(targetProd);
+      const targetCat = (targetProd.categoryName || targetProd.categories || targetProd.category || '').toLowerCase().trim();
+      const targetSub = (targetProd.subcategoryName || targetProd.subcategories || targetProd.subcategory || '').toLowerCase().trim();
+
+      const subMatches: any[] = [];
+      const catMatches: any[] = [];
+      const others: any[] = [];
+
+      for (let i = 0; i < filtered.length; i++) {
+        if (i === targetIdx) continue;
+        const p = filtered[i];
+        const pCat = (p.categoryName || p.categories || p.category || '').toLowerCase().trim();
+        const pSub = (p.subcategoryName || p.subcategories || p.subcategory || '').toLowerCase().trim();
+
+        if (targetSub && pSub === targetSub) {
+          subMatches.push(p);
+        } else if (targetCat && pCat === targetCat) {
+          catMatches.push(p);
+        } else {
+          others.push(p);
+        }
+      }
+
+      filtered = [targetProd, ...subMatches, ...catMatches, ...others];
     }
   }
 
@@ -299,7 +335,62 @@ const fetcher = async <T = any>(url: string): Promise<T> => {
       throw new Error(`HTTP ${res.status}`);
     }
 
-    return res.json();
+    const data = await res.json();
+
+    // If productId option was provided, reorder products array so target is first,
+    // followed by same subcategory, same category, and rest of catalog.
+    const opts = parseOptions();
+    if (isProducts && opts.productId && data?.data && Array.isArray(data.data)) {
+      const targetStr = opts.productId.toLowerCase().trim();
+      const targetClean = opts.productId.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+
+      const targetIdx = data.data.findIndex((p: any) => {
+        const pProdId = String(p.productId || '').trim().toLowerCase();
+        const pId = String(p.id || '').trim().toLowerCase();
+        const pCode = String(p.code || p.productCode || '').trim().toLowerCase();
+        const pName = String(p.name || '').trim().toLowerCase();
+
+        if (pProdId === targetStr || pId === targetStr || pCode === targetStr) return true;
+        if (targetClean) {
+          const cProdId = pProdId.replace(/[^a-zA-Z0-9]/g, '');
+          const cCode = pCode.replace(/[^a-zA-Z0-9]/g, '');
+          const cId = pId.replace(/[^a-zA-Z0-9]/g, '');
+          const cName = pName.replace(/[^a-zA-Z0-9]/g, '');
+          if (cProdId === targetClean || cCode === targetClean || cId === targetClean) return true;
+          if (cName.includes(targetClean)) return true;
+        }
+        if (pName.includes(targetStr) || pCode.includes(targetStr) || pProdId.includes(targetStr)) return true;
+        return false;
+      });
+      if (targetIdx >= 0) {
+        const targetProd = data.data[targetIdx];
+        const targetCat = (targetProd.categoryName || targetProd.categories || targetProd.category || '').toLowerCase().trim();
+        const targetSub = (targetProd.subcategoryName || targetProd.subcategories || targetProd.subcategory || '').toLowerCase().trim();
+
+        const subMatches: any[] = [];
+        const catMatches: any[] = [];
+        const others: any[] = [];
+
+        for (let i = 0; i < data.data.length; i++) {
+          if (i === targetIdx) continue;
+          const p = data.data[i];
+          const pCat = (p.categoryName || p.categories || p.category || '').toLowerCase().trim();
+          const pSub = (p.subcategoryName || p.subcategories || p.subcategory || '').toLowerCase().trim();
+
+          if (targetSub && pSub === targetSub) {
+            subMatches.push(p);
+          } else if (targetCat && pCat === targetCat) {
+            catMatches.push(p);
+          } else {
+            others.push(p);
+          }
+        }
+
+        data.data = [targetProd, ...subMatches, ...catMatches, ...others];
+      }
+    }
+
+    return data;
   } catch (err) {
     // Network error fallback → try IndexedDB
     const meta = await offlineDB.getMeta().catch(() => null);
@@ -348,7 +439,6 @@ export function useProducts(options: UseProductsOptions = {}) {
     if (prioritizeCategory) params.set('prioritizeCategory', prioritizeCategory);
     const currentLimit = pageIndex > 0 ? limit : (options.initialLimit || limit);
     params.set('limit', String(currentLimit));
-    params.set('page', String(pageIndex + 1));
     params.set('page', String(pageIndex + 1));
     return params.toString();
   };

@@ -151,6 +151,28 @@ class OfflineDB {
     });
   }
 
+  async getImageStorageSummary(): Promise<{ count: number; totalBytes: number }> {
+    const db = await this.getDB();
+    return new Promise((resolve) => {
+      let count = 0;
+      let totalBytes = 0;
+      const tx = db.transaction('image_map', 'readonly');
+      const store = tx.objectStore('image_map');
+      const req = store.openCursor();
+      req.onsuccess = (e) => {
+        const cursor = (e.target as IDBRequest<IDBCursorWithValue>).result;
+        if (cursor) {
+          count++;
+          totalBytes += cursor.value.sizeBytes || 0;
+          cursor.continue();
+        } else {
+          resolve({ count, totalBytes });
+        }
+      };
+      req.onerror = () => resolve({ count: 0, totalBytes: 0 });
+    });
+  }
+
   async getAllImageMaps(): Promise<ImageMapRecord[]> {
     return this.getAll<ImageMapRecord>('image_map').catch(() => []);
   }

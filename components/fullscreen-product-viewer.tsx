@@ -60,28 +60,75 @@ export default function FullscreenProductViewer({
   const hasSetInitialIndex = useRef(false);
   const [displayImg, setDisplayImg] = useState<string>('');
 
-  const validProducts = useMemo(
-    () => (products || []).filter((p): p is Product => Boolean(p && (p.image || p.name || p.id))),
-    [products]
-  );
+  const validProducts = useMemo(() => {
+    const raw = (products || []).filter((p): p is Product => Boolean(p && (p.image || p.name || p.id)));
+    if (!raw.length) return [];
+
+    const activeTarget = viewerSearchQuery.trim() || initialProductId?.trim() || '';
+    if (!activeTarget) return raw;
+
+    const targetStr = activeTarget.toLowerCase();
+    const targetClean = activeTarget.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+
+    const targetIdx = raw.findIndex((p: any) => {
+      const pProdId = String(p.productId || '').trim().toLowerCase();
+      const pId = String(p.id || '').trim().toLowerCase();
+      const pCode = String(p.code || p.productCode || '').trim().toLowerCase();
+      const pName = String(p.name || '').trim().toLowerCase();
+
+      // 1. Exact match on productId, id, code
+      if (pProdId === targetStr || pId === targetStr || pCode === targetStr) return true;
+
+      // 2. Alphanumeric match (ignoring hyphens/spaces e.g. "MTX10216" vs "MTX-10216")
+      if (targetClean) {
+        const cProdId = pProdId.replace(/[^a-zA-Z0-9]/g, '');
+        const cCode = pCode.replace(/[^a-zA-Z0-9]/g, '');
+        const cId = pId.replace(/[^a-zA-Z0-9]/g, '');
+        const cName = pName.replace(/[^a-zA-Z0-9]/g, '');
+        if (cProdId === targetClean || cCode === targetClean || cId === targetClean) return true;
+        if (cName.includes(targetClean)) return true;
+      }
+
+      // 3. Includes match on name or code
+      if (pName.includes(targetStr) || pCode.includes(targetStr) || pProdId.includes(targetStr)) return true;
+
+      return false;
+    });
+
+    if (targetIdx < 0) return raw;
+
+    const targetProd = raw[targetIdx];
+    const targetCat = String(targetProd.categories || targetProd.categoryName || targetProd.category || '').trim().toLowerCase();
+    const targetSub = String(targetProd.subcategories || targetProd.subcategoryName || targetProd.subcategory || '').trim().toLowerCase();
+
+    const subMatches: Product[] = [];
+    const catMatches: Product[] = [];
+    const others: Product[] = [];
+
+    for (let i = 0; i < raw.length; i++) {
+      if (i === targetIdx) continue;
+      const p = raw[i];
+      const pCat = String(p.categories || p.categoryName || p.category || '').trim().toLowerCase();
+      const pSub = String(p.subcategories || p.subcategoryName || p.subcategory || '').trim().toLowerCase();
+
+      if (targetSub && pSub === targetSub) {
+        subMatches.push(p);
+      } else if (targetCat && pCat === targetCat) {
+        catMatches.push(p);
+      } else {
+        others.push(p);
+      }
+    }
+
+    return [targetProd, ...subMatches, ...catMatches, ...others];
+  }, [products, initialProductId, viewerSearchQuery]);
 
   const currentProduct = validProducts[currentIndex] || validProducts[0] || null;
 
-  // Find index of deep-linked product on initial load or change
+  // Ensure currentIndex stays 0 when activeTarget changes
   useEffect(() => {
-    if (initialProductId && validProducts.length > 0) {
-      const targetStr = String(initialProductId).trim().toLowerCase();
-      const idx = validProducts.findIndex(p => 
-        String(p.productId || '').trim().toLowerCase() === targetStr || 
-        String(p.id || '').trim().toLowerCase() === targetStr ||
-        String(p.code || '').trim().toLowerCase() === targetStr
-      );
-      if (idx >= 0) {
-        setCurrentIndex(idx);
-        hasSetInitialIndex.current = true;
-      }
-    }
-  }, [initialProductId, validProducts]);
+    setCurrentIndex(0);
+  }, [viewerSearchQuery, initialProductId]);
 
   // Resolve offline image URL for current product
   useEffect(() => {

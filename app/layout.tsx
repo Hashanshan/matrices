@@ -37,6 +37,7 @@ export const viewport: Viewport = {
 import { SyncProvider } from '@/lib/contexts/sync-context'
 import { DataModeProvider } from '@/lib/contexts/data-mode-context'
 import DataModeBanner from '@/components/mobile/data-mode-banner'
+import HardwareBackButtonHandler from '@/components/hardware-back-button-handler'
 
 export default function RootLayout({
   children,
@@ -76,7 +77,8 @@ export default function RootLayout({
               <WishlistProvider>
                 <SyncProvider>
                   <DataModeProvider>
-                    <DataModeBanner />
+                    {/* <DataModeBanner /> */}
+                    <HardwareBackButtonHandler />
                     <AuthGuard>
                       {children}
                       {process.env.NODE_ENV === 'production' && <Analytics />}

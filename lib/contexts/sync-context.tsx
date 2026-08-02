@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { offlineDB, SyncMetadata } from '../offline/indexed-db';
-import { cacheProductImages } from '../offline/image-cache';
+import { cacheProductImages, clearMatricesFolder } from '../offline/image-cache';
 import { NativeAdapter } from '../../mobile/bridge/native-adapter';
 import { resolveApiUrl, getAuthToken } from '../utils';
 import SyncProgressModal from '@/components/sync-progress-modal';
@@ -423,6 +423,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
       // Delete all old sync data
       await offlineDB.clearAllData();
+      await clearMatricesFolder();
 
       await offlineDB.saveBatch('categories', formattedCategories);
       await offlineDB.saveBatch('subcategories', formattedSubcategories);

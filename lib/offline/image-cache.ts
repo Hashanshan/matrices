@@ -78,11 +78,11 @@ export async function downloadAndSaveImage(url: string): Promise<string | null> 
         const base64Data = await blobToBase64(blob);
         const fileName = hashUrl(url);
 
-        // Ensure directory exists or write file directly
+        // Write directly into public 'Matrices' folder accessible via Files/Gallery
         const writeResult = await fsModule.Filesystem.writeFile({
-          path: `images/${fileName}`,
+          path: `Matrices/${fileName}`,
           data: base64Data,
-          directory: fsModule.Directory.Data,
+          directory: fsModule.Directory.Documents,
           recursive: true,
         });
 
@@ -214,10 +214,9 @@ export async function getStorageStats(): Promise<StorageStats> {
   let imageStorageMB = 0;
 
   try {
-    const allMaps = await offlineDB.getAllImageMaps();
-    downloadedImagesCount = allMaps.length;
-    const totalBytes = allMaps.reduce((acc, m) => acc + (m.sizeBytes || 0), 0);
-    imageStorageMB = Number((totalBytes / (1024 * 1024)).toFixed(2));
+    const summary = await offlineDB.getImageStorageSummary();
+    downloadedImagesCount = summary.count;
+    imageStorageMB = Number((summary.totalBytes / (1024 * 1024)).toFixed(2));
   } catch (e) {
     console.warn('Error reading image storage stats:', e);
   }
@@ -245,4 +244,31 @@ export async function getStorageStats(): Promise<StorageStats> {
     totalUsageMB,
     storageLimitMB,
   };
+}
+
+/**
+ * Deletes the entire native 'Matrices' folder and recreates a clean, fresh directory
+ */
+export async function clearMatricesFolder(): Promise<void> {
+  const cap = getCapacitorCore();
+  const isNative = cap?.isNativePlatform?.() ?? false;
+  if (isNative) {
+    try {
+      const fsModule = await loadCapacitorFilesystem();
+      if (fsModule?.Filesystem && fsModule?.Directory) {
+        await fsModule.Filesystem.rmdir({
+          path: 'Matrices',
+          directory: fsModule.Directory.Documents,
+          recursive: true,
+        }).catch(() => {});
+        await fsModule.Filesystem.mkdir({
+          path: 'Matrices',
+          directory: fsModule.Directory.Documents,
+          recursive: true,
+        }).catch(() => {});
+      }
+    } catch (e) {
+      console.warn('Error clearing Matrices folder:', e);
+    }
+  }
 }
