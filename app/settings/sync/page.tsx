@@ -70,6 +70,11 @@ export default function SyncSettingsPage() {
     refreshStats();
   }, [refreshStats]);
 
+  // Require Security PIN on every visit to /settings/sync
+  useEffect(() => {
+    resetPinVerification();
+  }, []);
+
   useEffect(() => {
     setShowPinModal(!isPinVerified);
   }, [isPinVerified]);

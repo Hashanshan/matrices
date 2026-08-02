@@ -38,6 +38,11 @@ export default function SecuritySettingsPage() {
     }
   }, [user]);
 
+  // Require Security PIN on every visit to /settings/security
+  useEffect(() => {
+    resetPinVerification();
+  }, []);
+
   // Keep PIN modal open until PIN is verified
   useEffect(() => {
     setShowPinModal(!isPinVerified);
