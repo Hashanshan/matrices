@@ -66,17 +66,17 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
               />
 
               {/* Quick Actions overlaying image */}
-              <div className={`absolute top-3 right-3 flex flex-col gap-2 transition-opacity duration-300 z-20 ${isFavorite ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+              <div className={`absolute top-3 right-3 flex flex-col gap-2 transition-opacity duration-300 z-20 ${isFavorite ? 'opacity-100' : 'opacity-100 sm:opacity-0 sm:group-hover:opacity-100'}`}>
                 <button
                   onClick={handleFavorite}
-                  className="w-10 h-10 bg-white/70 backdrop-blur-xl border border-white/50 rounded-full shadow-lg flex items-center justify-center text-gray-700 hover:text-red-500 hover:bg-white transition-all"
+                  className="w-10 h-10 bg-white/90 backdrop-blur-xl border border-white/80 rounded-full shadow-lg flex items-center justify-center text-gray-700 hover:text-red-500 hover:bg-white transition-all active:scale-90"
                   title={isFavorite ? "Remove from wishlist" : "Add to wishlist"}
                 >
                   <Heart size={18} fill={isFavorite ? '#ef4444' : 'none'} className={isFavorite ? 'text-red-500' : ''} />
                 </button>
                 <button
                   onClick={handleQuickAdd}
-                  className="w-10 h-10 bg-white/70 backdrop-blur-xl border border-white/50 rounded-full shadow-lg flex items-center justify-center text-gray-700 hover:text-[#0f172a] hover:bg-white transition-all"
+                  className="w-10 h-10 bg-white/90 backdrop-blur-xl border border-white/80 rounded-full shadow-lg flex items-center justify-center text-gray-700 hover:text-[#0f172a] hover:bg-white transition-all active:scale-90"
                   title="Quick Add to Cart"
                 >
                   <ShoppingCart size={18} />
@@ -94,26 +94,48 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
                 </h3>
               </button>
               <span className="text-[0.65rem] font-bold tracking-wider uppercase bg-[#eef1f6] text-gray-600 px-2 py-1 rounded-full border border-black/5 shadow-inner">
-                {product.categories || 'HOROLOGY'}
+                {product.categories || 'CATALOGUE'}
               </span>
             </div>
 
-            <p className="text-xs text-gray-500 font-medium mb-3">Product Name</p>
+            <p className="text-xs text-gray-500 font-medium mb-2">Product Name</p>
 
-            {/* SKU Row */}
-            <div className="flex items-center justify-between mb-2">
+            {/* SKU & Price Row */}
+            <div className="flex items-center justify-between mb-3">
               <div>
                 <span className="text-[#0f172a] font-bold text-sm block tracking-wide uppercase">
                   {product.productId || product.id}
                 </span>
-                <span className="text-xs text-gray-500 font-medium uppercase">PRODUCT ID</span>
+                <span className="text-[0.65rem] text-gray-500 font-medium uppercase">PRODUCT ID</span>
               </div>
 
               <button
                 onClick={() => router.push(`/view?productId=${product.productId || product.id}`)}
-                className="flex items-center gap-1 text-sm font-bold text-[#0f172a] hover:text-[#1e3a8a] transition-colors group/btn"
+                className="flex items-center gap-1 text-xs font-bold text-[#0f172a] hover:text-[#1e3a8a] transition-colors group/btn uppercase"
               >
                 View Details <span className="group-hover/btn:translate-x-1 transition-transform">→</span>
+              </button>
+            </div>
+
+            {/* Touch-friendly Action Buttons: Wishlist + Add to Cart */}
+            <div className="flex items-center gap-2 mt-auto pt-1">
+              <button
+                onClick={handleFavorite}
+                className={`p-3 rounded-full border transition-all shadow-sm flex items-center justify-center cursor-pointer active:scale-90 ${
+                  isFavorite
+                    ? 'bg-red-500 text-white border-red-600 shadow-red-500/20'
+                    : 'bg-white/90 hover:bg-white text-gray-700 border-gray-200/80 shadow-xs'
+                }`}
+                title={isFavorite ? 'Remove from wishlist' : 'Add to wishlist'}
+              >
+                <Heart size={16} fill={isFavorite ? '#ffffff' : 'none'} className={isFavorite ? 'text-white' : 'text-red-500'} />
+              </button>
+
+              <button
+                onClick={handleQuickAdd}
+                className="flex-1 py-3 bg-[#0f172a] hover:bg-[#1e293b] text-white font-black text-xs uppercase tracking-wider rounded-full shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+              >
+                <ShoppingCart size={15} /> ADD TO CART
               </button>
             </div>
           </div>

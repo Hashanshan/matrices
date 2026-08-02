@@ -21,11 +21,9 @@ export function resolveApiUrl(path: string): string {
     const query = path.replace('/api/products', '');
     return `${BACKEND_URL}/api/catelogue/products${query}`;
   }
-  if (path.startsWith('/api/wishlist/reorder')) {
-    return `${BACKEND_URL}/api/catelogue/wishlist/reorder`;
-  }
   if (path.startsWith('/api/wishlist')) {
-    return `${BACKEND_URL}/api/catelogue/wishlist`;
+    const subPath = path.replace('/api/wishlist', '');
+    return `${BACKEND_URL}/api/catelogue/wishlist${subPath}`;
   }
   if (path.startsWith('/api/sync/all')) {
     return `${BACKEND_URL}/api/catelogue/sync/all`;

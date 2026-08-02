@@ -359,7 +359,6 @@ export default function ShopsSettingsPage() {
 
                 {/* Right Header Controls: Add Shop Button + Mobile Nav Links */}
                 <div className="flex flex-wrap items-center gap-2.5">
-                  <SyncButton />
                   <button
                     onClick={handleOpenAddModal}
                     className="bg-[#0f172a] hover:bg-[#1e293b] text-white font-black text-xs uppercase tracking-wider px-5 py-3 rounded-full shadow-lg hover:shadow-xl transition-all flex items-center gap-2 cursor-pointer active:scale-95"
@@ -368,6 +367,7 @@ export default function ShopsSettingsPage() {
                   </button>
 
                   <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none max-w-full shrink-0">
+                    <SyncButton />
                     <Link
                       href="/settings/orders"
                       className="text-xs font-black text-[#0f172a] uppercase bg-white/60 hover:bg-white border border-white/60 px-3.5 py-2.5 rounded-full shadow-xs transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0"

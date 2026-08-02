@@ -126,7 +126,7 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
     try {
       // Optimistic mutate
       mutate(async () => {
-        const targetUrl = resolveApiUrl('/api/wishlist');
+        const targetUrl = resolveApiUrl('/api/wishlist/toggle');
         const res = await fetch(targetUrl, {
           method: 'POST',
           headers: {
@@ -147,7 +147,7 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
     const token = getAuthToken();
     try {
       mutate(async () => {
-        const targetUrl = resolveApiUrl('/api/wishlist');
+        const targetUrl = resolveApiUrl('/api/wishlist/toggle');
         const res = await fetch(targetUrl, {
           method: 'POST',
           headers: {
@@ -168,7 +168,7 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
     const token = getAuthToken();
     try {
       mutate(async () => {
-        const targetUrl = resolveApiUrl('/api/wishlist');
+        const targetUrl = resolveApiUrl('/api/wishlist/toggle');
         const res = await fetch(targetUrl, {
           method: 'POST',
           headers: {

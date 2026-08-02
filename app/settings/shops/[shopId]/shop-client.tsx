@@ -121,7 +121,7 @@ export default function ShopClient({ params }: { params?: Promise<{ shopId: stri
   queryParams.set('sortField', 'updatedAt');
   queryParams.set('sortOrder', '-1');
 
-  const swrKey = `/api/shops/${shopId}?${queryParams.toString()}`;
+  const swrKey = `/api/shops/byid/${shopId}?${queryParams.toString()}`;
   const { data, error, isLoading } = useSWR(swrKey, fetcher, {
     revalidateOnFocus: true,
   });

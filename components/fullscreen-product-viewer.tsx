@@ -318,7 +318,7 @@ export default function FullscreenProductViewer({
                 alt={currentProduct?.name || ''}
                 className="w-full h-full object-contain rounded-3xl shadow-2xl"
               />
-              <div className="absolute bottom-4 right-4 bg-white/80 text-[#0f172a] px-4 py-1.5 rounded-full text-xs font-semibold shadow-sm opacity-0 group-hover:opacity-100 transition-opacity uppercase">
+              <div className="absolute bottom-4 right-4 bg-white/80 text-[#0f172a] px-4 py-1.5 rounded-full text-xs font-semibold shadow-sm opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity uppercase">
                 CLICK TO ZOOM
               </div>
             </motion.div>
@@ -333,9 +333,9 @@ export default function FullscreenProductViewer({
           }}
           whileHover={{ scale: 1.1, x: 4 }}
           whileTap={{ scale: 0.95 }}
-          className="absolute left-4 sm:left-8 top-1/2 -translate-y-1/2 bg-white/30 hover:bg-white/60 backdrop-blur-2xl text-[#0f172a] p-3 sm:p-4 rounded-full transition-all z-20 hidden sm:flex items-center justify-center shadow-[0_8px_32px_0_rgba(31,38,135,0.1)] border border-white/60"
+          className="absolute left-3 sm:left-8 top-1/2 -translate-y-1/2 bg-white/40 hover:bg-white/70 backdrop-blur-2xl text-[#0f172a] p-2.5 sm:p-4 rounded-full transition-all z-20 flex items-center justify-center shadow-[0_8px_32px_0_rgba(31,38,135,0.1)] border border-white/60 cursor-pointer"
         >
-          <ChevronLeft size={28} />
+          <ChevronLeft size={24} className="sm:w-7 sm:h-7" />
         </motion.button>
 
         <motion.button
@@ -345,9 +345,9 @@ export default function FullscreenProductViewer({
           }}
           whileHover={{ scale: 1.1, x: -4 }}
           whileTap={{ scale: 0.95 }}
-          className="absolute right-4 sm:right-8 top-1/2 -translate-y-1/2 bg-white/30 hover:bg-white/60 backdrop-blur-2xl text-[#0f172a] p-3 sm:p-4 rounded-full transition-all z-20 hidden sm:flex items-center justify-center shadow-[0_8px_32px_0_rgba(31,38,135,0.1)] border border-white/60"
+          className="absolute right-3 sm:right-8 top-1/2 -translate-y-1/2 bg-white/40 hover:bg-white/70 backdrop-blur-2xl text-[#0f172a] p-2.5 sm:p-4 rounded-full transition-all z-20 flex items-center justify-center shadow-[0_8px_32px_0_rgba(31,38,135,0.1)] border border-white/60 cursor-pointer"
         >
-          <ChevronRight size={28} />
+          <ChevronRight size={24} className="sm:w-7 sm:h-7" />
         </motion.button>
 
         {/* Product Counter - Dynamic API totalCount */}

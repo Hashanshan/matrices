@@ -54,7 +54,7 @@ export default function SyncProgressModal() {
             </div>
 
             <h2 className="text-xl sm:text-2xl font-black uppercase tracking-wide">
-              {isError ? 'SYNC FAILED' : isComplete ? 'DATABASE SYNC COMPLETE' : 'SYNCING SALESREP DATABASE'}
+              {isError ? 'SYNC FAILED' : isComplete ? 'SYNC COMPLETE' : 'SYNCING DATA'}
             </h2>
             <p className="text-xs text-gray-500 font-bold max-w-sm mx-auto uppercase mt-1">
               {isComplete
