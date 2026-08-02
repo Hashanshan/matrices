@@ -384,7 +384,7 @@ export default function FullscreenProductViewer({
               transition={{ duration: 0.3 }}
             >
               <SmartImage
-                src={displayImg || currentProduct?.image || currentProduct?.imageUrl || ''}
+                src={displayImg || currentProduct?.image || (currentProduct as any)?.imageUrl || ''}
                 alt={currentProduct?.name || 'Product Image'}
                 className="w-full h-full object-contain rounded-3xl shadow-2xl"
                 priority
@@ -686,7 +686,7 @@ function ThumbnailStrip({
           }`}
         >
           <SmartImage
-            src={product.image || product.imageUrl || ''}
+            src={product.image || (product as any).imageUrl || ''}
             alt={product.name || 'Thumbnail'}
             className="w-full h-full object-cover animate-fade-in"
           />

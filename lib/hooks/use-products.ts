@@ -31,368 +31,461 @@ interface ProductsResponse {
 
 // ─── Offline helpers ────────────────────────────────────────────────────────
 
-/** Shape IndexedDB products into the ProductsResponse format the hooks expect */
-async function getOfflineProducts(options: {
-  sort?: string;
-  category?: string | string[];
-  prioritizeCategory?: string;
-  subcategory?: string | string[];
-  search?: string;
-  productId?: string;
-  page?: number;
-  limit?: number;
-}): Promise<ProductsResponse> {
-  const raw = await offlineDB.getAll<any>('products').catch(() => []);
-  const targetCategory = options.category || options.prioritizeCategory;
-  const catFilter = targetCategory
-    ? (Array.isArray(targetCategory) ? targetCategory : [targetCategory]).map(c => c.toLowerCase().trim())
-    : null;
-  const subFilter = options.subcategory
-    ? (Array.isArray(options.subcategory) ? options.subcategory : [options.subcategory]).map(s => s.toLowerCase().trim())
-    : null;
-  const search = (options.search || options.productId || '').trim();
-  const searchLower = search.toLowerCase();
-  const searchClean = searchLower.replace(/[^a-zA-Z0-9]/g, '');
-  const numMatch = searchLower.match(/\d+/);
-  const numPattern = numMatch ? numMatch[0] : null;
+/** Shape IndexedDB products into the ProductsResponse format */
+async function getOfflineProducts(options: any = {}): Promise<ProductsResponse> {
+  const [raw, dbWishlist] = await Promise.all([
+    offlineDB.getAll<any>('products').catch(() => []),
+    offlineDB.getAll<any>('wishlist').catch(() => []),
+  ]);
 
-  let exactMatchFound = false;
-  let prioritizedProd: any = null;
+  if (raw.length === 0) {
+    return {
+      success: true,
+      count: 0,
+      totalCount: 0,
+      exactMatchFound: options.search ? false : undefined,
+      hasNextPage: false,
+      nextCursor: null,
+      data: [],
+    };
+  }
 
-  // 1. Identify prioritized match across entire raw DB (matching backend search logic)
-  if (search) {
-    const rawMatchIdx = raw.findIndex((p: any) => {
-      const pProdId = String(p.productId || '').trim().toLowerCase();
-      const pId = String(p.id || p._id || '').trim().toLowerCase();
+  const { sort, category, subcategory, search, prioritizeCategory, productId, page: rawPage, limit: rawLimit } = options;
+
+  const limit = Math.min(Math.max(Number(rawLimit) || 20, 1), 10000);
+  const page = Number(rawPage) || 1;
+
+  // 1. Fetch salesrep wishlist for scoring
+  const userWishlist = dbWishlist.find((w: any) => w.id === 'user_wishlist') || dbWishlist[0] || {};
+  const wishProdMap = new Map<string, number>();
+  (userWishlist.products || []).forEach((p: any, idx: number) => {
+    if (p.productId) wishProdMap.set(String(p.productId).trim().toLowerCase(), p.order ?? idx);
+  });
+
+  const wishSubMap = new Map<string, number>();
+  (userWishlist.subcategories || []).forEach((s: any, idx: number) => {
+    if (s.category && s.name) {
+      wishSubMap.set(`${String(s.category).trim().toLowerCase()}>${String(s.name).trim().toLowerCase()}`, s.order ?? idx);
+    }
+  });
+
+  const wishCatMap = new Map<string, number>();
+  (userWishlist.categories || []).forEach((c: any, idx: number) => {
+    if (c.name) wishCatMap.set(String(c.name).trim().toLowerCase(), c.order ?? idx);
+  });
+
+  const hasWishlist = wishProdMap.size > 0 || wishSubMap.size > 0 || wishCatMap.size > 0;
+
+  // Helper to compute wishlist score
+  const getWishlistScore = (p: any): number => {
+    const pId = String(p.productId || p.productCode || p.id || '').trim().toLowerCase();
+    if (wishProdMap.has(pId)) return wishProdMap.get(pId)!;
+
+    const pCat = (p.categoryName || p.categories || p.category || '').trim().toLowerCase();
+    const pSub = (p.subcategoryName || p.subcategories || p.subcategory || p.subCategory || '').trim().toLowerCase();
+
+    const subKey = `${pCat}>${pSub}`;
+    if (wishSubMap.has(subKey)) return 1000 + wishSubMap.get(subKey)!;
+
+    if (wishCatMap.has(pCat)) return 10000 + wishCatMap.get(pCat)!;
+
+    return 999999;
+  };
+
+  // 2. Base Filter
+  let filterList = raw.filter((p: any) => !p.isDeleted);
+
+  let prioritizedProduct: any = null;
+
+  // If productId parameter is passed, find prioritizedProduct
+  if (productId) {
+    const cleanId = String(productId).trim().toLowerCase();
+    const numMatch = cleanId.match(/\d+/);
+    const numPattern = numMatch ? numMatch[0] : null;
+
+    prioritizedProduct = filterList.find((p: any) => {
+      const pProdId = String(p.productId || p.id || '').trim().toLowerCase();
       const pCode = String(p.code || p.productCode || '').trim().toLowerCase();
-
-      if (pProdId === searchLower || pId === searchLower || pCode === searchLower) return true;
-
-      if (searchClean && searchClean.length >= 3) {
-        const cProdId = pProdId.replace(/[^a-zA-Z0-9]/g, '');
-        const cCode = pCode.replace(/[^a-zA-Z0-9]/g, '');
-        const cId = pId.replace(/[^a-zA-Z0-9]/g, '');
-        if (cProdId === searchClean || cCode === searchClean || cId === searchClean) return true;
-      }
-
-      if (numPattern) {
-        if (pProdId.includes(numPattern) || pCode.includes(numPattern)) return true;
-      }
-
+      if (pProdId === cleanId || pCode === cleanId) return true;
+      if (numPattern && (pProdId.includes(numPattern) || pCode.includes(numPattern))) return true;
       return false;
     });
+  }
 
-    if (rawMatchIdx >= 0) {
-      exactMatchFound = true;
-      prioritizedProd = raw[rawMatchIdx];
-    } else {
-      // Check for partial name match if no ID/code match found
-      const nameMatchIdx = raw.findIndex((p: any) => {
-        const pName = String(p.name || '').trim().toLowerCase();
-        return pName.includes(searchLower);
+  // Category filter (comma-separated or array)
+  if (category) {
+    const cats = (Array.isArray(category) ? category : String(category).split(','))
+      .map((c) => c.trim().toLowerCase())
+      .filter(Boolean);
+    if (cats.length > 0) {
+      filterList = filterList.filter((p: any) => {
+        const pCat = (p.categoryName || p.categories || p.category || (typeof p.category === 'object' ? p.category?.name : '') || '').trim().toLowerCase();
+        const pCatId = String(p.categoryId || (typeof p.category === 'object' ? p.category?._id : '') || '').trim().toLowerCase();
+        return cats.some((c) => pCat === c || pCat.includes(c) || c.includes(pCat) || (pCatId && pCatId === c));
       });
-      if (nameMatchIdx >= 0) {
-        prioritizedProd = raw[nameMatchIdx];
-      }
     }
   }
 
-  // 2. Base category/subcategory/search filtering
-  let filtered = raw.filter((p: any) => {
-    if (catFilter && catFilter.length > 0 && catFilter[0]) {
-      const pCat = (p.categoryName || p.categories || p.category || (typeof p.category === 'object' ? p.category?.name : '') || '').toLowerCase().trim();
-      const pCatId = String(p.categoryId || (typeof p.category === 'object' ? p.category?._id : '') || '').trim().toLowerCase();
-      const matchesCat = catFilter.some(c => pCat === c || pCat.includes(c) || c.includes(pCat) || (pCatId && pCatId === c));
-      if (!matchesCat) return false;
+  // Subcategory filter (comma-separated or array)
+  if (subcategory) {
+    const subs = (Array.isArray(subcategory) ? subcategory : String(subcategory).split(','))
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean);
+    if (subs.length > 0) {
+      filterList = filterList.filter((p: any) => {
+        const pSub = (p.subcategoryName || p.subcategories || p.subcategory || p.subCategory || (typeof p.subcategory === 'object' ? p.subcategory?.name : '') || '').trim().toLowerCase();
+        const pSubId = String(p.subcategoryId || (typeof p.subcategory === 'object' ? p.subcategory?._id : '') || '').trim().toLowerCase();
+        return subs.some((s) => pSub === s || pSub.includes(s) || s.includes(pSub) || (pSubId && pSubId === s));
+      });
     }
+  }
 
-    if (subFilter && subFilter.length > 0 && subFilter[0]) {
-      const pSub = (p.subcategoryName || p.subcategories || p.subcategory || (typeof p.subcategory === 'object' ? p.subcategory?.name : '') || '').toLowerCase().trim();
-      const pSubId = String(p.subcategoryId || (typeof p.subcategory === 'object' ? p.subcategory?._id : '') || '').trim().toLowerCase();
-      const matchesSub = subFilter.some(s => pSub === s || pSub.includes(s) || s.includes(pSub) || (pSubId && pSubId === s));
-      if (!matchesSub) return false;
-    }
+  const totalMatching = filterList.length;
 
-    // If search was performed but no target product prioritized, filter by query substring
-    if (searchLower && !prioritizedProd) {
-      const pName = (p.name || '').toLowerCase();
+  let paginatedList = [...filterList];
+
+  if (prioritizedProduct && page === 1) {
+    const pIdStr = String(prioritizedProduct.id || prioritizedProduct.productId || prioritizedProduct._id);
+    paginatedList = paginatedList.filter((p: any) => String(p.id || p.productId || p._id) !== pIdStr);
+  }
+
+  // 3. Search & Scoring logic (matching backend aggregate)
+  let exactMatchFound = false;
+  let searchScores = new Map<string, number>();
+
+  if (search) {
+    const cleanSearch = String(search).trim();
+    const searchLower = cleanSearch.toLowerCase();
+    const numMatch = cleanSearch.match(/\d+/);
+    const numberPart = numMatch ? numMatch[0] : null;
+
+    // Find related categories and subcategories matching search terms
+    const searchSubCategories = new Set<string>();
+    const searchCategories = new Set<string>();
+
+    for (const p of paginatedList) {
+      const pName = String(p.name || '').toLowerCase();
       const pProdId = String(p.productId || p.id || '').toLowerCase();
       const pCode = String(p.code || p.productCode || '').toLowerCase();
-      const pCat = (p.categoryName || p.categories || '').toLowerCase();
-      const pSub = (p.subcategoryName || p.subcategories || '').toLowerCase();
+      const pDesc = String(p.description || '').toLowerCase();
 
-      return (
+      const isMatch =
         pName.includes(searchLower) ||
         pProdId.includes(searchLower) ||
         pCode.includes(searchLower) ||
-        pCat.includes(searchLower) ||
-        pSub.includes(searchLower)
-      );
-    }
+        pDesc.includes(searchLower) ||
+        (numberPart && (pProdId.includes(numberPart) || pCode.includes(numberPart)));
 
-    return true;
-  });
-
-  // Apply sorting
-  if (options.sort) {
-    const s = options.sort.toLowerCase();
-    if (s === 'price_asc' || s === 'price-low' || s === 'low-to-high') {
-      filtered.sort((a: any, b: any) => (a.sellPrice || a.price || 0) - (b.sellPrice || b.price || 0));
-    } else if (s === 'price_desc' || s === 'price-high' || s === 'high-to-low') {
-      filtered.sort((a: any, b: any) => (b.sellPrice || b.price || 0) - (a.sellPrice || a.price || 0));
-    } else if (s === 'name_asc' || s === 'a-z') {
-      filtered.sort((a: any, b: any) => String(a.name || '').localeCompare(String(b.name || '')));
-    } else if (s === 'name_desc' || s === 'z-a') {
-      filtered.sort((a: any, b: any) => String(b.name || '').localeCompare(String(a.name || '')));
-    } else if (s === 'view') {
-      filtered.sort((a: any, b: any) => {
-        const subA = String(a.subcategoryName || a.subcategories || '');
-        const subB = String(b.subcategoryName || b.subcategories || '');
-        if (subA !== subB) return subA.localeCompare(subB);
-        return String(a.name || '').localeCompare(String(b.name || ''));
-      });
-    }
-  }
-
-  // 3. Re-order if prioritizedProd is present: Target Product -> Subcategory -> Category -> Remaining
-  if (prioritizedProd) {
-    const targetId = String(prioritizedProd.id || prioritizedProd.productId || prioritizedProd._id);
-    const targetCat = (prioritizedProd.categoryName || prioritizedProd.categories || prioritizedProd.category || '').toLowerCase().trim();
-    const targetSub = (prioritizedProd.subcategoryName || prioritizedProd.subcategories || prioritizedProd.subcategory || '').toLowerCase().trim();
-
-    const subMatches: any[] = [];
-    const catMatches: any[] = [];
-    const others: any[] = [];
-
-    for (const p of filtered) {
-      const currentId = String(p.id || p.productId || p._id);
-      if (currentId === targetId) continue;
-
-      const pCat = (p.categoryName || p.categories || p.category || '').toLowerCase().trim();
-      const pSub = (p.subcategoryName || p.subcategories || p.subcategory || '').toLowerCase().trim();
-
-      if (targetSub && pSub === targetSub) {
-        subMatches.push(p);
-      } else if (targetCat && pCat === targetCat) {
-        catMatches.push(p);
-      } else {
-        others.push(p);
+      if (isMatch) {
+        exactMatchFound = true;
+        const pSub = (p.subcategoryName || p.subcategories || p.subcategory || p.subCategory || '').trim().toLowerCase();
+        const pCat = (p.categoryName || p.categories || p.category || '').trim().toLowerCase();
+        if (pSub) searchSubCategories.add(pSub);
+        if (pCat) searchCategories.add(pCat);
       }
     }
 
-    filtered = [prioritizedProd, ...subMatches, ...catMatches, ...others];
+    // Compute search score per product
+    for (const p of paginatedList) {
+      const pKey = String(p.id || p.productId || p._id);
+      const pName = String(p.name || '').toLowerCase();
+      const pProdId = String(p.productId || p.id || '').toLowerCase();
+      const pCode = String(p.code || p.productCode || '').toLowerCase();
+      const pDesc = String(p.description || '').toLowerCase();
+      const pSub = (p.subcategoryName || p.subcategories || p.subcategory || p.subCategory || '').trim().toLowerCase();
+      const pCat = (p.categoryName || p.categories || p.category || '').trim().toLowerCase();
+
+      let score = 0;
+
+      // Exact match on productId or productCode (e.g. 10049 or MTX-10049)
+      const isExactProd = pProdId === searchLower || pProdId === `mtx-${searchLower}` || pCode === searchLower || pCode === `mtx-${searchLower}`;
+      if (isExactProd) {
+        score = Math.max(score, 100);
+      } else if (pProdId.includes(searchLower) || pCode.includes(searchLower)) {
+        score = Math.max(score, 20);
+      } else if (numberPart && (pProdId.includes(numberPart) || pCode.includes(numberPart))) {
+        score = Math.max(score, 15);
+      }
+
+      if (pName.includes(searchLower)) score = Math.max(score, 6);
+      if (pDesc.includes(searchLower)) score = Math.max(score, 5);
+      if (pSub && searchSubCategories.has(pSub)) score = Math.max(score, 4);
+      if (pCat && searchCategories.has(pCat)) score = Math.max(score, 3);
+      if (pSub.includes(searchLower)) score = Math.max(score, 2);
+      if (pCat.includes(searchLower)) score = Math.max(score, 1);
+
+      if (score > 0) {
+        searchScores.set(pKey, score);
+      }
+    }
+
+    // Keep products with searchScore > 0
+    paginatedList = paginatedList.filter((p: any) => {
+      const pKey = String(p.id || p.productId || p._id);
+      return searchScores.has(pKey);
+    });
   }
 
-  const totalCount = raw.length > 0 ? raw.length : filtered.length;
-  const page = options.page || 1;
-  const limit = options.limit || 5000;
+  // 4. Sort Products
+  const priorityCategoryLower = prioritizeCategory ? String(prioritizeCategory).trim().toLowerCase() : '';
+
+  paginatedList.sort((a: any, b: any) => {
+    const aKey = String(a.id || a.productId || a._id);
+    const bKey = String(b.id || b.productId || b._id);
+
+    // Primary: Search score DESC
+    if (search) {
+      const scoreA = searchScores.get(aKey) || 0;
+      const scoreB = searchScores.get(bKey) || 0;
+      if (scoreA !== scoreB) return scoreB - scoreA;
+    }
+
+    // Secondary: Priority Category ASC
+    if (priorityCategoryLower) {
+      const catA = (a.categoryName || a.categories || a.category || '').trim().toLowerCase();
+      const catB = (b.categoryName || b.categories || b.category || '').trim().toLowerCase();
+      const isPriA = catA === priorityCategoryLower ? 0 : 1;
+      const isPriB = catB === priorityCategoryLower ? 0 : 1;
+      if (isPriA !== isPriB) return isPriA - isPriB;
+    }
+
+    // Tertiary: Wishlist score ASC
+    if (hasWishlist) {
+      const wScoreA = getWishlistScore(a);
+      const wScoreB = getWishlistScore(b);
+      if (wScoreA !== wScoreB) return wScoreA - wScoreB;
+    }
+
+    // Quaternary: Sort order
+    const s = sort ? String(sort).toLowerCase() : '';
+    if (s === 'price-low' || s === 'price_asc' || s === 'low-to-high') {
+      const priceA = Number(a.sellPrice || a.price || 0);
+      const priceB = Number(b.sellPrice || b.price || 0);
+      if (priceA !== priceB) return priceA - priceB;
+    } else if (s === 'price-high' || s === 'price_desc' || s === 'high-to-low') {
+      const priceA = Number(a.sellPrice || a.price || 0);
+      const priceB = Number(b.sellPrice || b.price || 0);
+      if (priceA !== priceB) return priceB - priceA;
+    } else if (s === 'view') {
+      const subA = String(a.subcategoryName || a.subcategories || a.subCategory || '');
+      const subB = String(b.subcategoryName || b.subcategories || b.subCategory || '');
+      if (subA !== subB) return subA.localeCompare(subB);
+
+      const catA = String(a.categoryName || a.categories || a.category || '');
+      const catB = String(b.categoryName || b.categories || b.category || '');
+      if (catA !== catB) return catA.localeCompare(catB);
+
+      const nameA = String(a.name || '');
+      const nameB = String(b.name || '');
+      if (nameA !== nameB) return nameA.localeCompare(nameB);
+    }
+
+    return String(bKey).localeCompare(String(aKey));
+  });
+
+  // 5. Pagination & Unshift prioritizedProduct
   const startIndex = (page - 1) * limit;
   const endIndex = page * limit;
-  const pageItems = filtered.slice(startIndex, endIndex);
-  const hasNextPage = endIndex < filtered.length;
+  const pageProducts = paginatedList.slice(startIndex, endIndex);
+  const hasNextPage = endIndex < paginatedList.length;
 
-  const mapped: CatalogueProduct[] = pageItems.map((p: any) => ({
+  let finalProducts = pageProducts;
+  if (prioritizedProduct && page === 1) {
+    finalProducts = [prioritizedProduct, ...pageProducts];
+  }
+
+  const mappedProducts: CatalogueProduct[] = finalProducts.map((p: any) => ({
     id: String(p.id || p.productId || p._id || ''),
     name: String(p.name || '').toUpperCase(),
     productId: String(p.productId || p.productCode || p.id || ''),
     categories: String(p.categoryName || p.categories || p.category || '').toUpperCase(),
-    subcategories: String(p.subcategoryName || p.subcategories || p.subcategory || '').toUpperCase(),
+    subcategories: String(p.subcategoryName || p.subcategories || p.subcategory || p.subCategory || '').toUpperCase(),
     image: p.imageUrl || p.image || '',
     sellPrice: Number(p.sellPrice || p.price || 0),
     price: Number(p.price || p.sellPrice || 0),
     description: p.description || '',
   }));
 
+  const nextCursor = hasNextPage && pageProducts.length > 0 ? String(pageProducts[pageProducts.length - 1].id || pageProducts[pageProducts.length - 1].productId) : null;
+
   return {
     success: true,
-    count: mapped.length,
-    totalCount,
+    count: mappedProducts.length,
+    totalCount: totalMatching,
     exactMatchFound: search ? exactMatchFound : undefined,
+    nextCursor,
     hasNextPage,
-    nextCursor: hasNextPage && pageItems.length > 0 ? String(pageItems[pageItems.length - 1].id) : null,
-    data: mapped,
+    data: mappedProducts,
   };
 }
 
-/** Shape IndexedDB categories into FiltersResponse format */
+/** Shape IndexedDB categories into FiltersResponse format (matching backend aggregation) */
 async function getOfflineFilters(): Promise<FiltersResponse> {
-  const [dbCategories, dbSubcategories, dbProducts] = await Promise.all([
+  const [dbCategories, dbSubcategories, dbProducts, dbWishlist] = await Promise.all([
     offlineDB.getAll<any>('categories').catch(() => []),
     offlineDB.getAll<any>('subcategories').catch(() => []),
     offlineDB.getAll<any>('products').catch(() => []),
+    offlineDB.getAll<any>('wishlist').catch(() => []),
   ]);
 
-  if (dbCategories.length > 0) {
-    const categories: CategoryFilter[] = dbCategories.map((c: any) => {
-      const cNameClean = (c.name || c.categoryName || '').trim().toLowerCase();
-      const cIdClean = String(c.id || c._id || c.categoryId || '').trim();
-
-      const isProductInCat = (p: any) => {
-        const pCatName = (p.categoryName || p.categories || p.category || (typeof p.category === 'object' ? p.category?.name : '') || '').trim().toLowerCase();
-        const pCatId = String(p.categoryId || (typeof p.category === 'object' ? p.category?._id : '') || '').trim();
-        return (cNameClean && (pCatName === cNameClean || pCatName.includes(cNameClean) || cNameClean.includes(pCatName))) ||
-               (cIdClean && pCatId === cIdClean);
-      };
-
-      const catProducts = dbProducts.filter(isProductInCat);
-
-      const subMap = new Map<string, { name: string; image: string; count: number }>();
-
-      // Tier 1: Subcategories array stored directly on category object (from server/sync)
-      if (Array.isArray(c.subcategories) && c.subcategories.length > 0) {
-        c.subcategories.forEach((s: any) => {
-          const sName = typeof s === 'string' ? s.trim() : (s.name || s.subcategoryName || '').trim();
-          const sImage = typeof s === 'string' ? '' : (s.image || s.imageUrl || '');
-          const serverCount = typeof s === 'object' ? Number(s.count || 0) : 0;
-
-          if (sName) {
-            const key = sName.toLowerCase();
-            let count = catProducts.filter((p: any) => {
-              const pSub = (p.subcategoryName || p.subcategories || p.subcategory || p.subCategory || '').trim().toLowerCase();
-              return pSub === key;
-            }).length;
-
-            if (count === 0 && serverCount > 0) {
-              count = serverCount;
-            }
-
-            subMap.set(key, { name: sName.toUpperCase(), image: sImage, count });
-          }
-        });
-      }
-
-      // Tier 2: Check subcategories from dbSubcategories store
-      dbSubcategories
-        .filter((s: any) => {
-          const sCatName = (s.categoryName || s.category || (typeof s.category === 'object' ? s.category?.name : '') || '').trim().toLowerCase();
-          const sCatId = String(s.categoryId || (typeof s.category === 'object' ? s.category?._id : '') || '').trim();
-          return (cNameClean && sCatName === cNameClean) || (cIdClean && sCatId === cIdClean);
-        })
-        .forEach((s: any) => {
-          const sName = (s.name || s.subcategoryName || '').trim();
-          if (sName) {
-            const key = sName.toLowerCase();
-            const existing = subMap.get(key);
-            let count = catProducts.filter((p: any) => {
-              const pSub = (p.subcategoryName || p.subcategories || p.subcategory || p.subCategory || '').trim().toLowerCase();
-              return pSub === key;
-            }).length;
-
-            if (count === 0 && (s.count || 0) > 0) {
-              count = s.count;
-            }
-
-            const img = s.image || s.imageUrl || existing?.image || '';
-            subMap.set(key, { name: sName.toUpperCase(), image: img, count: Math.max(count, existing?.count || 0) });
-          }
-        });
-
-      // Tier 3: Extract any additional subcategories directly from products in this category
-      catProducts.forEach((p: any) => {
-        const pSub = (p.subcategoryName || p.subcategories || p.subcategory || p.subCategory || '').trim();
-        if (pSub) {
-          const key = pSub.toLowerCase();
-          if (!subMap.has(key)) {
-            const count = catProducts.filter((item: any) => {
-              const itemSub = (item.subcategoryName || item.subcategories || item.subcategory || item.subCategory || '').trim().toLowerCase();
-              return itemSub === key;
-            }).length;
-            subMap.set(key, { name: pSub.toUpperCase(), image: p.image || p.imageUrl || '', count });
-          }
-        }
-      });
-
-      // Fill in missing subcategory images from products if image is empty
-      subMap.forEach((subVal, key) => {
-        if (!subVal.image && catProducts.length > 0) {
-          const prodMatch = catProducts.find((p: any) => {
-            const pSub = (p.subcategoryName || p.subcategories || p.subcategory || p.subCategory || '').trim().toLowerCase();
-            return pSub === key && (p.image || p.imageUrl);
-          });
-          if (prodMatch) {
-            subVal.image = prodMatch.image || prodMatch.imageUrl || '';
-          }
-        }
-      });
-
-      const subList: SubcategoryFilter[] = Array.from(subMap.values());
-      let totalProdCount = catProducts.length;
-      if (totalProdCount === 0 && (c.totalCount || 0) > 0) {
-        totalProdCount = c.totalCount;
-      }
-
-      let catImage = c.image || c.imageUrl || c.categoryImage || '';
-      if (!catImage && catProducts.length > 0) {
-        const firstProdWithImg = catProducts.find((p: any) => p.image || p.imageUrl);
-        if (firstProdWithImg) catImage = firstProdWithImg.image || firstProdWithImg.imageUrl || '';
-      }
-
-      return {
-        name: (c.name || c.categoryName || '').toUpperCase(),
-        image: catImage,
-        totalCount: totalProdCount,
-        subcategories: subList,
-      };
-    });
-
-    if (categories.length > 0) {
-      return {
-        success: true,
-        categories: categories.sort((a, b) => a.name.localeCompare(b.name)),
-        priceRange: { min: 0, max: 40000 },
-      };
-    }
+  if (dbProducts.length === 0 && dbCategories.length === 0) {
+    return {
+      success: true,
+      categories: [],
+      priceRange: { min: 0, max: 60125 },
+    };
   }
 
-  // Fallback: build categories directly from dbProducts if dbCategories store is empty
-  const catMap = new Map<string, { image: string; totalProducts: number; subcats: Map<string, { name: string; image: string; count: number }> }>();
+  // 1. Calculate dynamic min and max price range across all products
+  let minPrice = 0;
+  let maxPrice = 60125;
+  if (dbProducts.length > 0) {
+    let minP = Infinity;
+    let maxP = -Infinity;
+    for (const p of dbProducts) {
+      const val = Number(p.sellPrice || p.price || 0);
+      if (val > 0) {
+        if (val < minP) minP = val;
+        if (val > maxP) maxP = val;
+      }
+    }
+    if (minP !== Infinity) minPrice = Math.floor(minP);
+    if (maxP !== -Infinity) maxPrice = Math.ceil(maxP);
+  }
+
+  // 2. Build Category & Subcategory Aggregation Map directly from dbProducts
+  const catMap = new Map<string, {
+    name: string;
+    image: string;
+    totalCount: number;
+    subcats: Map<string, { name: string; image: string; count: number }>;
+  }>();
 
   for (const p of dbProducts) {
-    const cat = (typeof p.category === 'object' ? p.category?.name : (p.categoryName || p.categories || p.category || 'Uncategorized')).trim().toUpperCase();
-    if (!cat) continue;
-    const sub = (typeof p.subcategory === 'object' ? p.subcategory?.name : (p.subcategoryName || p.subcategories || p.subcategory || '')).trim().toUpperCase();
-    const catKey = cat.toLowerCase();
+    const rawCat = (p.categoryName || p.categories || p.category || (typeof p.category === 'object' ? p.category?.name : '') || '').trim();
+    if (!rawCat) continue;
+    const catName = rawCat.toUpperCase();
 
-    if (!catMap.has(catKey)) {
-      catMap.set(catKey, { image: p.image || p.imageUrl || '', totalProducts: 0, subcats: new Map() });
-    }
-    const entry = catMap.get(catKey)!;
-    entry.totalProducts += 1;
-    if (!entry.image && (p.image || p.imageUrl)) {
-      entry.image = p.image || p.imageUrl;
+    const rawSub = (p.subcategoryName || p.subcategories || p.subcategory || p.subCategory || (typeof p.subcategory === 'object' ? p.subcategory?.name : '') || '').trim();
+    const subName = rawSub ? rawSub.toUpperCase() : '';
+
+    const pImg = p.image || p.imageUrl || (Array.isArray(p.images) && p.images[0]) || '';
+
+    if (!catMap.has(catName)) {
+      catMap.set(catName, {
+        name: catName,
+        image: pImg,
+        totalCount: 0,
+        subcats: new Map(),
+      });
     }
 
-    if (sub) {
-      const subKey = sub.toLowerCase();
-      const existingSub = entry.subcats.get(subKey) || { name: sub, image: p.image || p.imageUrl || '', count: 0 };
-      existingSub.count += 1;
-      if (!existingSub.image && (p.image || p.imageUrl)) {
-        existingSub.image = p.image || p.imageUrl;
+    const catObj = catMap.get(catName)!;
+    catObj.totalCount += 1;
+    if (!catObj.image && pImg) {
+      catObj.image = pImg;
+    }
+
+    if (subName) {
+      if (!catObj.subcats.has(subName)) {
+        catObj.subcats.set(subName, {
+          name: subName,
+          image: pImg,
+          count: 0,
+        });
       }
-      entry.subcats.set(subKey, existingSub);
+      const subObj = catObj.subcats.get(subName)!;
+      subObj.count += 1;
+      if (!subObj.image && pImg) {
+        subObj.image = pImg;
+      }
     }
   }
 
-  const categories: CategoryFilter[] = [];
-  catMap.forEach((val, catKey) => {
-    const originalCatName = dbProducts.find((p: any) => {
-      const c = (typeof p.category === 'object' ? p.category?.name : (p.categoryName || p.categories || p.category || '')).trim();
-      return c.toLowerCase() === catKey;
-    })?.categoryName?.toUpperCase() || catKey.toUpperCase();
+  // Incorporate dbCategories store records if not already in catMap
+  if (dbCategories.length > 0) {
+    for (const c of dbCategories) {
+      const cName = (c.name || c.categoryName || '').trim().toUpperCase();
+      if (cName && !catMap.has(cName)) {
+        const cImg = c.image || c.imageUrl || c.categoryImage || '';
+        const subMap = new Map<string, { name: string; image: string; count: number }>();
+        if (Array.isArray(c.subcategories)) {
+          c.subcategories.forEach((s: any) => {
+            const sName = (typeof s === 'string' ? s : s.name || s.subcategoryName || '').trim().toUpperCase();
+            if (sName) {
+              subMap.set(sName, {
+                name: sName,
+                image: (typeof s === 'object' ? s.image || s.imageUrl : '') || '',
+                count: typeof s === 'object' ? Number(s.count || 0) : 0,
+              });
+            }
+          });
+        }
+        catMap.set(cName, {
+          name: cName,
+          image: cImg,
+          totalCount: Number(c.totalCount || 0),
+          subcats: subMap,
+        });
+      }
+    }
+  }
 
-    const subs: SubcategoryFilter[] = Array.from(val.subcats.values());
-    categories.push({
-      name: originalCatName,
-      image: val.image,
-      totalCount: val.totalProducts,
-      subcategories: subs,
+  // 3. Process Wishlist priorities for sorting
+  const userWishlist = dbWishlist.find((w: any) => w.id === 'user_wishlist') || dbWishlist[0] || {};
+  const wishlistedCatMap = new Map<string, number>();
+  (userWishlist.categories || []).forEach((c: any, idx: number) => {
+    if (c?.name) wishlistedCatMap.set(String(c.name).toUpperCase(), c.order ?? idx);
+  });
+
+  const wishlistedSubMap = new Map<string, number>();
+  (userWishlist.subcategories || []).forEach((s: any, idx: number) => {
+    if (s?.category && s?.name) {
+      wishlistedSubMap.set(`${String(s.category).toUpperCase()}>${String(s.name).toUpperCase()}`, s.order ?? idx);
+    }
+  });
+
+  // 4. Format Categories & Subcategories
+  const formattedCategories: CategoryFilter[] = Array.from(catMap.values()).map(catObj => {
+    const sortedSubs = Array.from(catObj.subcats.values());
+
+    sortedSubs.sort((a, b) => {
+      const keyA = `${catObj.name}>${a.name}`;
+      const keyB = `${catObj.name}>${b.name}`;
+      const aWish = wishlistedSubMap.has(keyA);
+      const bWish = wishlistedSubMap.has(keyB);
+      if (aWish && bWish) {
+        return (wishlistedSubMap.get(keyA) ?? 0) - (wishlistedSubMap.get(keyB) ?? 0);
+      }
+      if (aWish) return -1;
+      if (bWish) return 1;
+      return a.name.localeCompare(b.name);
     });
+
+    return {
+      name: catObj.name,
+      image: catObj.image,
+      totalCount: catObj.totalCount,
+      subcategories: sortedSubs,
+    };
+  });
+
+  // Sort main categories: Wishlisted FIRST (by order), then A-Z
+  formattedCategories.sort((a, b) => {
+    const aWish = wishlistedCatMap.has(a.name);
+    const bWish = wishlistedCatMap.has(b.name);
+    if (aWish && bWish) {
+      return (wishlistedCatMap.get(a.name) ?? 0) - (wishlistedCatMap.get(b.name) ?? 0);
+    }
+    if (aWish) return -1;
+    if (bWish) return 1;
+    return a.name.localeCompare(b.name);
   });
 
   return {
     success: true,
-    categories: categories.sort((a, b) => a.name.localeCompare(b.name)),
-    priceRange: { min: 0, max: 40000 },
+    categories: formattedCategories,
+    priceRange: { min: minPrice, max: maxPrice },
   };
 }
 
