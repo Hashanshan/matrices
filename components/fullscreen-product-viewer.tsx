@@ -2,7 +2,7 @@
 
 import { useState, useRef, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, ChevronRight, ShoppingCart, X, Minus, Plus, Heart, Share2, Search, ArrowLeft } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ShoppingCart, X, Minus, Plus, Heart, Search, ArrowLeft } from 'lucide-react';
 import { useCart } from '@/lib/contexts/cart-context';
 import { useWishlist } from '@/lib/contexts/wishlist-context';
 import { useCallback } from 'react';
@@ -197,28 +197,6 @@ export default function FullscreenProductViewer({
       scale: 0.95,
       filter: 'brightness(0.8)',
     }),
-  };
-
-  const handleShare = () => {
-    if (currentProduct) {
-      const shareUrl = `${window.location.origin}/view?productId=${currentProduct.productId || currentProduct.id}`;
-      if (navigator.share) {
-        navigator.share({
-          title: (currentProduct.name || '').toUpperCase(),
-          text: `Check out ${(currentProduct.name || '').toUpperCase()} - ${formatPrice(currentProduct.price || 0)}`,
-          url: shareUrl,
-        });
-      } else {
-        navigator.clipboard.writeText(shareUrl);
-        MySwal.fire({
-          title: 'Link Copied',
-          text: shareUrl,
-          icon: 'success',
-          timer: 2000,
-          showConfirmButton: false
-        });
-      }
-    }
   };
 
   const triggerSearch = () => {
@@ -452,14 +430,6 @@ export default function FullscreenProductViewer({
                   />
                 </motion.button>
 
-                <motion.button
-                  onClick={handleShare}
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.95 }}
-                  className="p-3.5 rounded-full bg-white/30 backdrop-blur-4xl hover:bg-white/60 text-[#0f172a] transition-all shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] border border-white/60"
-                >
-                  <Share2 size={20} />
-                </motion.button>
 
                 <motion.div className="relative">
                   <motion.button

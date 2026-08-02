@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, ChevronRight, ShoppingCart, Heart, Share2, Minus, Plus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ShoppingCart, Heart, Minus, Plus } from 'lucide-react';
 import { useCart } from '@/lib/contexts/cart-context';
 import { Product } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -383,14 +383,6 @@ export default function SwipableProductViewer({
                 />
               </motion.button>
 
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => alert('Share functionality coming soon!')}
-                className="p-4 rounded-lg border-2 border-border hover:border-accent transition-all"
-              >
-                <Share2 size={20} />
-              </motion.button>
             </div>
 
             {/* Product Info */}
