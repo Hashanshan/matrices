@@ -1,0 +1,6 @@
+# Build static web export and copy assets into Android
+npm run cap:sync
+# Build the Android APK binary
+npm run apk:build
+
+npm run apk:build

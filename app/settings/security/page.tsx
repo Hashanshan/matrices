@@ -139,7 +139,7 @@ export default function SecuritySettingsPage() {
   return (
     <>
       <Header showSearch={false} />
-      <main className="min-h-screen bg-[url('/bg.png')] bg-cover bg-center bg-no-repeat bg-fixed py-8">
+      <main className="min-h-screen bg-[url(/bg.png)] bg-cover bg-center bg-no-repeat bg-fixed py-8">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
 
           {/* PIN Verification Gate Modal */}

@@ -1,7 +1,7 @@
 {
   "appId": "com.matrices.catalogue",
   "appName": "Matrices Catalogue",
-  "webDir": "public",
+  "webDir": "out",
   "bundledWebRuntime": false,
   "server": {
     "androidScheme": "https",

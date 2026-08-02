@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || process.env.BACKEND_API_URL || 'http://localhost:5000';
 
+export const dynamic = 'force-static';
+export function generateStaticParams() {
+  return [{ orderId: '1' }, { orderId: 'default' }];
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ orderId: string }> }

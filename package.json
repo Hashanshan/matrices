@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "cap:sync": "next build && cap sync",
+    "apk:build": "next build && cap copy && cd android && gradlew.bat assembleDebug"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",

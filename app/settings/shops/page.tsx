@@ -302,7 +302,7 @@ export default function ShopsSettingsPage() {
   return (
     <>
       <Header showSearch={false} />
-      <main className="min-h-screen bg-[url('/bg.png')] bg-cover bg-center bg-no-repeat bg-fixed py-4 sm:py-8 overflow-x-hidden">
+      <main className="min-h-screen bg-[url(/bg.png)] bg-cover bg-center bg-no-repeat bg-fixed py-4 sm:py-8 overflow-x-hidden">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
 
           {/* Security PIN Gate Modal */}

@@ -101,7 +101,7 @@ export default function CategoriesPage({ fallbackData }: { fallbackData?: any } 
   return (
     <>
       <Header showSearch={false} />
-      <main className="min-h-screen bg-[url('/bg.png')] bg-cover bg-center bg-no-repeat bg-fixed py-8">
+      <main className="min-h-screen bg-[url(/bg.png)] bg-cover bg-center bg-no-repeat bg-fixed py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {isValidating && categories.length > 0 && (
             <div className="fixed top-4 right-4 z-50">
