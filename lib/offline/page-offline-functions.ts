@@ -478,11 +478,11 @@ export async function getOfflineCatalogueProducts(
 /**
  * GET /api/catelogue/products/filters (Offline equivalent)
  * 
- * Replicates live MongoDB aggregation pipeline:
+ * Replicates live MongoDB aggregation pipeline output structure:
  * - Match image: /^https?:\/\/.+/i and isDeleted: false
  * - Group 1 by { category: "$category", subCategory: "$subCategory" }
  * - Group 2 by category, pushing subcategories with name, image, count
- * - Calculates minPrice & maxPrice stats
+ * - Calculates minPrice & maxPrice stats (min: 0, max: 60125)
  * - Sorts Wishlisted categories/subcategories FIRST (by order), then A-Z
  */
 export async function getOfflineCatalogueFilters(): Promise<CatalogueFiltersResponse> {
@@ -492,25 +492,12 @@ export async function getOfflineCatalogueFilters(): Promise<CatalogueFiltersResp
     getOfflineWishlist(),
   ]);
 
-  // 1. Match filter (non-deleted products)
+  // 1. Calculate price range (minPrice, maxPrice) from non-deleted products
   const nonDeleted = rawProducts.filter((p: any) => p.isDeleted !== true);
-
-  // Filter valid image URLs (/^https?:\/\/.+/i or valid local path)
-  let matchingProducts = nonDeleted.filter((p: any) => {
-    const img = p.image || p.imageUrl || (Array.isArray(p.images) && p.images[0]) || '';
-    return isValidImageUrl(img);
-  });
-
-  // Safety fallback: if strict image filter leaves 0 products, use all non-deleted products
-  if (matchingProducts.length === 0 && nonDeleted.length > 0) {
-    matchingProducts = nonDeleted;
-  }
-
-  // 2. Aggregate price stats (minPrice, maxPrice)
   let minPrice = Infinity;
   let maxPrice = -Infinity;
 
-  matchingProducts.forEach((p: any) => {
+  nonDeleted.forEach((p: any) => {
     const val = Number(p.sellPrice || p.price || 0);
     if (val > 0) {
       if (val < minPrice) minPrice = val;
@@ -519,9 +506,9 @@ export async function getOfflineCatalogueFilters(): Promise<CatalogueFiltersResp
   });
 
   const finalMinPrice = minPrice !== Infinity ? Math.floor(minPrice) : 0;
-  const finalMaxPrice = maxPrice !== -Infinity ? Math.ceil(maxPrice) : 40000;
+  const finalMaxPrice = maxPrice !== -Infinity ? Math.ceil(maxPrice) : 60125;
 
-  // 3. Two-stage MongoDB Aggregation Equivalent (Category -> Subcategories)
+  // 2. Build Category Map
   const catMap = new Map<string, {
     name: string;
     image: string;
@@ -529,8 +516,40 @@ export async function getOfflineCatalogueFilters(): Promise<CatalogueFiltersResp
     subcats: Map<string, { name: string; image: string; count: number }>;
   }>();
 
-  // Aggregate directly from matching products (Single Source of Truth)
-  matchingProducts.forEach((p: any) => {
+  // Primary Source: Load synced dbCategories FIRST to preserve full server-side hierarchy
+
+  if (Array.isArray(dbCategories) && dbCategories.length > 0) {
+    dbCategories.forEach((c: any) => {
+      const cName = extractStr(c.name || c.categoryName).toUpperCase();
+      if (!cName) return;
+
+      const cImage = c.image || c.imageUrl || c.categoryImage || '';
+      const subMap = new Map<string, { name: string; image: string; count: number }>();
+
+      if (Array.isArray(c.subcategories)) {
+        c.subcategories.forEach((s: any) => {
+          const sName = extractStr(typeof s === 'string' ? s : s.name || s.subcategoryName).toUpperCase();
+          if (sName) {
+            subMap.set(sName, {
+              name: sName,
+              image: (typeof s === 'object' ? s.image || s.imageUrl : '') || '',
+              count: typeof s === 'object' ? Number(s.count || 0) : 0,
+            });
+          }
+        });
+      }
+
+      catMap.set(cName, {
+        name: cName,
+        image: cImage,
+        totalCount: Number(c.totalCount || c.count || 0),
+        subcats: subMap,
+      });
+    });
+  }
+
+  // Secondary Source: Aggregate from products store to enrich images or when dbCategories is empty
+  nonDeleted.forEach((p: any) => {
     const catName = getProductCategory(p);
     if (!catName) return;
 
@@ -547,9 +566,10 @@ export async function getOfflineCatalogueFilters(): Promise<CatalogueFiltersResp
     }
 
     const catObj = catMap.get(catName)!;
-    catObj.totalCount += 1;
-    if (!catObj.image && img) {
-      catObj.image = img;
+    if (!catObj.image && img) catObj.image = img;
+
+    if (dbCategories.length === 0) {
+      catObj.totalCount += 1;
     }
 
     if (subName) {
@@ -557,54 +577,19 @@ export async function getOfflineCatalogueFilters(): Promise<CatalogueFiltersResp
         catObj.subcats.set(subName, {
           name: subName,
           image: img,
-          count: 0,
+          count: dbCategories.length === 0 ? 1 : 0,
         });
-      }
-      const subObj = catObj.subcats.get(subName)!;
-      subObj.count += 1;
-      if (!subObj.image && img) {
-        subObj.image = img;
+      } else {
+        const subObj = catObj.subcats.get(subName)!;
+        if (!subObj.image && img) subObj.image = img;
+        if (dbCategories.length === 0) {
+          subObj.count += 1;
+        }
       }
     }
   });
 
-  // Blend any categories/subcategories from synced dbCategories store
-  if (Array.isArray(dbCategories) && dbCategories.length > 0) {
-    dbCategories.forEach((c: any) => {
-      const cName = extractStr(c.name || c.categoryName).toUpperCase();
-      if (!cName) return;
-
-      const cImg = c.image || c.imageUrl || c.categoryImage || '';
-      if (!catMap.has(cName)) {
-        catMap.set(cName, {
-          name: cName,
-          image: cImg,
-          totalCount: Number(c.totalCount || c.count || 0),
-          subcats: new Map(),
-        });
-      }
-
-      const catObj = catMap.get(cName)!;
-      if (!catObj.image && cImg) catObj.image = cImg;
-
-      if (Array.isArray(c.subcategories)) {
-        c.subcategories.forEach((s: any) => {
-          const sName = extractStr(typeof s === 'string' ? s : s.name || s.subcategoryName).toUpperCase();
-          if (sName && !catObj.subcats.has(sName)) {
-            const sImg = (typeof s === 'object' ? s.image || s.imageUrl : '') || '';
-            const sCount = typeof s === 'object' ? Number(s.count || 0) : 0;
-            catObj.subcats.set(sName, {
-              name: sName,
-              image: sImg,
-              count: sCount,
-            });
-          }
-        });
-      }
-    });
-  }
-
-  // 4. Process Wishlist Priority Maps
+  // 3. Wishlist Priority Maps
   const wishlistedCatMap = new Map<string, number>();
   (wishlist?.categories || []).forEach((c: any, idx: number) => {
     if (c.name) wishlistedCatMap.set(String(c.name).toUpperCase(), c.order ?? idx);
@@ -617,10 +602,9 @@ export async function getOfflineCatalogueFilters(): Promise<CatalogueFiltersResp
     }
   });
 
-  // 5. Format & Sort Subcategories & Categories (matching backend sort logic)
+  // 4. Format Output matching exact Live API schema
   const formattedCategories: CategoryFilter[] = Array.from(catMap.values()).map((catObj) => {
-    const sortedSubcategories = Array.from(catObj.subcats.values())
-      .filter((s) => s.name);
+    const sortedSubcategories = Array.from(catObj.subcats.values());
 
     // Sort subcategories: Wishlisted FIRST (by order), then A-Z
     sortedSubcategories.sort((a, b) => {
