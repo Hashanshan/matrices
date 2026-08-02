@@ -12,6 +12,7 @@ function ViewPageContent() {
 
   return (
     <ViewClient
+      key={productId || 'view-client'}
       fallbackData={undefined}
       initialProductId={productId}
       initialCategory={category}

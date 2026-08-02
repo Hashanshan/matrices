@@ -58,6 +58,7 @@ export default function SingleViewPage({ fallbackData, initialProductId, initial
         </div>
       )}
       <FullscreenProductViewer
+        key={initialProductId || 'viewer'}
         products={products}
         initialProductId={initialProductId}
         totalCount={totalCount}

@@ -44,6 +44,20 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
     }
   };
 
+  const handleViewDetails = (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    const targetId = product.productId || product.id || (product as any).code || '';
+    const targetUrl = `/view?productId=${encodeURIComponent(targetId)}`;
+    if (typeof window !== 'undefined') {
+      window.location.href = targetUrl;
+    } else {
+      router.push(targetUrl);
+    }
+  };
+
   return (
     <>
       <motion.div
@@ -60,7 +74,7 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
           <div className="p-3 sm:p-4 pb-0 flex flex-col z-0">
             {/* Image Container */}
             <div
-              onClick={() => router.push(`/view?productId=${product.productId || product.id || product.code}`)}
+              onClick={handleViewDetails}
               className="relative aspect-[4/5] rounded-[1.5rem] overflow-hidden bg-[#eef1f6] flex items-center justify-center p-6 shadow-inner cursor-pointer z-0 border border-black/5"
             >
               <SmartImage
@@ -116,7 +130,7 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
               </div>
 
               <button
-                onClick={() => router.push(`/view?productId=${product.productId || product.id}`)}
+                onClick={handleViewDetails}
                 className="flex items-center gap-1 text-xs font-bold text-[#0f172a] hover:text-[#1e3a8a] transition-colors group/btn uppercase"
               >
                 View Details <span className="group-hover/btn:translate-x-1 transition-transform">→</span>
