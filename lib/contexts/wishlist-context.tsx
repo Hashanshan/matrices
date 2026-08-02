@@ -4,6 +4,7 @@ import React, { createContext, useContext, useCallback } from 'react';
 import useSWR from 'swr';
 import { CatalogueProduct } from '../hooks/use-products';
 import { resolveApiUrl, getAuthToken } from '../utils';
+import { offlineDB } from '../offline/indexed-db';
 
 export interface WishlistCategory {
   name: string;
@@ -63,24 +64,58 @@ const fetcher = async (url: string): Promise<WishlistResponse> => {
   if (!token) {
     return { success: true, wishlist: { categories: [], subcategories: [], products: [], fullProducts: [] } };
   }
-  const targetUrl = resolveApiUrl(url);
-  const res = await fetch(targetUrl, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
 
-  if (!res.ok) {
-    throw new Error('Failed to fetch wishlist');
+  // Offline → return synced wishlist from IndexedDB
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    try {
+      const items = await offlineDB.getAll<any>('wishlist');
+      const first = items[0];
+      if (first) {
+        const wishlist: WishlistData = {
+          categories: first.categories || [],
+          subcategories: first.subcategories || [],
+          products: first.products || [],
+          fullProducts: first.fullProducts || [],
+        };
+        return { success: true, wishlist };
+      }
+    } catch { /* ignore */ }
+    return { success: true, wishlist: { categories: [], subcategories: [], products: [], fullProducts: [] } };
   }
-  return res.json();
+
+  const targetUrl = resolveApiUrl(url);
+  try {
+    const res = await fetch(targetUrl, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('Failed to fetch wishlist');
+    return res.json();
+  } catch {
+    // Network error → fall back to IndexedDB
+    try {
+      const items = await offlineDB.getAll<any>('wishlist');
+      const first = items[0];
+      if (first) {
+        const wishlist: WishlistData = {
+          categories: first.categories || [],
+          subcategories: first.subcategories || [],
+          products: first.products || [],
+          fullProducts: first.fullProducts || [],
+        };
+        return { success: true, wishlist };
+      }
+    } catch { /* ignore */ }
+    return { success: true, wishlist: { categories: [], subcategories: [], products: [], fullProducts: [] } };
+  }
 };
 
 export function WishlistProvider({ children }: { children: React.ReactNode }) {
   const token = typeof window !== 'undefined' ? getAuthToken() : null;
   const { data, isLoading, mutate } = useSWR<WishlistResponse>(token ? '/api/wishlist' : null, fetcher, {
-    revalidateOnFocus: true,
+    revalidateOnFocus: false,
+    revalidateOnReconnect: true,
     dedupingInterval: 5000,
+    keepPreviousData: true,
   });
 
   const wishlistData: WishlistData = data?.wishlist || {

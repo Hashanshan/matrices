@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import Header from '@/components/header';
-import { Search, ChevronRight, ArrowLeft, Heart } from 'lucide-react';
+import { Search, ChevronRight, ArrowLeft, Heart, ShoppingCart } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -217,13 +217,22 @@ export default function CategoriesPage({ fallbackData }: { fallbackData?: any } 
                           <h3 className="text-xl font-extrabold text-[#0f172a] uppercase tracking-wide group-hover:text-[#1e3a8a] transition-colors drop-shadow-sm line-clamp-1 mb-2">
                             {cat.name}
                           </h3>
-                          <div className="flex items-center justify-between mt-auto pt-4 border-t border-black/5">
+                          <div className="flex items-center justify-between mt-auto pt-4 border-t border-black/5 gap-2">
                             <div>
                               <span className="text-[#0f172a] font-bold text-sm block uppercase">{cat.totalCount} PRODUCTS</span>
                               <span className="text-xs text-gray-500 font-medium uppercase">TOTAL AVAILABLE</span>
                             </div>
-                            <div className="flex items-center gap-1 text-sm font-bold text-[#0f172a] group-hover:text-[#1e3a8a] transition-colors bg-white/50 px-4 py-2 rounded-full">
-                              EXPLORE <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform" />
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); router.push(`/view?category=${encodeURIComponent(cat.name)}`); }}
+                                className="p-2.5 bg-[#0f172a] text-white rounded-full shadow-md hover:bg-[#1e293b] transition-all active:scale-90"
+                                title={`Shop ${cat.name} products`}
+                              >
+                                <ShoppingCart size={15} />
+                              </button>
+                              <div className="flex items-center gap-1 text-sm font-bold text-[#0f172a] group-hover:text-[#1e3a8a] transition-colors bg-white/50 px-4 py-2 rounded-full">
+                                EXPLORE <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform" />
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -293,13 +302,22 @@ export default function CategoriesPage({ fallbackData }: { fallbackData?: any } 
                             <h3 className="text-xl font-extrabold text-[#0f172a] uppercase tracking-wide group-hover:text-[#1e3a8a] transition-colors drop-shadow-sm line-clamp-1 mb-2">
                               {sub.name}
                             </h3>
-                            <div className="flex items-center justify-between mt-auto pt-4 border-t border-black/5">
+                            <div className="flex items-center justify-between mt-auto pt-4 border-t border-black/5 gap-2">
                               <div>
                                 <span className="text-[#0f172a] font-bold text-sm block uppercase">{sub.count} PRODUCTS</span>
                                 <span className="text-xs text-gray-500 font-medium uppercase">AVAILABLE</span>
                               </div>
-                              <div className="flex items-center gap-1 text-sm font-bold text-[#0f172a] group-hover:text-[#1e3a8a] transition-colors bg-white/50 px-4 py-2 rounded-full">
-                                VIEW GALLERY <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform" />
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); e.preventDefault(); router.push(`/view?category=${encodeURIComponent(selectedCategory || '')}&subcategory=${encodeURIComponent(sub.name)}`); }}
+                                  className="p-2.5 bg-[#0f172a] text-white rounded-full shadow-md hover:bg-[#1e293b] transition-all active:scale-90"
+                                  title={`Shop ${sub.name} products`}
+                                >
+                                  <ShoppingCart size={15} />
+                                </button>
+                                <div className="flex items-center gap-1 text-sm font-bold text-[#0f172a] group-hover:text-[#1e3a8a] transition-colors bg-white/50 px-4 py-2 rounded-full">
+                                  VIEW GALLERY <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform" />
+                                </div>
                               </div>
                             </div>
                           </div>

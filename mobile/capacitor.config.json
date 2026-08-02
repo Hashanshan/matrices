@@ -1,6 +1,6 @@
 {
   "appId": "com.matrices.catalogue",
-  "appName": "Matrices Product Catalogue",
+  "appName": "Matrices",
   "webDir": "out",
   "bundledWebRuntime": false,
   "server": {
