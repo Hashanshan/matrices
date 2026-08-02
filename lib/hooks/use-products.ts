@@ -149,15 +149,16 @@ async function getOfflineProducts(options: any = {}): Promise<ProductsResponse> 
     paginatedList = paginatedList.filter((p: any) => String(p.id || p.productId || p._id) !== pIdStr);
   }
 
-  // 3. Search & Scoring logic (matching backend aggregate)
+  // 3. Search & Scoring logic (matching backend aggregate 100%)
   let exactMatchFound = false;
   let searchScores = new Map<string, number>();
 
   if (search) {
     const cleanSearch = String(search).trim();
     const searchLower = cleanSearch.toLowerCase();
+    const cleanNum = searchLower.replace(/[^0-9]/g, '');
     const numMatch = cleanSearch.match(/\d+/);
-    const numberPart = numMatch ? numMatch[0] : null;
+    const numberPart = numMatch ? numMatch[0] : (cleanNum.length >= 3 ? cleanNum : null);
 
     // Find related categories and subcategories matching search terms
     const searchSubCategories = new Set<string>();
@@ -168,15 +169,18 @@ async function getOfflineProducts(options: any = {}): Promise<ProductsResponse> 
       const pProdId = String(p.productId || p.id || '').toLowerCase();
       const pCode = String(p.code || p.productCode || '').toLowerCase();
       const pDesc = String(p.description || '').toLowerCase();
+      const pProdNum = pProdId.replace(/[^0-9]/g, '');
 
-      const isMatch =
+      const isDirectMatch =
+        pProdId === searchLower ||
+        pProdId === `mtx-${searchLower}` ||
+        pCode === searchLower ||
+        pCode === `mtx-${searchLower}` ||
+        (numberPart && (pProdId.includes(numberPart) || pCode.includes(numberPart) || pProdNum === numberPart)) ||
         pName.includes(searchLower) ||
-        pProdId.includes(searchLower) ||
-        pCode.includes(searchLower) ||
-        pDesc.includes(searchLower) ||
-        (numberPart && (pProdId.includes(numberPart) || pCode.includes(numberPart)));
+        pDesc.includes(searchLower);
 
-      if (isMatch) {
+      if (isDirectMatch) {
         exactMatchFound = true;
         const pSub = (p.subcategoryName || p.subcategories || p.subcategory || p.subCategory || '').trim().toLowerCase();
         const pCat = (p.categoryName || p.categories || p.category || '').trim().toLowerCase();
@@ -185,7 +189,7 @@ async function getOfflineProducts(options: any = {}): Promise<ProductsResponse> 
       }
     }
 
-    // Compute search score per product
+    // Compute search score per product matching backend score branches
     for (const p of paginatedList) {
       const pKey = String(p.id || p.productId || p._id);
       const pName = String(p.name || '').toLowerCase();
@@ -194,11 +198,18 @@ async function getOfflineProducts(options: any = {}): Promise<ProductsResponse> 
       const pDesc = String(p.description || '').toLowerCase();
       const pSub = (p.subcategoryName || p.subcategories || p.subcategory || p.subCategory || '').trim().toLowerCase();
       const pCat = (p.categoryName || p.categories || p.category || '').trim().toLowerCase();
+      const pProdNum = pProdId.replace(/[^0-9]/g, '');
 
       let score = 0;
 
       // Exact match on productId or productCode (e.g. 10049 or MTX-10049)
-      const isExactProd = pProdId === searchLower || pProdId === `mtx-${searchLower}` || pCode === searchLower || pCode === `mtx-${searchLower}`;
+      const isExactProd =
+        pProdId === searchLower ||
+        pProdId === `mtx-${searchLower}` ||
+        pCode === searchLower ||
+        pCode === `mtx-${searchLower}` ||
+        (numberPart && pProdNum === numberPart);
+
       if (isExactProd) {
         score = Math.max(score, 100);
       } else if (pProdId.includes(searchLower) || pCode.includes(searchLower)) {
@@ -211,8 +222,8 @@ async function getOfflineProducts(options: any = {}): Promise<ProductsResponse> 
       if (pDesc.includes(searchLower)) score = Math.max(score, 5);
       if (pSub && searchSubCategories.has(pSub)) score = Math.max(score, 4);
       if (pCat && searchCategories.has(pCat)) score = Math.max(score, 3);
-      if (pSub.includes(searchLower)) score = Math.max(score, 2);
-      if (pCat.includes(searchLower)) score = Math.max(score, 1);
+      if (pSub && pSub.includes(searchLower)) score = Math.max(score, 2);
+      if (pCat && pCat.includes(searchLower)) score = Math.max(score, 1);
 
       if (score > 0) {
         searchScores.set(pKey, score);
@@ -669,8 +680,8 @@ export function useProducts(options: UseProductsOptions = {}) {
       const subVal = Array.isArray(subcategory) ? subcategory.join(',') : subcategory;
       if (subVal) params.set('subcategory', subVal);
     }
-    if (search) params.set('search', search);
-    if (productId && !search) params.set('productId', productId);
+    const effectiveSearch = search || productId;
+    if (effectiveSearch) params.set('search', effectiveSearch);
     if (prioritizeCategory) params.set('prioritizeCategory', prioritizeCategory);
     const currentLimit = pageIndex > 0 ? limit : (options.initialLimit || limit);
     params.set('limit', String(currentLimit));

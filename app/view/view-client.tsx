@@ -28,8 +28,7 @@ export default function SingleViewPage({ fallbackData, initialProductId, initial
     exactMatchFound,
   } = useProducts({
     sort: sortBy,
-    search: searchQuery,
-    productId: initialProductId,
+    search: searchQuery || initialProductId,
     category: initialCategory,
     subcategory: initialSubcategory,
     prioritizeCategory: initialCategory,
