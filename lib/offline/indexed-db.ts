@@ -228,6 +228,39 @@ class OfflineDB {
     const tx = db.transaction(stores, 'readwrite');
     stores.forEach((s) => tx.objectStore(s).clear());
   }
+
+  /** Put (insert or update) a single record without clearing the store */
+  async upsert<T>(storeName: string, item: T): Promise<void> {
+    const db = await this.getDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(storeName, 'readwrite');
+      tx.objectStore(storeName).put(item);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  /** Delete a single record by its key */
+  async deleteById(storeName: string, id: string | number): Promise<void> {
+    const db = await this.getDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(storeName, 'readwrite');
+      tx.objectStore(storeName).delete(id);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  /** Get a single record by its key */
+  async getOne<T>(storeName: string, id: string | number): Promise<T | null> {
+    const db = await this.getDB();
+    return new Promise((resolve) => {
+      const tx = db.transaction(storeName, 'readonly');
+      const request = tx.objectStore(storeName).get(id);
+      request.onsuccess = () => resolve((request.result as T) || null);
+      request.onerror = () => resolve(null);
+    });
+  }
 }
 
 export const offlineDB = new OfflineDB();

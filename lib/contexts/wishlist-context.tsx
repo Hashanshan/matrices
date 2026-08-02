@@ -375,48 +375,75 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
     const mode = getDataMode();
     const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
 
+    // ── Build the reordered state locally (shared by both paths) ─────────────
+    const reordered = { ...wishlistData };
+    if (type === 'category') {
+      reordered.categories = items.map((name, idx) => ({ name, order: idx + 1 }));
+    } else if (type === 'subcategory') {
+      reordered.subcategories = items.map((item, idx) => ({ category: item.category, name: item.name, order: idx + 1 }));
+    } else if (type === 'product') {
+      const reorderedFull: any[] = [];
+      items.forEach((id, idx) => {
+        const found = (reordered.fullProducts || []).find(
+          p => (p.wishlistId || p.product?.productId || p.product?.id) === id
+        );
+        if (found) reorderedFull.push({ ...found, order: idx + 1 });
+      });
+      reordered.fullProducts = reorderedFull;
+      reordered.products = reorderedFull.map((p, idx) => ({
+        productId: p.product?.productId || p.product?.id || '',
+        order: idx + 1,
+      }));
+    }
+
+    // ── Always write to IDB & update SWR optimistically (zero-latency UI) ────
+    await offlineDB.saveBatch('wishlist', [{ id: 'user_wishlist', ...reordered }]);
+    mutate({ success: true, wishlist: reordered }, { revalidate: false });
+
+    // ── Offline / no-network: queue for sync and return ───────────────────────
     if (mode === 'offline' || isOffline) {
-      // Offline mode: Reorder locally in IndexedDB
-      const current = { ...wishlistData };
-      if (type === 'category') {
-        current.categories = items.map((name, idx) => ({ name, order: idx + 1 }));
-      } else if (type === 'subcategory') {
-        current.subcategories = items.map((item, idx) => ({ category: item.category, name: item.name, order: idx + 1 }));
-      } else if (type === 'product') {
-        // Rearrange products & fullProducts matching items order
-        const reorderedFull: any[] = [];
-        items.forEach((id, idx) => {
-          const found = (current.fullProducts || []).find(p => (p.wishlistId || p.product?.productId || p.product?.id) === id);
-          if (found) reorderedFull.push({ ...found, order: idx + 1 });
-        });
-        current.fullProducts = reorderedFull;
-        current.products = reorderedFull.map((p, idx) => ({ productId: p.product?.productId || p.product?.id || '', order: idx + 1 }));
-      }
-      await offlineDB.saveBatch('wishlist', [{ id: 'user_wishlist', ...current }]);
-      mutate({ success: true, wishlist: current }, { revalidate: false });
+      await addToSyncQueue({
+        operation: 'UPDATE',
+        entity: 'Wishlist',
+        entityId: `reorder_${type}`,
+        endpoint: '/api/wishlist/reorder',
+        method: 'PUT',
+        payload: { type, items },
+        title: `Reorder ${type} Wishlist`,
+      });
       return;
     }
 
+    // ── Online mode: push to live API, mirror confirmed state back to IDB ────
     const token = getAuthToken();
     try {
-      mutate(async () => {
-        const targetUrl = resolveApiUrl('/api/wishlist/reorder');
-        const res = await fetch(targetUrl, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify({ type, items }),
-        });
-        const updated = await res.json();
-        if (updated?.success && updated?.wishlist) {
-          await offlineDB.saveBatch('wishlist', [{ id: 'user_wishlist', ...updated.wishlist }]);
-        }
-        return updated;
-      }, { revalidate: true });
+      const targetUrl = resolveApiUrl('/api/wishlist/reorder');
+      const res = await fetch(targetUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ type, items }),
+      });
+      const updated = await res.json();
+      if (updated?.success && updated?.wishlist) {
+        // Mirror confirmed server state back to IDB & SWR
+        await offlineDB.saveBatch('wishlist', [{ id: 'user_wishlist', ...updated.wishlist }]);
+        mutate(updated, { revalidate: false });
+      }
     } catch (err) {
-      console.error('Failed to reorder wishlist', err);
+      // Network dropped mid-session → queue reorder for next push
+      console.warn('Wishlist reorder API failed, queuing for sync:', err);
+      await addToSyncQueue({
+        operation: 'UPDATE',
+        entity: 'Wishlist',
+        entityId: `reorder_${type}`,
+        endpoint: '/api/wishlist/reorder',
+        method: 'PUT',
+        payload: { type, items },
+        title: `Reorder ${type} Wishlist`,
+      });
     }
   };
 

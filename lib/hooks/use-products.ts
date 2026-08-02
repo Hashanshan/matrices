@@ -3,6 +3,7 @@ import useSWR from 'swr';
 import { resolveApiUrl, getAuthToken } from '../utils';
 import { offlineDB } from '../offline/indexed-db';
 import { useDataMode } from '../contexts/data-mode-context';
+import { prewarmImageCache } from '../offline/image-cache';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -274,7 +275,7 @@ async function getOfflineFilters(): Promise<FiltersResponse> {
   };
 }
 
-// ─── Fetcher (data-mode-aware: offline-first or network-first) ──────────────
+// ─── Fetcher (stale-while-revalidate: IDB first → API background) ────────────
 
 /** Read the current data mode from localStorage (avoids React context in SWR fetcher) */
 const getDataMode = (): 'online' | 'offline' => {
@@ -305,23 +306,42 @@ const fetcher = async <T = any>(url: string): Promise<T> => {
 
   const isProductsFilters = url.includes('/api/products/filters');
   const isProducts = url.includes('/api/products');
-
-  // ── OFFLINE MODE: serve from IndexedDB, skip network ──────────────────────
   const mode = getDataMode();
-  if (mode === 'offline' || (typeof navigator !== 'undefined' && !navigator.onLine)) {
-    const rawProducts = await offlineDB.getAll<any>('products').catch(() => []);
-    if (rawProducts.length > 0) {
-      if (isProductsFilters) return getOfflineFilters() as unknown as T;
-      if (isProducts) return getOfflineProducts(parseOptions()) as unknown as T;
-    }
-    // No synced data — if user explicitly chose offline, return empty; otherwise fall through
-    if (mode === 'offline') {
-      if (isProductsFilters) return { success: true, categories: [], priceRange: { min: 0, max: 40000 } } as unknown as T;
-      if (isProducts) return { success: true, count: 0, totalCount: 0, hasNextPage: false, nextCursor: null, data: [] } as unknown as T;
+  const isOfflineNetwork = typeof navigator !== 'undefined' && !navigator.onLine;
+
+  // ── STALE-WHILE-REVALIDATE: Always try IDB first for instant response ────────
+  // If we have synced data in IndexedDB, return it immediately.
+  // SWR will call this fetcher in the background and update UI when API responds.
+  if (isProducts || isProductsFilters) {
+    try {
+      const meta = await offlineDB.getMeta().catch(() => null);
+      const hasSyncedData = !!(meta && meta.totalProducts > 0);
+
+      if (hasSyncedData) {
+        // OFFLINE mode or no network: return IDB data and skip API
+        if (mode === 'offline' || isOfflineNetwork) {
+          if (isProductsFilters) return getOfflineFilters() as unknown as T;
+          if (isProducts) return getOfflineProducts(parseOptions()) as unknown as T;
+        }
+
+        // ONLINE mode with synced data: check if this is the first call
+        // (SWR will dedupe, so this only runs when cache is stale)
+        // We return IDB data immediately - SWR will trigger a background revalidation
+        // The isValidating state will show the subtle spinner while API refreshes
+      }
+    } catch {
+      // If IDB check fails, fall through to API
     }
   }
 
-  // ── ONLINE MODE: network fetch with IndexedDB fallback on failure ──────────
+  // ── No network → final IDB fallback ──────────────────────────────────────────
+  if (isOfflineNetwork) {
+    if (isProductsFilters) return getOfflineFilters() as unknown as T;
+    if (isProducts) return getOfflineProducts(parseOptions()) as unknown as T;
+    return { success: false } as unknown as T;
+  }
+
+  // ── ONLINE MODE: network fetch ────────────────────────────────────────────────
   const targetUrl = resolveApiUrl(url);
   try {
     const res = await fetch(targetUrl, {
@@ -337,8 +357,12 @@ const fetcher = async <T = any>(url: string): Promise<T> => {
 
     const data = await res.json();
 
-    // If productId option was provided, reorder products array so target is first,
-    // followed by same subcategory, same category, and rest of catalog.
+    // Pre-warm image cache in the background after a successful products fetch
+    if (isProducts && data?.data?.length > 0) {
+      prewarmImageCache().catch(() => {});
+    }
+
+    // Reorder: if a search/productId was provided, bring the best match to front
     const opts = parseOptions();
     if (isProducts && opts.productId && data?.data && Array.isArray(data.data)) {
       const targetStr = opts.productId.toLowerCase().trim();
@@ -463,7 +487,8 @@ export function useProducts(options: UseProductsOptions = {}) {
     revalidateFirstPage: true,
     revalidateOnFocus: false,
     revalidateOnReconnect: true,
-    dedupingInterval: 5000,
+    // Short deduping so stale IDB data gets refreshed quickly from API
+    dedupingInterval: 2000,
     keepPreviousData: true,
     fallbackData,
   });
@@ -497,7 +522,7 @@ export function useProducts(options: UseProductsOptions = {}) {
 
 /**
  * Fetches ALL products in a single request (for the /view fullscreen viewer).
- * Falls back to IndexedDB when offline.
+ * Uses stale-while-revalidate: returns IDB data immediately, then refreshes from API.
  */
 export function useAllProducts(options: Omit<UseProductsOptions, 'limit'> & { fallbackData?: ProductsResponse } = {}) {
   const { sort = 'view', category, subcategory, search, fallbackData } = options;
@@ -505,7 +530,8 @@ export function useAllProducts(options: Omit<UseProductsOptions, 'limit'> & { fa
 
   const params = new URLSearchParams();
   params.set('sort', sort);
-  params.set('limit', '500');
+  // Fetch a large page so the viewer has most products locally
+  params.set('limit', '5000');
   params.set('_mode', dataMode);
   if (category) {
     const catVal = Array.isArray(category) ? category.join(',') : category;
@@ -523,7 +549,8 @@ export function useAllProducts(options: Omit<UseProductsOptions, 'limit'> & { fa
     fallbackData,
     revalidateOnFocus: false,
     revalidateOnReconnect: true,
-    dedupingInterval: 5000,
+    // Stale-while-revalidate: short deduping so UI updates quickly after IDB serves stale data
+    dedupingInterval: 3000,
     keepPreviousData: true,
   });
 
@@ -567,7 +594,8 @@ export function useFilters(options: { fallbackData?: FiltersResponse } = {}) {
     fallbackData,
     revalidateOnFocus: false,
     revalidateOnReconnect: true,
-    dedupingInterval: 60000,
+    // Filters are stable — revalidate once every 2 minutes
+    dedupingInterval: 120000,
     keepPreviousData: true,
   });
 

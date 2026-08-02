@@ -2,7 +2,8 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { offlineDB, SyncMetadata } from '../offline/indexed-db';
-import { cacheProductImages, clearMatricesFolder } from '../offline/image-cache';
+import { cacheProductImages, clearMatricesFolder, prewarmImageCache, invalidateImageMemoryMap } from '../offline/image-cache';
+import { invalidateProductIndex } from '../offline/offline-search';
 import { NativeAdapter } from '../../mobile/bridge/native-adapter';
 import { resolveApiUrl, getAuthToken } from '../utils';
 import SyncProgressModal from '@/components/sync-progress-modal';
@@ -432,24 +433,12 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       await offlineDB.saveBatch('orders', formattedOrders);
       await offlineDB.saveBatch('wishlist', formattedWishlist);
 
-      setProgress(88);
-      setSyncStatusText('Downloading & storing images locally for offline use...');
+      setProgress(90);
+      setSyncStatusText('Finalizing sync & building local index...');
 
-      const imageUrls: string[] = [
-        ...formattedProducts.map((p: { imageUrl?: string }) => p.imageUrl),
-        ...formattedCategories.map((c: { image?: string }) => c.image),
-        ...formattedSubcategories.map((s: { image?: string }) => s.image),
-      ].filter((url): url is string => Boolean(url && typeof url === 'string'));
-
-      let imageStats = { totalDownloaded: 0, totalSizeBytes: 0 };
-      if (imageUrls.length > 0) {
-        imageStats = await cacheProductImages(imageUrls, (done, total) => {
-          const pct = Math.floor(88 + (done / (total || 1)) * 10);
-          setProgress(Math.min(pct, 99));
-        });
-      }
-
-      const imageStorageMB = Number((imageStats.totalSizeBytes / (1024 * 1024)).toFixed(2));
+      // Invalidate all in-memory caches so fresh data is served on next query
+      invalidateImageMemoryMap();
+      invalidateProductIndex();
 
       const newMeta: SyncMetadata = {
         lastSyncedAt: new Date().toISOString(),
@@ -458,19 +447,42 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         totalSubcategories: formattedSubcategories.length,
         totalShops: formattedShops.length,
         totalOrders: formattedOrders.length,
-        totalImages: imageStats.totalDownloaded,
-        imageStorageMB: imageStorageMB,
+        totalImages: 0,
+        imageStorageMB: 0,
       };
 
       await offlineDB.setMeta(newMeta);
       setMeta(newMeta);
       setLastSyncedAt(newMeta.lastSyncedAt);
 
-      localStorage.setItem('matrices_data_mode', 'offline');
+      setProgress(100);
+      setSyncStatusText('Sync Complete! Images will cache as you browse.');
+
+      // Stay in online mode (stale-while-revalidate serves IDB instantly)
+      // Don't force switch to offline — let user keep their current mode preference
       window.dispatchEvent(new Event('matrices-data-mode-change'));
 
-      setProgress(100);
-      setSyncStatusText('Sync Complete!');
+      // Pre-warm image cache in background (non-blocking) for the most-viewed images
+      const priorityImageUrls: string[] = [
+        ...formattedCategories.map((c: { image?: string }) => c.image),
+        ...formattedSubcategories.map((s: { image?: string }) => s.image),
+        ...formattedProducts.slice(0, 200).map((p: { imageUrl?: string }) => p.imageUrl),
+      ].filter((url): url is string => Boolean(url && typeof url === 'string'));
+
+      // Kick off background image caching without blocking the UI
+      Promise.resolve().then(async () => {
+        try {
+          await cacheProductImages(priorityImageUrls, (done, total) => {
+            // Silent background caching — no progress bar update
+            if (done === total) {
+              prewarmImageCache().catch(() => {});
+            }
+          });
+        } catch {
+          // Ignore image caching errors
+        }
+      });
+
       return true;
     } catch (err: any) {
       console.error('Error during data sync:', err);

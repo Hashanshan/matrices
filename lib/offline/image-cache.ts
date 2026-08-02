@@ -2,12 +2,60 @@
  * Offline Image Storage Engine
  * Downloads product & category images directly into native local file storage (Capacitor Filesystem in APK)
  * or Base64 / Blob in IndexedDB (Web), eliminating reliance on volatile HTTP cache.
+ *
+ * KEY IMPROVEMENT: Builds an in-memory Map<url, localSrc> on first access so all subsequent
+ * getCachedImageUrl() calls are O(1) synchronous lookups instead of async IndexedDB queries.
  */
 
 import { offlineDB, ImageMapRecord } from './indexed-db';
 import { resolveApiUrl, getAuthToken } from '../utils';
 
 const IMAGE_CACHE_NAME = 'matrices-product-images-v1';
+
+// ── In-memory image URL map (populated once on first access) ─────────────────
+let imageMemoryMap: Map<string, string> | null = null;
+let imageMemoryMapLoading = false;
+let imageMemoryMapCallbacks: Array<() => void> = [];
+
+/** Load all image_map records from IndexedDB into memory (called once) */
+async function ensureImageMemoryMap(): Promise<Map<string, string>> {
+  if (imageMemoryMap) return imageMemoryMap;
+
+  if (imageMemoryMapLoading) {
+    // Wait for the in-progress load
+    return new Promise((resolve) => {
+      imageMemoryMapCallbacks.push(() => resolve(imageMemoryMap!));
+    });
+  }
+
+  imageMemoryMapLoading = true;
+  try {
+    const records = await offlineDB.getAllImageMaps().catch(() => [] as ImageMapRecord[]);
+    imageMemoryMap = new Map(records.map((r) => [r.url, r.localSrc]));
+  } catch {
+    imageMemoryMap = new Map();
+  } finally {
+    imageMemoryMapLoading = false;
+    imageMemoryMapCallbacks.forEach((cb) => cb());
+    imageMemoryMapCallbacks = [];
+  }
+
+  return imageMemoryMap;
+}
+
+/** Invalidate the in-memory map so it gets rebuilt on next access */
+export function invalidateImageMemoryMap(): void {
+  imageMemoryMap = null;
+}
+
+/** Add/update a single entry in the in-memory map without rebuilding */
+function updateImageMemoryMap(url: string, localSrc: string): void {
+  if (imageMemoryMap) {
+    imageMemoryMap.set(url, localSrc);
+  }
+}
+
+// ── Capacitor / Native helpers ────────────────────────────────────────────────
 
 async function loadCapacitorFilesystem(): Promise<any> {
   try {
@@ -23,6 +71,17 @@ function getCapacitorCore(): any {
   return (window as any).Capacitor;
 }
 
+/** Returns true if the URL is already a local/native URI that doesn't need a lookup */
+function isLocalUri(url: string): boolean {
+  return (
+    url.startsWith('data:') ||
+    url.startsWith('blob:') ||
+    url.startsWith('capacitor://') ||
+    url.startsWith('file://') ||
+    url.startsWith('http://localhost')
+  );
+}
+
 // Simple hash generator for filenames
 function hashUrl(url: string): string {
   let hash = 0;
@@ -35,7 +94,7 @@ function hashUrl(url: string): string {
   return `img_${Math.abs(hash)}.${cleanExt}`;
 }
 
-// Convert Blob to Base64 String with full uncompressed binary preservation
+// Convert Blob to Base64 String
 function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -49,13 +108,12 @@ function blobToBase64(blob: Blob): Promise<string> {
  * Downloads a single high-resolution image directly from bucket/server and stores it natively/locally
  */
 export async function downloadAndSaveImage(url: string): Promise<string | null> {
-  if (!url || url.startsWith('data:')) return url;
+  if (!url || isLocalUri(url)) return url;
 
-  // Check if full image is already saved in LocalDB
-  const existingMap = await offlineDB.getImageMap(url);
-  if (existingMap?.localSrc) {
-    return existingMap.localSrc;
-  }
+  // Check in-memory map first (O(1))
+  const map = await ensureImageMemoryMap();
+  const cached = map.get(url);
+  if (cached) return cached;
 
   const cap = getCapacitorCore();
   const isNative = cap?.isNativePlatform?.() ?? false;
@@ -65,7 +123,6 @@ export async function downloadAndSaveImage(url: string): Promise<string | null> 
     const token = getAuthToken();
     const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
 
-    // Fetch full resolution raw blob directly from bucket / server without compression
     const response = await fetch(targetFetchUrl, { headers, mode: 'cors', cache: 'no-cache' });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
@@ -78,7 +135,6 @@ export async function downloadAndSaveImage(url: string): Promise<string | null> 
         const base64Data = await blobToBase64(blob);
         const fileName = hashUrl(url);
 
-        // Write directly into public 'Matrices' folder accessible via Files/Gallery
         const writeResult = await fsModule.Filesystem.writeFile({
           path: `Matrices/${fileName}`,
           data: base64Data,
@@ -96,6 +152,7 @@ export async function downloadAndSaveImage(url: string): Promise<string | null> 
         };
 
         await offlineDB.saveImageMap(record);
+        updateImageMemoryMap(url, nativeUri);
         return nativeUri;
       }
     }
@@ -110,6 +167,7 @@ export async function downloadAndSaveImage(url: string): Promise<string | null> 
     };
 
     await offlineDB.saveImageMap(record);
+    updateImageMemoryMap(url, base64Data);
 
     // Also populate CacheStorage as additional HTTP fallback
     if ('caches' in window) {
@@ -141,21 +199,27 @@ export async function cacheProductImages(
   let done = 0;
   let totalSizeBytes = 0;
 
-  for (let i = 0; i < uniqueUrls.length; i += 4) {
-    const chunk = uniqueUrls.slice(i, i + 4);
+  // Pre-load map so per-image checks are synchronous
+  const map = await ensureImageMemoryMap();
+
+  // Filter out already-cached URLs
+  const uncachedUrls = uniqueUrls.filter((url) => !map.has(url) && !isLocalUri(url));
+
+  for (let i = 0; i < uncachedUrls.length; i += 6) {
+    const chunk = uncachedUrls.slice(i, i + 6);
     await Promise.all(
       chunk.map(async (url) => {
         try {
           const res = await downloadAndSaveImage(url);
           if (res) {
-            const map = await offlineDB.getImageMap(url);
-            if (map?.sizeBytes) totalSizeBytes += map.sizeBytes;
+            const record = await offlineDB.getImageMap(url);
+            if (record?.sizeBytes) totalSizeBytes += record.sizeBytes;
           }
         } catch (e) {
           console.warn(`Error processing image ${url}`, e);
         } finally {
           done++;
-          onProgress?.(done, uniqueUrls.length);
+          onProgress?.(done, uncachedUrls.length);
         }
       })
     );
@@ -172,18 +236,20 @@ export async function cacheProductImages(
 }
 
 /**
- * Retrieves the local offline image source for a given remote URL
+ * Retrieves the local offline image source for a given remote URL.
+ * Uses in-memory map for instant synchronous-like lookup.
  */
 export async function getCachedImageUrl(url: string): Promise<string> {
   if (typeof window === 'undefined' || !url) return url;
-  if (url.startsWith('data:') || url.startsWith('blob:') || url.startsWith('http://localhost')) return url;
+  if (isLocalUri(url)) return url;
 
   try {
-    const mapRecord = await offlineDB.getImageMap(url);
-    if (mapRecord?.localSrc) {
-      return mapRecord.localSrc;
-    }
+    // Try in-memory map first (fast path)
+    const map = await ensureImageMemoryMap();
+    const cached = map.get(url);
+    if (cached) return cached;
 
+    // CacheStorage fallback
     if ('caches' in window) {
       const cache = await caches.open(IMAGE_CACHE_NAME);
       const match = await cache.match(url);
@@ -197,6 +263,24 @@ export async function getCachedImageUrl(url: string): Promise<string> {
   }
 
   return url;
+}
+
+/**
+ * Synchronous version — returns cached URL immediately if already in memory map, else null.
+ * Use this when you need zero-latency image resolution (e.g. list renders).
+ */
+export function getCachedImageUrlSync(url: string): string | null {
+  if (!url || isLocalUri(url)) return url;
+  if (!imageMemoryMap) return null; // Map not loaded yet
+  return imageMemoryMap.get(url) || null;
+}
+
+/**
+ * Pre-warm the image memory map — call this once after sync or on app start.
+ * After this resolves, all getCachedImageUrlSync() calls are instant.
+ */
+export async function prewarmImageCache(): Promise<void> {
+  await ensureImageMemoryMap();
 }
 
 export interface StorageStats {
@@ -271,4 +355,6 @@ export async function clearMatricesFolder(): Promise<void> {
       console.warn('Error clearing Matrices folder:', e);
     }
   }
+  // Also invalidate in-memory map
+  invalidateImageMemoryMap();
 }

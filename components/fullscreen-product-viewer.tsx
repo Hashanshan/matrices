@@ -12,7 +12,7 @@ import QuickAddModal from './quick-add-modal';
 import Link from 'next/link';
 import RelatedProducts from './related-products';
 import { Menu, Home, Grid, BookOpen } from 'lucide-react';
-import { getCachedImageUrl } from '@/lib/offline/image-cache';
+import { getCachedImageUrl, getCachedImageUrlSync } from '@/lib/offline/image-cache';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 
@@ -98,8 +98,8 @@ export default function FullscreenProductViewer({
     if (targetIdx < 0) return raw;
 
     const targetProd = raw[targetIdx];
-    const targetCat = String(targetProd.categories || targetProd.categoryName || targetProd.category || '').trim().toLowerCase();
-    const targetSub = String(targetProd.subcategories || targetProd.subcategoryName || targetProd.subcategory || '').trim().toLowerCase();
+    const targetCat = String(targetProd.categories || targetProd.category || '').trim().toLowerCase();
+    const targetSub = String(targetProd.subcategories || targetProd.subcategory || '').trim().toLowerCase();
 
     const subMatches: Product[] = [];
     const catMatches: Product[] = [];
@@ -108,8 +108,8 @@ export default function FullscreenProductViewer({
     for (let i = 0; i < raw.length; i++) {
       if (i === targetIdx) continue;
       const p = raw[i];
-      const pCat = String(p.categories || p.categoryName || p.category || '').trim().toLowerCase();
-      const pSub = String(p.subcategories || p.subcategoryName || p.subcategory || '').trim().toLowerCase();
+      const pCat = String(p.categories || p.category || '').trim().toLowerCase();
+      const pSub = String(p.subcategories || p.subcategory || '').trim().toLowerCase();
 
       if (targetSub && pSub === targetSub) {
         subMatches.push(p);
@@ -130,20 +130,35 @@ export default function FullscreenProductViewer({
     setCurrentIndex(0);
   }, [viewerSearchQuery, initialProductId]);
 
-  // Resolve offline image URL for current product
+  // Resolve offline image URL for current product — sync first for instant render
   useEffect(() => {
     const rawUrl = currentProduct?.image || '';
-    if (rawUrl) {
-      if (rawUrl.startsWith('data:') || rawUrl.startsWith('blob:')) {
-        setDisplayImg(rawUrl);
-      } else {
-        getCachedImageUrl(rawUrl).then((resolved) => {
-          setDisplayImg(resolved || rawUrl);
-        }).catch(() => setDisplayImg(rawUrl));
-      }
-    } else {
+    if (!rawUrl) {
       setDisplayImg('');
+      return;
     }
+
+    // Try synchronous in-memory map first (zero latency)
+    const synced = getCachedImageUrlSync(rawUrl);
+    if (synced) {
+      setDisplayImg(synced);
+      return;
+    }
+
+    // Set raw URL immediately so image starts loading
+    setDisplayImg(rawUrl);
+
+    // Then async-resolve in background (updates if a cached version exists)
+    let cancelled = false;
+    getCachedImageUrl(rawUrl)
+      .then((resolved) => {
+        if (!cancelled && resolved !== rawUrl) {
+          setDisplayImg(resolved);
+        }
+      })
+      .catch(() => {});
+
+    return () => { cancelled = true; };
   }, [currentProduct?.image, currentProduct?.id]);
 
   // Load more when reaching the last few slides
