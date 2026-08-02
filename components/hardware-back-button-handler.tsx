@@ -79,7 +79,7 @@ export default function HardwareBackButtonHandler() {
         .then((l: any) => {
           capacitorListener = l;
         })
-        .catch(() => {});
+        .catch(() => { });
     }
 
     // ── 3. Browser PopState Listener ──────────────────────────────────────────

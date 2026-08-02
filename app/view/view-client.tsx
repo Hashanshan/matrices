@@ -33,7 +33,7 @@ export default function SingleViewPage({ fallbackData, initialProductId, initial
     category: initialCategory,
     subcategory: initialSubcategory,
     prioritizeCategory: initialCategory,
-    fallbackData: fallbackData ? [fallbackData] : undefined,
+    fallbackData: Array.isArray(fallbackData) && fallbackData.length > 0 ? fallbackData : undefined,
     initialLimit: 20,
     limit: 10,
   });

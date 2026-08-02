@@ -12,7 +12,7 @@ function ViewPageContent() {
 
   return (
     <ViewClient
-      fallbackData={[]}
+      fallbackData={undefined}
       initialProductId={productId}
       initialCategory={category}
       initialSubcategory={subcategory}

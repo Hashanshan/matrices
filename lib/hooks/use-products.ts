@@ -309,28 +309,11 @@ const fetcher = async <T = any>(url: string): Promise<T> => {
   const mode = getDataMode();
   const isOfflineNetwork = typeof navigator !== 'undefined' && !navigator.onLine;
 
-  // ── STALE-WHILE-REVALIDATE: Always try IDB first for instant response ────────
-  // If we have synced data in IndexedDB, return it immediately.
-  // SWR will call this fetcher in the background and update UI when API responds.
+  // ── OFFLINE MODE / NO NETWORK: Always return IDB data directly ──────────────
   if (isProducts || isProductsFilters) {
-    try {
-      const meta = await offlineDB.getMeta().catch(() => null);
-      const hasSyncedData = !!(meta && meta.totalProducts > 0);
-
-      if (hasSyncedData) {
-        // OFFLINE mode or no network: return IDB data and skip API
-        if (mode === 'offline' || isOfflineNetwork) {
-          if (isProductsFilters) return getOfflineFilters() as unknown as T;
-          if (isProducts) return getOfflineProducts(parseOptions()) as unknown as T;
-        }
-
-        // ONLINE mode with synced data: check if this is the first call
-        // (SWR will dedupe, so this only runs when cache is stale)
-        // We return IDB data immediately - SWR will trigger a background revalidation
-        // The isValidating state will show the subtle spinner while API refreshes
-      }
-    } catch {
-      // If IDB check fails, fall through to API
+    if (mode === 'offline' || isOfflineNetwork) {
+      if (isProductsFilters) return getOfflineFilters() as unknown as T;
+      if (isProducts) return getOfflineProducts(parseOptions()) as unknown as T;
     }
   }
 
@@ -416,12 +399,9 @@ const fetcher = async <T = any>(url: string): Promise<T> => {
 
     return data;
   } catch (err) {
-    // Network error fallback → try IndexedDB
-    const meta = await offlineDB.getMeta().catch(() => null);
-    if (meta && meta.totalProducts > 0) {
-      if (isProductsFilters) return getOfflineFilters() as unknown as T;
-      if (isProducts) return getOfflineProducts(parseOptions()) as unknown as T;
-    }
+    // Network error fallback → return IndexedDB offline data
+    if (isProductsFilters) return getOfflineFilters() as unknown as T;
+    if (isProducts) return getOfflineProducts(parseOptions()) as unknown as T;
     throw err;
   }
 };
