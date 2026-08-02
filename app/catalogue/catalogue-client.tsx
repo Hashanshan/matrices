@@ -222,17 +222,8 @@ export default function CategoriesPage({ fallbackData }: { fallbackData?: any } 
                               <span className="text-[#0f172a] font-bold text-sm block uppercase">{cat.totalCount} PRODUCTS</span>
                               <span className="text-xs text-gray-500 font-medium uppercase">TOTAL AVAILABLE</span>
                             </div>
-                            <div className="flex items-center gap-2">
-                              {/* <button
-                                onClick={(e) => { e.stopPropagation(); router.push(`/view?category=${encodeURIComponent(cat.name)}`); }}
-                                className="p-2.5 bg-[#0f172a] text-white rounded-full shadow-md hover:bg-[#1e293b] transition-all active:scale-90"
-                                title={`Shop ${cat.name} products`}
-                              >
-                                <ShoppingCart size={15} />
-                              </button> */}
-                              <div className="flex items-center gap-1 text-sm font-bold text-[#0f172a] group-hover:text-[#1e3a8a] transition-colors bg-white/50 px-4 py-2 rounded-full">
-                                EXPLORE <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform" />
-                              </div>
+                            <div className="flex items-center gap-1 text-sm font-bold text-[#0f172a] group-hover:text-[#1e3a8a] transition-colors bg-white/50 px-4 py-2 rounded-full">
+                              EXPLORE <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform" />
                             </div>
                           </div>
                         </div>
@@ -262,66 +253,58 @@ export default function CategoriesPage({ fallbackData }: { fallbackData?: any } 
                       whileHover={{ y: -5 }}
                       className="relative group"
                     >
-                      <div className="relative rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.1)] transition-all duration-300 flex flex-col bg-white/20 backdrop-blur-2xl overflow-hidden border border-white/60 h-full cursor-pointer">
+                      <div
+                        onClick={() => router.push(`/view?category=${encodeURIComponent(selectedCategory || '')}&subcategory=${encodeURIComponent(sub.name)}`)}
+                        className="relative rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.1)] transition-all duration-300 flex flex-col bg-white/20 backdrop-blur-2xl overflow-hidden border border-white/60 h-full cursor-pointer"
+                      >
                         <div className="p-3 sm:p-4 pb-0 flex flex-col z-0">
-                          <Link href={`/gallery?category=${encodeURIComponent(selectedCategory || '')}&subcategory=${encodeURIComponent(sub.name)}`}>
-                            <div className="aspect-[3/4] rounded-[1.5rem] overflow-hidden bg-[#eef1f6] flex items-center justify-center p-6 shadow-inner border border-black/5 relative">
-                              {sub.image ? (
-                                <img
-                                  src={sub.image}
-                                  alt={sub.name}
-                                  className="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform duration-700 ease-out mix-blend-multiply drop-shadow-xl"
-                                />
-                              ) : (
-                                <div className="text-gray-400 font-semibold uppercase">NO IMAGE</div>
-                              )}
+                          <div className="aspect-[3/4] rounded-[1.5rem] overflow-hidden bg-[#eef1f6] flex items-center justify-center p-6 shadow-inner border border-black/5 relative">
+                            {sub.image ? (
+                              <img
+                                src={sub.image}
+                                alt={sub.name}
+                                className="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform duration-700 ease-out mix-blend-multiply drop-shadow-xl"
+                              />
+                            ) : (
+                              <div className="text-gray-400 font-semibold uppercase">NO IMAGE</div>
+                            )}
 
-                              {/* Wishlist Toggle Button on Subcategory Card */}
-                              <button
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  if (selectedCategory) {
-                                    toggleSubcategoryWishlist(selectedCategory, sub.name);
-                                  }
-                                }}
-                                className="absolute top-3 right-3 w-10 h-10 bg-white/80 backdrop-blur-xl border border-white/60 rounded-full shadow-lg flex items-center justify-center text-gray-700 hover:text-red-500 hover:bg-white transition-all z-20"
-                                title={isWishlisted ? "Remove Subcategory from Wishlist" : "Add Subcategory to Wishlist"}
-                              >
-                                <Heart
-                                  size={18}
-                                  fill={isWishlisted ? "#ef4444" : "none"}
-                                  className={isWishlisted ? "text-red-500" : "text-gray-600"}
-                                />
-                              </button>
-                            </div>
-                          </Link>
+                            {/* Wishlist Toggle Button on Subcategory Card */}
+                            <button
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                if (selectedCategory) {
+                                  toggleSubcategoryWishlist(selectedCategory, sub.name);
+                                }
+                              }}
+                              className="absolute top-3 right-3 w-10 h-10 bg-white/80 backdrop-blur-xl border border-white/60 rounded-full shadow-lg flex items-center justify-center text-gray-700 hover:text-red-500 hover:bg-white transition-all z-20"
+                              title={isWishlisted ? "Remove Subcategory from Wishlist" : "Add Subcategory to Wishlist"}
+                            >
+                              <Heart
+                                size={18}
+                                fill={isWishlisted ? "#ef4444" : "none"}
+                                className={isWishlisted ? "text-red-500" : "text-gray-600"}
+                              />
+                            </button>
+                          </div>
                         </div>
-                        <Link href={`/gallery?category=${encodeURIComponent(selectedCategory || '')}&subcategory=${encodeURIComponent(sub.name)}`} className="flex-1 flex flex-col">
-                          <div className="rounded-[2rem] relative mx-3 mt-2 mb-3 p-4 sm:p-5 bg-gradient-to-br from-white/60 to-white/30 backdrop-blur-3xl border border-white/60 shadow-[0_8px_64px_rgba(0,0,0,0.1)] flex flex-col flex-1 z-10">
-                            <h3 className="text-xl font-extrabold text-[#0f172a] uppercase tracking-wide group-hover:text-[#1e3a8a] transition-colors drop-shadow-sm line-clamp-1 mb-2">
-                              {sub.name}
-                            </h3>
-                            <div className="flex items-center justify-between mt-auto pt-4 border-t border-black/5 gap-2">
-                              <div>
-                                <span className="text-[#0f172a] font-bold text-sm block uppercase">{sub.count} PRODUCTS</span>
-                                <span className="text-xs text-gray-500 font-medium uppercase">AVAILABLE</span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                {/* <button
-                                  onClick={(e) => { e.stopPropagation(); e.preventDefault(); router.push(`/view?category=${encodeURIComponent(selectedCategory || '')}&subcategory=${encodeURIComponent(sub.name)}`); }}
-                                  className="p-2.5 bg-[#0f172a] text-white rounded-full shadow-md hover:bg-[#1e293b] transition-all active:scale-90"
-                                  title={`Shop ${sub.name} products`}
-                                >
-                                  <ShoppingCart size={15} />
-                                </button> */}
-                                <div className="flex items-center gap-1 text-sm font-bold text-[#0f172a] group-hover:text-[#1e3a8a] transition-colors bg-white/50 px-4 py-2 rounded-full">
-                                  VIEW GALLERY <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform" />
-                                </div>
+                        <div className="rounded-[2rem] relative mx-3 mt-2 mb-3 p-4 sm:p-5 bg-gradient-to-br from-white/60 to-white/30 backdrop-blur-3xl border border-white/60 shadow-[0_8px_64px_rgba(0,0,0,0.1)] flex flex-col flex-1 z-10">
+                          <h3 className="text-xl font-extrabold text-[#0f172a] uppercase tracking-wide group-hover:text-[#1e3a8a] transition-colors drop-shadow-sm line-clamp-1 mb-2">
+                            {sub.name}
+                          </h3>
+                          <div className="flex items-center justify-between mt-auto pt-4 border-t border-black/5 gap-2">
+                            <div>
+                              <span className="text-[#0f172a] font-bold text-sm block uppercase">{sub.count} PRODUCTS</span>
+                              <span className="text-xs text-gray-500 font-medium uppercase">AVAILABLE</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-1 text-sm font-bold text-[#0f172a] group-hover:text-[#1e3a8a] transition-colors bg-white/50 px-4 py-2 rounded-full">
+                                VIEW PRODUCTS <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform" />
                               </div>
                             </div>
                           </div>
-                        </Link>
+                        </div>
                       </div>
                     </motion.div>
                   );

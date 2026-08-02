@@ -78,6 +78,10 @@ class OfflineDB {
         if (!db.objectStoreNames.contains('image_map')) {
           db.createObjectStore('image_map', { keyPath: 'url' });
         }
+        // Pending Actions store for offline changes sync
+        if (!db.objectStoreNames.contains('pending_actions')) {
+          db.createObjectStore('pending_actions', { keyPath: 'id' });
+        }
       };
 
       request.onsuccess = () => resolve(request.result);

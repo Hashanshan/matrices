@@ -7,19 +7,33 @@ import { useAuth } from '@/lib/contexts/auth-context';
 import PinModal from '@/components/pin-modal';
 import ProductCard from '@/components/product-card';
 import { motion } from 'framer-motion';
-import { Heart, ArrowUp, ArrowDown, Trash2, Folder, Layers, Package, ExternalLink, ShieldCheck, Lock } from 'lucide-react';
+import { Heart, ArrowUp, ArrowDown, Trash2, Folder, Layers, Package, ExternalLink, ShieldCheck, Lock, RefreshCw, CheckCircle2, AlertCircle, Clock } from 'lucide-react';
 import Link from 'next/link';
+import { getPendingActions, processPendingActionsStepByStep, PendingAction } from '@/lib/offline/pending-sync';
 
 export default function SettingsWishlistPage() {
   const { wishlist, isLoading, toggleCategoryWishlist, toggleSubcategoryWishlist, toggleProductWishlist, reorderWishlist } = useWishlist();
   const { isPinVerified, resetPinVerification } = useAuth();
   const [showPinModal, setShowPinModal] = useState(true);
 
-  const [activeTab, setActiveTab] = useState<'all' | 'categories' | 'subcategories' | 'products'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'categories' | 'subcategories' | 'products' | 'offline_sync'>('all');
+  const [pendingActions, setPendingActions] = useState<PendingAction[]>([]);
+  const [isSubmittingOffline, setIsSubmittingOffline] = useState(false);
+  const [syncStatusMsg, setSyncStatusMsg] = useState('');
+  const [currentStep, setCurrentStep] = useState(0);
 
   const categories = wishlist.categories || [];
   const subcategories = wishlist.subcategories || [];
   const fullProducts = wishlist.fullProducts || [];
+
+  const loadPending = async () => {
+    const list = await getPendingActions();
+    setPendingActions(list);
+  };
+
+  useEffect(() => {
+    loadPending();
+  }, [activeTab]);
 
   // Require Security PIN on every visit to /settings/wishlist
   useEffect(() => {
@@ -30,6 +44,21 @@ export default function SettingsWishlistPage() {
   useEffect(() => {
     setShowPinModal(!isPinVerified);
   }, [isPinVerified]);
+
+  const handleProcessOfflineChanges = async () => {
+    if (isSubmittingOffline || pendingActions.length === 0) return;
+    setIsSubmittingOffline(true);
+    setSyncStatusMsg('Starting sequential offline submission...');
+
+    await processPendingActionsStepByStep((step, total, action, status, msg) => {
+      setCurrentStep(step);
+      if (msg) setSyncStatusMsg(`[${step}/${total}] ${msg}`);
+    });
+
+    setIsSubmittingOffline(false);
+    setSyncStatusMsg('Step-by-step submission complete!');
+    loadPending();
+  };
 
   // Handle reordering items
   const handleMove = async (type: 'category' | 'subcategory' | 'product', index: number, direction: 'up' | 'down') => {
@@ -134,6 +163,7 @@ export default function SettingsWishlistPage() {
                   { id: 'categories', label: 'Categories', count: categories.length, icon: Folder },
                   { id: 'subcategories', label: 'Subcategories', count: subcategories.length, icon: Layers },
                   { id: 'products', label: 'Products', count: fullProducts.length, icon: Package },
+                  { id: 'offline_sync', label: 'Offline Changes', count: pendingActions.length, icon: RefreshCw },
                 ].map(tab => {
                   const Icon = tab.icon;
                   const isActive = activeTab === tab.id;
@@ -149,8 +179,8 @@ export default function SettingsWishlistPage() {
                     >
                       <Icon size={16} />
                       {tab.label}
-                      <span className={`text-xs px-2.5 py-0.5 rounded-full font-black ${
-                        isActive ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-600'
+                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-mono font-bold ${
+                        isActive ? 'bg-white/20 text-white' : 'bg-black/5 text-gray-700'
                       }`}>
                         {tab.count}
                       </span>
@@ -158,6 +188,78 @@ export default function SettingsWishlistPage() {
                   );
                 })}
               </div>
+
+              {activeTab === 'offline_sync' ? (
+                <div className="bg-white/80 backdrop-blur-2xl rounded-[2.5rem] p-6 sm:p-10 border border-white/80 shadow-2xl space-y-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-200/60 pb-6">
+                    <div>
+                      <h2 className="text-xl sm:text-2xl font-black text-[#0f172a] uppercase">QUEUED OFFLINE MODIFICATIONS</h2>
+                      <p className="text-xs text-gray-500 font-bold uppercase mt-1">
+                        Changes saved locally while offline. Submit step-by-step to synchronize with backend database.
+                      </p>
+                    </div>
+
+                    <button
+                      onClick={handleProcessOfflineChanges}
+                      disabled={isSubmittingOffline || pendingActions.length === 0}
+                      className={`px-8 py-4 rounded-full font-black text-xs sm:text-sm uppercase tracking-wider shadow-xl transition-all flex items-center gap-2 cursor-pointer ${
+                        pendingActions.length === 0
+                          ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                          : isSubmittingOffline
+                          ? 'bg-accent/30 text-white border border-accent/50 cursor-wait'
+                          : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black shadow-emerald-500/30'
+                      }`}
+                    >
+                      <RefreshCw size={18} className={isSubmittingOffline ? 'animate-spin' : ''} />
+                      {isSubmittingOffline ? `SYNCING [${currentStep}/${pendingActions.length}]` : 'SUBMIT OFFLINE CHANGES STEP-BY-STEP'}
+                    </button>
+                  </div>
+
+                  {syncStatusMsg && (
+                    <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl text-xs font-bold font-mono">
+                      {syncStatusMsg}
+                    </div>
+                  )}
+
+                  {pendingActions.length === 0 ? (
+                    <div className="text-center py-16 bg-gray-50/50 rounded-3xl border border-gray-200/60 space-y-2">
+                      <CheckCircle2 size={40} className="mx-auto text-emerald-500" />
+                      <h3 className="text-lg font-black text-[#0f172a] uppercase">NO PENDING OFFLINE CHANGES</h3>
+                      <p className="text-xs text-gray-500 font-bold uppercase">All local edits and creations are completely in sync with the server database.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {pendingActions.map((action, idx) => (
+                        <div key={action.id} className="p-4 bg-white/90 rounded-2xl border border-gray-200/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div className="flex items-center gap-3">
+                            <span className="w-8 h-8 rounded-full bg-[#0f172a] text-white flex items-center justify-center text-xs font-black font-mono">
+                              {idx + 1}
+                            </span>
+                            <div>
+                              <div className="text-sm font-black text-[#0f172a] uppercase">{action.title}</div>
+                              <div className="text-[0.65rem] font-mono text-gray-500 uppercase">{action.method} {action.endpoint}</div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            <span className="text-[0.65rem] font-mono text-gray-400">
+                              {new Date(action.createdAt).toLocaleTimeString()}
+                            </span>
+                            <span className={`px-3 py-1 rounded-full text-[0.65rem] font-black uppercase ${
+                              action.status === 'completed' ? 'bg-green-100 text-green-800' :
+                              action.status === 'failed' ? 'bg-red-100 text-red-800' :
+                              action.status === 'syncing' ? 'bg-blue-100 text-blue-800 animate-pulse' :
+                              'bg-amber-100 text-amber-800'
+                            }`}>
+                              {action.status}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : null}
 
               {isLoading && totalCount === 0 ? (
                 <div className="flex justify-center items-center py-32">

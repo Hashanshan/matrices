@@ -12,6 +12,8 @@ import Image from 'next/image';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 
+import { getCachedImageUrl } from '@/lib/offline/image-cache';
+
 const MySwal = withReactContent(Swal);
 
 interface QuickAddModalProps {
@@ -29,11 +31,23 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
   const [showSuccess, setShowSuccess] = useState(false);
   const [isZoomed, setIsZoomed] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [displayImg, setDisplayImg] = useState<string>(product?.image || product?.imageUrl || '');
   const { addToCart } = useCart();
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    const raw = product?.image || product?.imageUrl || '';
+    if (raw) {
+      getCachedImageUrl(raw).then((res) => {
+        if (res) setDisplayImg(res);
+      });
+    } else {
+      setDisplayImg('');
+    }
+  }, [product?.image, product?.imageUrl]);
 
   const handleAddToCart = async () => {
     setIsSubmitting(true);
@@ -102,7 +116,7 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
               {/* Left Side: Large Image */}
               <div className="w-full md:w-1/2 bg-[#f8f9fc] relative p-8 flex items-center justify-center h-[40vh] min-h-[300px] md:h-auto md:min-h-[500px] cursor-zoom-in group shrink-0" onClick={() => setIsZoomed(true)}>
                 <Image
-                  src={product.image}
+                  src={displayImg || '/placeholder.png'}
                   alt={product.name}
                   fill
                   className="object-contain p-8 mix-blend-multiply group-hover:scale-105 transition-transform duration-500"

@@ -33,14 +33,17 @@ interface ProductsResponse {
 /** Shape IndexedDB products into the ProductsResponse format the hooks expect */
 async function getOfflineProducts(options: {
   category?: string | string[];
+  prioritizeCategory?: string;
   subcategory?: string | string[];
   search?: string;
+  productId?: string;
   page?: number;
   limit?: number;
 }): Promise<ProductsResponse> {
   const raw = await offlineDB.getAll<any>('products').catch(() => []);
-  const catFilter = options.category
-    ? (Array.isArray(options.category) ? options.category : [options.category]).map(c => c.toLowerCase().trim())
+  const targetCategory = options.category || options.prioritizeCategory;
+  const catFilter = targetCategory
+    ? (Array.isArray(targetCategory) ? targetCategory : [targetCategory]).map(c => c.toLowerCase().trim())
     : null;
   const subFilter = options.subcategory
     ? (Array.isArray(options.subcategory) ? options.subcategory : [options.subcategory]).map(s => s.toLowerCase().trim())
@@ -49,11 +52,11 @@ async function getOfflineProducts(options: {
 
   let filtered = raw.filter((p: any) => {
     if (catFilter && catFilter.length > 0 && catFilter[0]) {
-      const pCat = (p.categoryName || p.categories || '').toLowerCase().trim();
+      const pCat = (p.categoryName || p.categories || p.category || '').toLowerCase().trim();
       if (!catFilter.some(c => pCat === c || pCat.includes(c) || c.includes(pCat))) return false;
     }
     if (subFilter && subFilter.length > 0 && subFilter[0]) {
-      const pSub = (p.subcategoryName || p.subcategories || '').toLowerCase().trim();
+      const pSub = (p.subcategoryName || p.subcategories || p.subcategory || '').toLowerCase().trim();
       if (!subFilter.some(s => pSub === s || pSub.includes(s) || s.includes(pSub))) return false;
     }
     if (search) {
@@ -65,6 +68,16 @@ async function getOfflineProducts(options: {
     }
     return true;
   });
+
+  // If a specific productId is requested, bring it to the very front
+  if (options.productId) {
+    const targetIdx = filtered.findIndex((p: any) => p.productId === options.productId || p.id === options.productId);
+    if (targetIdx > 0) {
+      const targetProd = filtered[targetIdx];
+      filtered.splice(targetIdx, 1);
+      filtered.unshift(targetProd);
+    }
+  }
 
   const mapped: CatalogueProduct[] = filtered.map((p: any) => ({
     id: String(p.id || p.productId || ''),
@@ -78,8 +91,6 @@ async function getOfflineProducts(options: {
     description: p.description || '',
   }));
 
-  // Offline: return ALL products in one batch — no pagination churn needed
-  // since it's instant local data
   return {
     success: true,
     count: mapped.length,
@@ -99,54 +110,33 @@ async function getOfflineFilters(): Promise<FiltersResponse> {
   ]);
 
   if (dbCategories.length > 0) {
-    const catProductCount = new Map<string, number>();
-    const subProductCount = new Map<string, number>();
-
-    for (const p of dbProducts) {
-      const cName = (p.categoryName || p.categories || '').trim().toUpperCase();
-      const sName = (p.subcategoryName || p.subcategories || '').trim().toUpperCase();
-      if (cName) catProductCount.set(cName, (catProductCount.get(cName) || 0) + 1);
-      if (sName) subProductCount.set(sName, (subProductCount.get(sName) || 0) + 1);
-    }
-
-    const categories: CategoryFilter[] = dbCategories.map((cat: any) => {
-      const cNameUpper = (cat.name || '').trim().toUpperCase();
-      const subsForCat = dbSubcategories.filter((s: any) => {
-        const sCatId = String(s.categoryId || '');
-        const cId = String(cat.id || cat._id || '');
-        if (sCatId && cId && sCatId === cId) return true;
-        const sCatName = (s.category || s.categoryName || '').trim().toUpperCase();
-        return sCatName === cNameUpper;
-      });
-
-      const subcategories: SubcategoryFilter[] = subsForCat.map((sub: any) => ({
-        name: sub.name || '',
-        image: sub.image || sub.imageUrl || '',
-        count: subProductCount.get((sub.name || '').trim().toUpperCase()) || 0,
-      }));
-
-      return {
-        name: cat.name || '',
-        image: cat.image || cat.imageUrl || '',
-        totalCount: catProductCount.get(cNameUpper) || dbProducts.length,
-        subcategories,
-      };
-    });
+    const categories: CategoryFilter[] = dbCategories.map((c: any) => ({
+      name: c.name || '',
+      image: c.image || '',
+      totalCount: dbProducts.filter((p: any) => (p.categoryName || p.categories || '').toLowerCase() === (c.name || '').toLowerCase()).length,
+      subcategories: dbSubcategories
+        .filter((s: any) => (s.categoryName || s.category || '').toLowerCase() === (c.name || '').toLowerCase())
+        .map((s: any) => ({
+          name: s.name || '',
+          image: s.image || '',
+          count: dbProducts.filter((p: any) => (p.subcategoryName || p.subcategories || '').toLowerCase() === (s.name || '').toLowerCase()).length,
+        })),
+    }));
 
     return {
       success: true,
-      categories: categories.sort((a, b) => a.name.localeCompare(b.name)),
+      categories,
       priceRange: { min: 0, max: 40000 },
     };
   }
 
-  // Fallback if categories store was empty: extract from products
   const catMap = new Map<string, { image: string; subcats: Map<string, number> }>();
   for (const p of dbProducts) {
-    const cat = (p.categoryName || p.categories || '').trim();
+    const cat = (p.categoryName || p.categories || 'Uncategorized').trim();
     const sub = (p.subcategoryName || p.subcategories || '').trim();
-    if (!cat) continue;
-    if (!catMap.has(cat)) catMap.set(cat, { image: p.imageUrl || p.image || '', subcats: new Map() });
+    if (!catMap.has(cat)) {
+      catMap.set(cat, { image: p.image || p.imageUrl || '', subcats: new Map() });
+    }
     const entry = catMap.get(cat)!;
     if (sub) {
       entry.subcats.set(sub, (entry.subcats.get(sub) ?? 0) + 1);
@@ -190,9 +180,11 @@ const fetcher = async <T = any>(url: string): Promise<T> => {
     try {
       const u = new URL(url, 'http://x');
       return {
-        category: u.searchParams.get('category') || undefined,
+        category: u.searchParams.get('category') || u.searchParams.get('prioritizeCategory') || undefined,
+        prioritizeCategory: u.searchParams.get('prioritizeCategory') || undefined,
         subcategory: u.searchParams.get('subcategory') || undefined,
         search: u.searchParams.get('search') || undefined,
+        productId: u.searchParams.get('productId') || undefined,
         page: parseInt(u.searchParams.get('page') || '1', 10),
         limit: parseInt(u.searchParams.get('limit') || '20', 10),
       };
@@ -207,8 +199,8 @@ const fetcher = async <T = any>(url: string): Promise<T> => {
   // ── OFFLINE MODE: serve from IndexedDB, skip network ──────────────────────
   const mode = getDataMode();
   if (mode === 'offline' || (typeof navigator !== 'undefined' && !navigator.onLine)) {
-    const meta = await offlineDB.getMeta().catch(() => null);
-    if (meta && meta.totalProducts > 0) {
+    const rawProducts = await offlineDB.getAll<any>('products').catch(() => []);
+    if (rawProducts.length > 0) {
       if (isProductsFilters) return getOfflineFilters() as unknown as T;
       if (isProducts) return getOfflineProducts(parseOptions()) as unknown as T;
     }
