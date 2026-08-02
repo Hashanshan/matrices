@@ -2,6 +2,8 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { UserProfile } from '../types';
+import { resolveApiUrl, getAuthToken } from '../utils';
+import { offlineDB } from '../offline/indexed-db';
 
 interface AuthContextType {
   user: UserProfile | null;
@@ -16,14 +18,21 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-import { resolveApiUrl, getAuthToken } from '../utils';
+/** Simple stable hash for offline PIN comparison (djb2) */
+function hashPin(pin: string): string {
+  let hash = 5381;
+  for (let i = 0; i < pin.length; i++) {
+    hash = ((hash << 5) + hash) + pin.charCodeAt(i);
+    hash = hash & hash; // 32-bit int
+  }
+  return String(hash >>> 0);
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isPinVerified, setIsPinVerified] = useState(false);
 
-  // Load user from localStorage on mount
   useEffect(() => {
     const savedUser = localStorage.getItem('user');
     if (savedUser) {
@@ -65,8 +74,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem('user', JSON.stringify(profile));
   };
 
-  const verifyPin = async (params: { pin?: string; password?: string; newPin?: string }): Promise<{ success: boolean; msg: string; hasPinSet?: boolean; requirePassword?: boolean; requireNewPin?: boolean }> => {
+  const verifyPin = async (params: { pin?: string; password?: string; newPin?: string }): Promise<{
+    success: boolean; msg: string; hasPinSet?: boolean; requirePassword?: boolean; requireNewPin?: boolean;
+  }> => {
     const token = getAuthToken();
+    const isOnline = typeof navigator !== 'undefined' && navigator.onLine;
+
+    // ── Offline PIN check ────────────────────────────────────────────────────
+    if (!isOnline && params.pin && !params.password) {
+      try {
+        const storedHash = await offlineDB.getSecure('pin_hash');
+        if (storedHash) {
+          const inputHash = hashPin(params.pin);
+          if (inputHash === storedHash) {
+            setIsPinVerified(true);
+            return { success: true, msg: 'PIN verified (offline)' };
+          } else {
+            return { success: false, msg: 'Incorrect PIN (offline mode)' };
+          }
+        } else {
+          return { success: false, msg: 'No offline PIN stored. Please sync first.', hasPinSet: false, requirePassword: true };
+        }
+      } catch {
+        return { success: false, msg: 'Offline PIN check failed.' };
+      }
+    }
+
+    // ── Online server check ──────────────────────────────────────────────────
     const targetUrl = resolveApiUrl('/api/auth/verify-pin');
     try {
       const res = await fetch(targetUrl, {
@@ -81,6 +115,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const data = await res.json();
       if (res.ok && data.success) {
         setIsPinVerified(true);
+
+        // Persist PIN hash offline for future offline access
+        if (params.pin) {
+          try {
+            await offlineDB.saveSecure('pin_hash', hashPin(params.pin));
+          } catch { /* non-critical */ }
+        }
+        if (params.newPin) {
+          try {
+            await offlineDB.saveSecure('pin_hash', hashPin(params.newPin));
+          } catch { /* non-critical */ }
+        }
+
         return {
           success: true,
           msg: data.msg || 'PIN verified',
@@ -95,6 +142,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         };
       }
     } catch (err) {
+      // Network error → try offline fallback for PIN-only check
+      if (params.pin && !params.password) {
+        try {
+          const storedHash = await offlineDB.getSecure('pin_hash');
+          if (storedHash && hashPin(params.pin) === storedHash) {
+            setIsPinVerified(true);
+            return { success: true, msg: 'PIN verified (offline fallback)' };
+          }
+        } catch { /* ignore */ }
+      }
       console.error('verifyPin error in context:', err);
       return { success: false, msg: 'Error connecting to server' };
     }

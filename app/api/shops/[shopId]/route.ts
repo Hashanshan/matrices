@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || process.env.BACKEND_API_URL || 'http://localhost:5000';
 
-export const dynamic = 'force-static';
+export const dynamic = 'force-dynamic';
 export function generateStaticParams() {
   return [{ shopId: '1' }, { shopId: 'default' }];
 }

@@ -4,7 +4,7 @@
  */
 
 const DB_NAME = 'MatricesCatalogueOfflineDB';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 export interface SyncMetadata {
   lastSyncedAt: string;
@@ -51,6 +51,14 @@ class OfflineDB {
         // Shops store
         if (!db.objectStoreNames.contains('shops')) {
           db.createObjectStore('shops', { keyPath: 'id' });
+        }
+        // Orders store
+        if (!db.objectStoreNames.contains('orders')) {
+          db.createObjectStore('orders', { keyPath: 'id' });
+        }
+        // Secure store (local PIN hash, user prefs)
+        if (!db.objectStoreNames.contains('secure')) {
+          db.createObjectStore('secure', { keyPath: 'key' });
         }
         // Meta store
         if (!db.objectStoreNames.contains('meta')) {
@@ -113,9 +121,29 @@ class OfflineDB {
     });
   }
 
+  async saveSecure(key: string, value: string): Promise<void> {
+    const db = await this.getDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('secure', 'readwrite');
+      tx.objectStore('secure').put({ key, value });
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  async getSecure(key: string): Promise<string | null> {
+    const db = await this.getDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('secure', 'readonly');
+      const request = tx.objectStore('secure').get(key);
+      request.onsuccess = () => resolve(request.result ? request.result.value : null);
+      request.onerror = () => reject(request.error);
+    });
+  }
+
   async clearAllData(): Promise<void> {
     const db = await this.getDB();
-    const stores = ['categories', 'subcategories', 'products', 'wishlist', 'shops', 'meta'];
+    const stores = ['categories', 'subcategories', 'products', 'wishlist', 'shops', 'orders', 'meta'];
     const tx = db.transaction(stores, 'readwrite');
     stores.forEach((s) => tx.objectStore(s).clear());
   }

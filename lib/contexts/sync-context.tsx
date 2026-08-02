@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { offlineDB, SyncMetadata } from '../offline/indexed-db';
 import { cacheProductImages } from '../offline/image-cache';
 import { NativeAdapter } from '../../mobile/bridge/native-adapter';
@@ -31,6 +31,8 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
   const [meta, setMeta] = useState<SyncMetadata | null>(null);
   const [isOffline, setIsOffline] = useState(false);
   const [showPinModal, setShowPinModal] = useState(false);
+  // Resolves after the user dismisses the pin modal; true if verified
+  const afterPinResolve = useRef<((ok: boolean) => void) | null>(null);
 
   // Initialize network status listener & metadata
   useEffect(() => {
@@ -64,25 +66,36 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
   const executeSync = useCallback(async (): Promise<boolean> => {
     setIsSyncing(true);
-    setProgress(10);
-    setSyncStatusText('Connecting to Magnum Server...');
+    setProgress(5);
+    setSyncStatusText('Requesting storage permission...');
 
     try {
+      // ── Step 0: ensure native storage permission is granted ────────────────
+      const { storage } = await NativeAdapter.requestAllPermissions();
+      if (!storage.granted) {
+        setSyncStatusText('Storage permission denied – sync aborted.');
+        setIsSyncing(false);
+        return false;
+      }
+
       const token = getAuthToken();
       const headers = {
         'Authorization': token ? `Bearer ${token}` : '',
         'Content-Type': 'application/json',
       };
 
-      // 1. Fetch Active Products & Categories Filters
-      setProgress(25);
-      setSyncStatusText('Syncing Products & Categories...');
+      // ── Step 1: Products & Categories ──────────────────────────────────────
+      setProgress(20);
+      setSyncStatusText('Connecting to Magnum Server...');
 
       const productsUrl = resolveApiUrl('/api/products?limit=5000');
       const filtersUrl = resolveApiUrl('/api/products/filters');
       const shopsUrl = resolveApiUrl('/api/shops?limit=5000');
       const ordersUrl = resolveApiUrl('/api/orders?limit=5000');
       const wishlistUrl = resolveApiUrl('/api/wishlist');
+
+      setProgress(30);
+      setSyncStatusText('Syncing Products & Categories...');
 
       const [productsRes, filtersRes, shopsRes, ordersRes, wishlistRes] = await Promise.allSettled([
         fetch(productsUrl, { headers, cache: 'no-store' }),
@@ -102,6 +115,8 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       if (productsRes.status === 'fulfilled' && productsRes.value.ok) {
         const json = await productsRes.value.json();
         products = json.data || json.products || (Array.isArray(json) ? json : []);
+      } else if (productsRes.status === 'fulfilled') {
+        console.warn('Products fetch failed:', productsRes.value.status);
       }
 
       if (filtersRes.status === 'fulfilled' && filtersRes.value.ok) {
@@ -110,7 +125,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         subcategories = json.subcategories || json.data?.subcategories || [];
       }
 
-      // 2. Fetch Assigned Salesrep Shops
+      // ── Step 2: Shops ──────────────────────────────────────────────────────
       setProgress(50);
       setSyncStatusText('Syncing Customer Shops assigned to logged-in salesrep...');
       if (shopsRes.status === 'fulfilled' && shopsRes.value.ok) {
@@ -118,8 +133,8 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         shops = json.data || json.shops || (Array.isArray(json) ? json : []);
       }
 
-      // 3. Fetch Salesrep Invoices & Orders
-      setProgress(75);
+      // ── Step 3: Orders ─────────────────────────────────────────────────────
+      setProgress(65);
       setSyncStatusText('Syncing Salesrep Invoices & Orders...');
       if (ordersRes.status === 'fulfilled' && ordersRes.value.ok) {
         const json = await ordersRes.value.json();
@@ -130,8 +145,8 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         wishlist = await wishlistRes.value.json();
       }
 
-      // Save to IndexedDB offline storage
-      setProgress(85);
+      // ── Step 4: Format & persist to IndexedDB ─────────────────────────────
+      setProgress(78);
       setSyncStatusText(`Saving ${products.length} products, ${shops.length} shops, and ${orders.length} orders offline...`);
 
       const formattedCategories = categories.map((c: any, idx: number) => ({
@@ -184,8 +199,11 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         status: o.status || 'PENDING',
       }));
 
-      const formattedWishlist = (Array.isArray(wishlist) ? wishlist : (wishlist ? [wishlist] : [])).map((w: any, idx: number) => ({
-        id: String(w._id || w.id || w.userId || `wish_${idx}`),
+      const wishlistItems: any[] = Array.isArray(wishlist)
+        ? wishlist
+        : wishlist?.items ?? wishlist?.products ?? (wishlist ? [wishlist] : []);
+      const formattedWishlist = wishlistItems.map((w: any, idx: number) => ({
+        id: String(w._id || w.id || w.productId || `wish_${idx}`),
         ...w,
       }));
 
@@ -199,8 +217,8 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         await offlineDB.saveBatch('wishlist', formattedWishlist);
       }
 
-      // 4. Cache Product Images
-      setProgress(90);
+      // ── Step 5: Cache images ────────────────────────────────────────────────
+      setProgress(88);
       setSyncStatusText('Caching product images for offline display...');
 
       const imageUrls: string[] = formattedProducts
@@ -209,7 +227,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
       if (imageUrls.length > 0) {
         await cacheProductImages(imageUrls, (done, total) => {
-          const pct = Math.floor(90 + (done / (total || 1)) * 10);
+          const pct = Math.floor(88 + (done / (total || 1)) * 10);
           setProgress(Math.min(pct, 99));
         });
       }
@@ -227,15 +245,22 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       setLastSyncedAt(newMeta.lastSyncedAt);
 
       setProgress(100);
-      setSyncStatusText('Database Sync Complete!');
+      setSyncStatusText('Sync Complete!');
       return true;
     } catch (err: any) {
       console.error('Error during data sync:', err);
       setSyncStatusText(`Sync Failed: ${err.message || 'Server connection error'}`);
       return false;
+    } finally {
+      // Small delay so user can read "Sync Complete!" before the modal closes
+      setTimeout(() => setIsSyncing(false), 1800);
     }
   }, []);
 
+  /**
+   * Trigger sync – always asks for PIN first if not yet verified,
+   * then proceeds to executeSync once the user authenticates.
+   */
   const triggerSync = useCallback(async (): Promise<boolean> => {
     if (isSyncing) return false;
     if (typeof window !== 'undefined' && !navigator.onLine) {
@@ -243,13 +268,28 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       return false;
     }
 
+    // If PIN not yet verified, show modal and wait for user to verify
     if (!isPinVerified) {
-      setShowPinModal(true);
-      return false;
+      return new Promise<boolean>((resolve) => {
+        afterPinResolve.current = resolve;
+        setShowPinModal(true);
+      });
     }
 
     return executeSync();
   }, [isSyncing, isPinVerified, executeSync]);
+
+  const handlePinSuccess = useCallback(() => {
+    setShowPinModal(false);
+    executeSync().then((ok) => afterPinResolve.current?.(ok));
+    afterPinResolve.current = null;
+  }, [executeSync]);
+
+  const handlePinClose = useCallback(() => {
+    setShowPinModal(false);
+    afterPinResolve.current?.(false);
+    afterPinResolve.current = null;
+  }, []);
 
   return (
     <SyncContext.Provider
@@ -268,11 +308,8 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       <SyncProgressModal />
       <PinModal
         isOpen={showPinModal}
-        onClose={() => setShowPinModal(false)}
-        onSuccess={() => {
-          setShowPinModal(false);
-          executeSync();
-        }}
+        onClose={handlePinClose}
+        onSuccess={handlePinSuccess}
       />
     </SyncContext.Provider>
   );
