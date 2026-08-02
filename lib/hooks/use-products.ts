@@ -93,12 +93,12 @@ async function getOfflineProducts(options: {
     }
   }
 
-  // If a specific productId is requested, bring exact match to front
+  // If a specific productId is requested, bring exact match to front and keep full catalog
   if (options.productId) {
     const targetStr = options.productId.toLowerCase().trim();
     const targetClean = options.productId.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
 
-    const targetIdx = filtered.findIndex((p: any) => {
+    const findMatch = (list: any[]) => list.findIndex((p: any) => {
       const pProdId = String(p.productId || '').trim().toLowerCase();
       const pId = String(p.id || '').trim().toLowerCase();
       const pCode = String(p.code || p.productCode || '').trim().toLowerCase();
@@ -116,8 +116,16 @@ async function getOfflineProducts(options: {
       if (pName.includes(targetStr) || pCode.includes(targetStr) || pProdId.includes(targetStr)) return true;
       return false;
     });
-    if (targetIdx >= 0) {
-      const targetProd = filtered[targetIdx];
+
+    let targetIdx = findMatch(filtered);
+    let targetProd = targetIdx >= 0 ? filtered[targetIdx] : null;
+
+    if (!targetProd) {
+      const rawIdx = findMatch(raw);
+      if (rawIdx >= 0) targetProd = raw[rawIdx];
+    }
+
+    if (targetProd) {
       const targetCat = (targetProd.categoryName || targetProd.categories || targetProd.category || '').toLowerCase().trim();
       const targetSub = (targetProd.subcategoryName || targetProd.subcategories || targetProd.subcategory || '').toLowerCase().trim();
 
@@ -126,8 +134,8 @@ async function getOfflineProducts(options: {
       const others: any[] = [];
 
       for (let i = 0; i < filtered.length; i++) {
-        if (i === targetIdx) continue;
         const p = filtered[i];
+        if (String(p.id || p.productId) === String(targetProd.id || targetProd.productId)) continue;
         const pCat = (p.categoryName || p.categories || p.category || '').toLowerCase().trim();
         const pSub = (p.subcategoryName || p.subcategories || p.subcategory || '').toLowerCase().trim();
 
@@ -201,7 +209,7 @@ async function getOfflineFilters(): Promise<FiltersResponse> {
             name: sName,
             image: s.image || s.imageUrl || '',
             count: dbProducts.filter((p: any) => {
-              const pSub = (p.subcategoryName || p.subcategories || p.subcategory || '').trim().toLowerCase();
+              const pSub = (p.subcategoryName || p.subcategories || p.subcategory || p.subCategory || '').trim().toLowerCase();
               return pSub === sNameLower;
             }).length,
           };
@@ -217,7 +225,7 @@ async function getOfflineFilters(): Promise<FiltersResponse> {
             name: sName,
             image: sImage,
             count: dbProducts.filter((p: any) => {
-              const pSub = (p.subcategoryName || p.subcategories || p.subcategory || '').trim().toLowerCase();
+              const pSub = (p.subcategoryName || p.subcategories || p.subcategory || p.subCategory || '').trim().toLowerCase();
               return pSub === sNameLower;
             }).length,
           };
@@ -229,8 +237,8 @@ async function getOfflineFilters(): Promise<FiltersResponse> {
         const subMap = new Map<string, { image: string; count: number; name: string }>();
         dbProducts.forEach((p: any) => {
           const pCat = (p.categoryName || p.categories || p.category || '').trim().toLowerCase();
-          if (pCat === cNameClean) {
-            const pSub = (p.subcategoryName || p.subcategories || p.subcategory || '').trim();
+          if (pCat === cNameClean || (cNameClean && pCat.includes(cNameClean))) {
+            const pSub = (p.subcategoryName || p.subcategories || p.subcategory || p.subCategory || '').trim();
             if (pSub) {
               const pSubLower = pSub.toLowerCase();
               const existing = subMap.get(pSubLower) || { image: p.image || p.imageUrl || '', count: 0, name: pSub };
@@ -254,7 +262,7 @@ async function getOfflineFilters(): Promise<FiltersResponse> {
 
       const totalProdCount = dbProducts.filter((p: any) => {
         const pCat = (p.categoryName || p.categories || p.category || '').trim().toLowerCase();
-        return pCat === cNameClean;
+        return pCat === cNameClean || (cNameClean && pCat.includes(cNameClean));
       }).length;
 
       return {
@@ -265,11 +273,13 @@ async function getOfflineFilters(): Promise<FiltersResponse> {
       };
     });
 
-    return {
-      success: true,
-      categories,
-      priceRange: { min: 0, max: 40000 },
-    };
+    if (categories.length > 0) {
+      return {
+        success: true,
+        categories: categories.sort((a, b) => a.name.localeCompare(b.name)),
+        priceRange: { min: 0, max: 40000 },
+      };
+    }
   }
 
   const catMap = new Map<string, { image: string; totalProducts: number; subcats: Map<string, number> }>();
@@ -492,7 +502,7 @@ export function useProducts(options: UseProductsOptions = {}) {
       if (subVal) params.set('subcategory', subVal);
     }
     if (search) params.set('search', search);
-    if (productId) params.set('search', productId); // Send productId as search query to the API
+    if (productId && !search) params.set('productId', productId);
     if (prioritizeCategory) params.set('prioritizeCategory', prioritizeCategory);
     const currentLimit = pageIndex > 0 ? limit : (options.initialLimit || limit);
     params.set('limit', String(currentLimit));

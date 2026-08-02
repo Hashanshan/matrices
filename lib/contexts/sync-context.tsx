@@ -347,18 +347,52 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       setProgress(78);
       setSyncStatusText(`Saving ${products.length} products, ${shops.length} shops, and ${orders.length} orders offline...`);
 
-      const formattedCategories = categories.map((c: any, idx: number) => ({
-        id: String(c._id || c.id || c.categoryId || `cat_${idx}`),
-        name: c.name || c.categoryName || 'Category',
-        image: c.image || c.imageUrl || '',
-        order: c.order ?? idx,
-      }));
+      const extractStr = (val: any): string => {
+        if (!val) return '';
+        if (typeof val === 'string') return val.trim();
+        if (Array.isArray(val)) return extractStr(val[0]);
+        if (typeof val === 'object') {
+          return (val.name || val.categoryName || val.subcategoryName || val.title || val.label || val._id || '').toString().trim();
+        }
+        return String(val).trim();
+      };
 
-      const formattedSubcategories = subcategories.map((s: any, idx: number) => {
-        const catName = s.categoryName || s.category?.name || (typeof s.category === 'string' ? s.category : '') || '';
+      // Ensure subcategories are extracted even if nested inside category objects
+      let allSubcategories = [...subcategories];
+      if (allSubcategories.length === 0 && categories.length > 0) {
+        categories.forEach((cat: any) => {
+          const catName = extractStr(cat.name || cat.categoryName);
+          const catId = String(cat._id || cat.id || cat.categoryId || '');
+          if (Array.isArray(cat.subcategories)) {
+            cat.subcategories.forEach((sub: any) => {
+              const subObj = typeof sub === 'string'
+                ? { name: sub, categoryName: catName, categoryId: catId }
+                : { ...sub, categoryName: extractStr(sub.categoryName) || catName, categoryId: sub.categoryId || catId };
+              allSubcategories.push(subObj);
+            });
+          }
+        });
+      }
+
+      const formattedCategories = categories.map((c: any, idx: number) => {
+        const cName = extractStr(c.name || c.categoryName || 'Category');
+        return {
+          id: String(c._id || c.id || c.categoryId || `cat_${idx}`),
+          name: cName,
+          categoryName: cName,
+          image: c.image || c.imageUrl || '',
+          order: c.order ?? idx,
+          subcategories: c.subcategories || [],
+        };
+      });
+
+      const formattedSubcategories = allSubcategories.map((s: any, idx: number) => {
+        const sName = extractStr(s.name || s.subcategoryName || 'Subcategory');
+        const catName = extractStr(s.categoryName || s.category?.name || s.category);
         return {
           id: String(s._id || s.id || s.subcategoryId || `subcat_${idx}`),
-          name: s.name || s.subcategoryName || 'Subcategory',
+          name: sName,
+          subcategoryName: sName,
           categoryId: String(s.categoryId || s.category?._id || s.category || ''),
           category: catName,
           categoryName: catName,
@@ -368,20 +402,24 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       });
 
       const formattedProducts = products.map((p: any, idx: number) => {
-        const catName = p.categoryName || p.category?.name || (typeof p.category === 'string' ? p.category : '') || p.categories || '';
-        const subName = p.subcategoryName || p.subcategory?.name || (typeof p.subcategory === 'string' ? p.subcategory : '') || p.subcategories || '';
+        const catName = extractStr(p.categoryName || p.category?.name || p.category || p.categories);
+        const subName = extractStr(p.subcategoryName || p.subcategory?.name || p.subCategory || p.subcategory || p.subcategories || p.subCategories);
         const img = p.image || p.imageUrl || (Array.isArray(p.images) && p.images[0] ? p.images[0] : '');
+        const priceVal = Number(p.sellPrice || p.price || 0);
         return {
           id: String(p._id || p.id || p.productId || `prod_${idx}`),
           productId: String(p.productId || p._id || p.id || `prod_${idx}`),
           name: p.name || p.productName || 'Unnamed Product',
           code: p.code || p.productCode || '',
           description: p.description || '',
-          price: p.price || 0,
+          price: priceVal,
+          sellPrice: priceVal,
           categoryId: String(p.categoryId || p.category?._id || p.category || ''),
           subcategoryId: String(p.subcategoryId || p.subcategory?._id || p.subcategory || ''),
+          category: catName,
           categoryName: catName,
           categories: catName,
+          subcategory: subName,
           subcategoryName: subName,
           subcategories: subName,
           image: img,

@@ -13,7 +13,7 @@ interface ViewPageProps {
 }
 
 export default function SingleViewPage({ fallbackData, initialProductId, initialCategory, initialSubcategory }: ViewPageProps) {
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(initialProductId);
   const [sortBy, setSortBy] = useState('view');
 
   // Use the cursor-paginated useProducts hook
@@ -29,7 +29,7 @@ export default function SingleViewPage({ fallbackData, initialProductId, initial
   } = useProducts({
     sort: sortBy,
     search: searchQuery,
-    productId: initialProductId,
+    // productId: initialProductId,
     category: initialCategory,
     subcategory: initialSubcategory,
     prioritizeCategory: initialCategory,
