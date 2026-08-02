@@ -62,8 +62,67 @@ export default function FullscreenProductViewer({
   const [displayImg, setDisplayImg] = useState<string>('');
 
   const validProducts = useMemo(() => {
-    return (products || []).filter((p): p is Product => Boolean(p && (p.image || p.name || p.id)));
-  }, [products]);
+    const raw = (products || []).filter((p): p is Product => Boolean(p && (p.image || p.name || p.id)));
+    if (!raw.length) return [];
+
+    const activeTarget = viewerSearchQuery.trim() || initialProductId?.trim() || '';
+    if (!activeTarget) return raw;
+
+    const targetStr = activeTarget.toLowerCase();
+    const targetClean = activeTarget.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+
+    const targetIdx = raw.findIndex((p: any) => {
+      const pProdId = String(p.productId || '').trim().toLowerCase();
+      const pId = String(p.id || '').trim().toLowerCase();
+      const pCode = String(p.code || p.productCode || '').trim().toLowerCase();
+      const pName = String(p.name || '').trim().toLowerCase();
+
+      // 1. Exact match on productId, id, code
+      if (pProdId === targetStr || pId === targetStr || pCode === targetStr) return true;
+
+      // 2. Alphanumeric match (ignoring hyphens/spaces e.g. "MTX10216" vs "MTX-10216")
+      if (targetClean) {
+        const cProdId = pProdId.replace(/[^a-zA-Z0-9]/g, '');
+        const cCode = pCode.replace(/[^a-zA-Z0-9]/g, '');
+        const cId = pId.replace(/[^a-zA-Z0-9]/g, '');
+        const cName = pName.replace(/[^a-zA-Z0-9]/g, '');
+        if (cProdId === targetClean || cCode === targetClean || cId === targetClean) return true;
+        if (cName.includes(targetClean)) return true;
+      }
+
+      // 3. Includes match on name or code
+      if (pName.includes(targetStr) || pCode.includes(targetStr) || pProdId.includes(targetStr)) return true;
+
+      return false;
+    });
+
+    if (targetIdx < 0) return raw;
+
+    const targetProd = raw[targetIdx];
+    const targetCat = String(targetProd.categories || targetProd.category || '').trim().toLowerCase();
+    const targetSub = String(targetProd.subcategories || targetProd.subcategory || '').trim().toLowerCase();
+
+    const subMatches: Product[] = [];
+    const catMatches: Product[] = [];
+    const others: Product[] = [];
+
+    for (let i = 0; i < raw.length; i++) {
+      if (i === targetIdx) continue;
+      const p = raw[i];
+      const pCat = String(p.categories || p.category || '').trim().toLowerCase();
+      const pSub = String(p.subcategories || p.subcategory || '').trim().toLowerCase();
+
+      if (targetSub && pSub === targetSub) {
+        subMatches.push(p);
+      } else if (targetCat && pCat === targetCat) {
+        catMatches.push(p);
+      } else {
+        others.push(p);
+      }
+    }
+
+    return [targetProd, ...subMatches, ...catMatches, ...others];
+  }, [products, initialProductId, viewerSearchQuery]);
 
   const currentProduct = validProducts[currentIndex] || validProducts[0] || null;
 
@@ -98,7 +157,7 @@ export default function FullscreenProductViewer({
           setDisplayImg(resolved);
         }
       })
-      .catch(() => { });
+      .catch(() => {});
 
     return () => { cancelled = true; };
   }, [currentProduct?.image, currentProduct?.id]);
@@ -118,25 +177,25 @@ export default function FullscreenProductViewer({
   }, [searchOpen]);
 
   // Handle SweetAlert for no exact match
-  // useEffect(() => {
-  //   if (exactMatchFound === false && validProducts.length > 0 && viewerSearchQuery) {
-  //     MySwal.fire({
-  //       title: 'No exact match found',
-  //       text: 'Do you want to continue to view related products?',
-  //       icon: 'info',
-  //       showCancelButton: true,
-  //       confirmButtonText: 'Continue',
-  //       confirmButtonColor: '#0f172a',
-  //       cancelButtonColor: '#64748b'
-  //     }).then((result) => {
-  //       if (!result.isConfirmed) {
-  //         setViewerSearchQuery('');
-  //         onSearch('');
-  //         setCurrentIndex(0);
-  //       }
-  //     });
-  //   }
-  // }, [exactMatchFound, validProducts.length, viewerSearchQuery, onSearch]);
+  useEffect(() => {
+    if (exactMatchFound === false && validProducts.length > 0 && viewerSearchQuery) {
+      MySwal.fire({
+        title: 'No exact match found',
+        text: 'Do you want to continue to view related products?',
+        icon: 'info',
+        showCancelButton: true,
+        confirmButtonText: 'Continue',
+        confirmButtonColor: '#0f172a',
+        cancelButtonColor: '#64748b'
+      }).then((result) => {
+        if (!result.isConfirmed) {
+          setViewerSearchQuery('');
+          onSearch('');
+          setCurrentIndex(0);
+        }
+      });
+    }
+  }, [exactMatchFound, validProducts.length, viewerSearchQuery, onSearch]);
 
   const handleSwipe = useCallback((newDirection: 'left' | 'right') => {
     setDirection(newDirection);
@@ -620,10 +679,11 @@ function ThumbnailStrip({
           onClick={() => onSelect(idx)}
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.95 }}
-          className={`flex-shrink-0 w-14 h-14 rounded-xl overflow-hidden border-2 transition-all backdrop-blur-sm ${idx === currentIndex
+          className={`flex-shrink-0 w-14 h-14 rounded-xl overflow-hidden border-2 transition-all backdrop-blur-sm ${
+            idx === currentIndex
               ? 'border-white shadow-xl ring-2 ring-white/50 scale-110'
               : 'border-white/40 hover:border-white/80'
-            }`}
+          }`}
         >
           <SmartImage
             src={product.image || (product as any).imageUrl || ''}

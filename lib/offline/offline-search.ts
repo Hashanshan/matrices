@@ -51,6 +51,7 @@ export interface OfflineSearchResult {
   total: number;
   page: number;
   totalPages: number;
+  exactMatchFound?: boolean;
   source: 'indexeddb';
 }
 
@@ -178,7 +179,35 @@ export async function searchOfflineProducts(
   const normalizedQuery = query.trim().toLowerCase();
   const queryClean = normalizeStr(normalizedQuery);
 
-  // ── Filter ───────────────────────────────────────────────────────────────────
+  // ── Filter & Search Scoring ──────────────────────────────────────────────────
+
+  let exactMatchFound = false;
+  const searchSubCategories = new Set<string>();
+  const searchCategories = new Set<string>();
+
+  if (normalizedQuery) {
+    for (const product of allProducts) {
+      const pId = (product.productId || product.id || '').toLowerCase();
+      const pCode = (product.code || '').toLowerCase();
+      const pName = (product.name || '').toLowerCase();
+      const pIdClean = normalizeStr(pId);
+      const pCodeClean = normalizeStr(pCode);
+
+      const isDirectMatch =
+        pId === normalizedQuery ||
+        pCode === normalizedQuery ||
+        (queryClean && (pIdClean === queryClean || pCodeClean === queryClean)) ||
+        pName.includes(normalizedQuery);
+
+      if (isDirectMatch) {
+        exactMatchFound = true;
+        const pSub = (product.subcategoryName || product.subcategories || '').toLowerCase().trim();
+        const pCat = (product.categoryName || product.categories || '').toLowerCase().trim();
+        if (pSub) searchSubCategories.add(pSub);
+        if (pCat) searchCategories.add(pCat);
+      }
+    }
+  }
 
   const scored: Array<{ product: ProductItem; score: number }> = [];
 
@@ -210,8 +239,16 @@ export async function searchOfflineProducts(
     }
 
     // Search score
-    const score = normalizedQuery ? scoreProduct(product, normalizedQuery, queryClean) : 0;
-    if (normalizedQuery && score < 0) continue; // No match
+    let score = normalizedQuery ? scoreProduct(product, normalizedQuery, queryClean) : 0;
+    if (normalizedQuery) {
+      const pSub = (product.subcategoryName || product.subcategories || '').toLowerCase().trim();
+      const pCat = (product.categoryName || product.categories || '').toLowerCase().trim();
+      if (score < 0) {
+        if (pSub && searchSubCategories.has(pSub)) score = 4;
+        else if (pCat && searchCategories.has(pCat)) score = 3;
+        else continue;
+      }
+    }
 
     scored.push({ product, score });
   }
@@ -244,6 +281,7 @@ export async function searchOfflineProducts(
     total,
     page,
     totalPages,
+    exactMatchFound: normalizedQuery ? exactMatchFound : undefined,
     source: 'indexeddb',
   };
 }
