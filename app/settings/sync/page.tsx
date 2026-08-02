@@ -25,7 +25,7 @@ export default function SyncSettingsPage() {
   const {
     isSyncing, progress, syncStatusText, lastSyncedAt, isOffline, meta, triggerSync,
     queueItems, pendingQueueCount, failedQueueCount, isPushing, pushStatusText,
-    pushChanges, retryFailedPush, deleteQueueItem, clearAllQueue, downloadReport
+    pushChanges, retryFailedPush, deleteSyncData, deleteQueueItem, clearAllQueue, downloadReport
   } = useSync();
   
   const { dataMode, setDataMode } = useDataMode();
@@ -202,8 +202,8 @@ export default function SyncSettingsPage() {
               </div>
             )}
 
-            {/* Top Action Cards: Push Changes & Download Catalog */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Top Action Cards: Push Changes, Download Catalog, & Delete Sync Data */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               
               {/* CARD 1: PUSH LOCAL CHANGES */}
               <div className="bg-gradient-to-br from-[#0f172a] to-[#1e293b] text-white rounded-[2.5rem] p-6 sm:p-8 shadow-2xl relative overflow-hidden border border-white/20 flex flex-col justify-between">
@@ -351,6 +351,53 @@ export default function SyncSettingsPage() {
                   )}
                 </div>
               </div>
+
+              {/* CARD 3: DELETE CACHED SYNC DATA */}
+              <div className="bg-white/80 backdrop-blur-2xl rounded-[2.5rem] p-6 sm:p-8 border border-rose-100 shadow-2xl flex flex-col justify-between relative overflow-hidden">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="px-3.5 py-1 rounded-full text-[0.65rem] font-black uppercase tracking-wider bg-rose-500/10 text-rose-700 border border-rose-300/40 flex items-center gap-1.5">
+                      <Trash2 size={13} /> DANGER ZONE
+                    </span>
+                    <span className="text-xs font-mono font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
+                      TOKEN PRESERVED
+                    </span>
+                  </div>
+
+                  <div>
+                    <h2 className="text-xl sm:text-2xl font-black text-[#0f172a] uppercase tracking-wide">
+                      DELETE CACHED SYNC DATA
+                    </h2>
+                    <p className="text-gray-500 text-xs sm:text-sm font-medium mt-1">
+                      Clears all downloaded products, categories, subcategories, assigned shops, orders, and offline images from local storage. Your user login session remains active.
+                    </p>
+                  </div>
+
+                  {totalUnpushed > 0 ? (
+                    <div className="p-3 bg-rose-50 border border-rose-200 rounded-2xl text-xs text-rose-800 font-medium">
+                      ⚠️ <strong>{totalUnpushed} unpushed change(s)</strong> in queue. You can push first or delete anyway.
+                    </div>
+                  ) : (
+                    <div className="p-3 bg-gray-50 border border-gray-200 rounded-2xl text-xs text-gray-600 font-mono">
+                      STORAGE USED: <span className="font-bold text-[#0f172a]">{storageStats?.totalUsageMB ?? 0} MB</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="pt-6 mt-6 border-t border-gray-100">
+                  <motion.button
+                    whileHover={{ scale: isSyncing || isPushing ? 1 : 1.02 }}
+                    whileTap={{ scale: isSyncing || isPushing ? 1 : 0.98 }}
+                    onClick={() => deleteSyncData()}
+                    disabled={isSyncing || isPushing}
+                    className="w-full px-6 py-4 rounded-full font-black text-xs sm:text-sm uppercase tracking-wider shadow-xl transition-all flex items-center justify-center gap-2 bg-rose-600 hover:bg-rose-700 text-white shadow-rose-600/20 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Trash2 size={18} />
+                    DELETE CACHED DATA NOW
+                  </motion.button>
+                </div>
+              </div>
+
             </div>
 
             {/* QUEUE STATUS SCREEN TABLE & RECOVERY SECTION */}

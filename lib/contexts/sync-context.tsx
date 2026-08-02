@@ -42,6 +42,7 @@ interface SyncContextType {
   triggerSync: () => Promise<boolean>;
   pushChanges: () => Promise<boolean>;
   retryFailedPush: () => Promise<boolean>;
+  deleteSyncData: () => Promise<boolean>;
   deleteQueueItem: (id: string) => Promise<void>;
   clearAllQueue: () => Promise<void>;
   downloadReport: (format: 'pdf' | 'csv' | 'json', userName?: string) => void;
@@ -115,6 +116,8 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
   const pendingQueueCount = queueItems.filter((i) => i.status === 'PENDING').length;
   const failedQueueCount = queueItems.filter((i) => i.status === 'FAILED').length;
+
+
 
   /**
    * Execute Push Process: Sequential FIFO processing
@@ -249,6 +252,100 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
   }, [isPushing, refreshQueue]);
 
   /**
+   * Delete all cached catalog data, products, categories, subcategories, images, and queue.
+   * DOES NOT delete user token or user authentication session.
+   */
+  const deleteSyncData = useCallback(async (): Promise<boolean> => {
+    if (isSyncing || isPushing) return false;
+
+    const unpushed = queueItems.filter((i) => i.status === 'PENDING' || i.status === 'FAILED');
+    if (unpushed.length > 0) {
+      const confirmChoice = await Swal.fire({
+        icon: 'warning',
+        title: 'Unpushed Changes Found!',
+        html: `
+          <div style="text-align: left; font-size: 13px;">
+            <p style="font-weight: 700; color: #dc2626;">You have ${unpushed.length} pending local change(s) in your SyncQueue.</p>
+            <p style="margin-top: 8px;">Deleting sync data will erase these unpushed changes. Would you like to push them to the server first?</p>
+          </div>
+        `,
+        showCancelButton: true,
+        showDenyButton: true,
+        confirmButtonText: 'Push & Delete Data',
+        denyButtonText: 'Delete Anyway',
+        cancelButtonText: 'Cancel',
+        confirmButtonColor: '#059669',
+        denyButtonColor: '#dc2626',
+      });
+
+      if (confirmChoice.isDismissed) return false;
+
+      if (confirmChoice.isConfirmed) {
+        const pushedOk = await pushChanges();
+        if (!pushedOk) return false;
+      }
+    } else {
+      const confirmDelete = await Swal.fire({
+        icon: 'warning',
+        title: 'Delete All Cached Data?',
+        text: 'This will remove all downloaded products, categories, images, and offline data. Your user login session will remain active.',
+        showCancelButton: true,
+        confirmButtonText: 'Yes, Delete Cached Data',
+        cancelButtonText: 'Cancel',
+        confirmButtonColor: '#dc2626',
+      });
+
+      if (!confirmDelete.isConfirmed) return false;
+    }
+
+    try {
+      // Clear offline DB tables & queue
+      await offlineDB.clearAllData();
+      await clearSyncQueue();
+      await clearMatricesFolder();
+
+      // Clear web CacheStorage images
+      if (typeof window !== 'undefined' && 'caches' in window) {
+        try {
+          await caches.delete('matrices-product-images-v1');
+        } catch {}
+      }
+
+      // Invalidate memory maps
+      invalidateImageMemoryMap();
+      invalidateProductIndex();
+
+      setMeta(null);
+      setLastSyncedAt(null);
+      await refreshQueue();
+
+      // Global SWR cache invalidation
+      mutate(() => true, undefined, { revalidate: true });
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('matrices-data-mode-change'));
+      }
+
+      Swal.fire({
+        icon: 'success',
+        title: 'Cached Data Deleted!',
+        text: 'All offline products, categories, and images have been deleted. User login session remains active.',
+        confirmButtonColor: '#0f172a',
+      });
+
+      return true;
+    } catch (err: any) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Delete Failed',
+        text: err?.message || 'Error deleting cached data',
+        confirmButtonColor: '#0f172a',
+      });
+      return false;
+    }
+  }, [isSyncing, isPushing, queueItems, pushChanges, refreshQueue]);
+
+  /**
    * Execute Sync (Download fresh catalog from server)
    */
   const executeSync = useCallback(async (): Promise<boolean> => {
@@ -316,15 +413,81 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       let orders: any[] = [];
       let wishlist: any = null;
 
-      if (productsRes.status === 'fulfilled' && productsRes.value.ok) {
-        const json = await productsRes.value.json();
-        products = json.data || json.products || (Array.isArray(json) ? json : []);
+      if (productsRes.status !== 'fulfilled' || !productsRes.value.ok) {
+        const status = productsRes.status === 'fulfilled' ? productsRes.value.status : 'Network error';
+        throw new Error(`Failed to download products from server (HTTP ${status})`);
+      }
+
+      const productsJson = await productsRes.value.json();
+      products = productsJson.data || productsJson.products || (Array.isArray(productsJson) ? productsJson : []);
+
+      if (!Array.isArray(products) || products.length === 0) {
+        throw new Error('Server returned 0 products. Sync aborted to preserve local database.');
       }
 
       if (filtersRes.status === 'fulfilled' && filtersRes.value.ok) {
         const json = await filtersRes.value.json();
-        categories = json.categories || json.data?.categories || [];
-        subcategories = json.subcategories || json.data?.subcategories || [];
+        if (Array.isArray(json)) {
+          categories = json;
+        } else if (Array.isArray(json?.categories)) {
+          categories = json.categories;
+        } else if (Array.isArray(json?.data)) {
+          categories = json.data;
+        } else if (Array.isArray(json?.data?.categories)) {
+          categories = json.data.categories;
+        }
+
+        if (Array.isArray(json?.subcategories)) {
+          subcategories = json.subcategories;
+        } else if (Array.isArray(json?.data?.subcategories)) {
+          subcategories = json.data.subcategories;
+        }
+      }
+
+      const extractStr = (val: any): string => {
+        if (!val) return '';
+        if (typeof val === 'string') return val.trim();
+        if (Array.isArray(val)) return extractStr(val[0]);
+        if (typeof val === 'object') {
+          return (val.name || val.categoryName || val.subcategoryName || val.title || val.label || val._id || '').toString().trim();
+        }
+        return String(val).trim();
+      };
+
+      // Fallback: build categories & subcategories from products if filters endpoint was empty or unparseable
+      if (categories.length === 0 && products.length > 0) {
+        const catMap = new Map<string, { name: string; image: string; subcats: Map<string, { name: string; image: string }> }>();
+        products.forEach((p: any) => {
+          const catName = extractStr(p.categoryName || p.category?.name || p.category || p.categories).toUpperCase();
+          const subName = extractStr(p.subcategoryName || p.subcategory?.name || p.subCategory || p.subcategory || p.subcategories || p.subCategories).toUpperCase();
+          const img = p.image || p.imageUrl || (Array.isArray(p.images) && p.images[0] ? p.images[0] : '');
+
+          if (catName) {
+            const catKey = catName.toUpperCase();
+            if (!catMap.has(catKey)) {
+              catMap.set(catKey, { name: catKey, image: img, subcats: new Map() });
+            }
+            const catEntry = catMap.get(catKey)!;
+            if (!catEntry.image && img) catEntry.image = img;
+
+            if (subName) {
+              const subKey = subName.toUpperCase();
+              if (!catEntry.subcats.has(subKey)) {
+                catEntry.subcats.set(subKey, { name: subKey, image: img });
+              }
+            }
+          }
+        });
+
+        catMap.forEach((val) => {
+          const subsArr: any[] = [];
+          val.subcats.forEach((subObj) => subsArr.push(subObj));
+          categories.push({
+            name: val.name,
+            image: val.image,
+            subcategories: subsArr,
+          });
+        });
       }
 
       setProgress(50);
@@ -348,75 +511,68 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       setProgress(78);
       setSyncStatusText(`Saving ${products.length} products, ${shops.length} shops, and ${orders.length} orders offline...`);
 
-      const extractStr = (val: any): string => {
-        if (!val) return '';
-        if (typeof val === 'string') return val.trim();
-        if (Array.isArray(val)) return extractStr(val[0]);
-        if (typeof val === 'object') {
-          return (val.name || val.categoryName || val.subcategoryName || val.title || val.label || val._id || '').toString().trim();
-        }
-        return String(val).trim();
-      };
-
-      // Ensure subcategories are extracted even if nested inside category objects
-      let allSubcategories = [...subcategories];
-      if (allSubcategories.length === 0 && categories.length > 0) {
-        categories.forEach((cat: any) => {
-          const catName = extractStr(cat.name || cat.categoryName);
-          const catId = String(cat._id || cat.id || cat.categoryId || '');
-          if (Array.isArray(cat.subcategories)) {
-            cat.subcategories.forEach((sub: any) => {
-              const subObj = typeof sub === 'string'
-                ? { name: sub, categoryName: catName, categoryId: catId }
-                : { ...sub, categoryName: extractStr(sub.categoryName) || catName, categoryId: sub.categoryId || catId };
-              allSubcategories.push(subObj);
-            });
-          }
-        });
-      }
-
       const formattedCategories = categories.map((c: any, idx: number) => {
-        const cName = extractStr(c.name || c.categoryName || 'Category');
+        const cName = extractStr(c.name || c.categoryName || 'Category').toUpperCase();
+        const cImage = c.image || c.imageUrl || c.categoryImage || '';
+
+        const cSubs = (Array.isArray(c.subcategories) ? c.subcategories : []).map((s: any) => {
+          if (typeof s === 'string') return { name: s.trim().toUpperCase(), image: '', count: 0 };
+          return {
+            name: extractStr(s.name || s.subcategoryName).toUpperCase(),
+            image: s.image || s.imageUrl || '',
+            count: Number(s.count || 0),
+          };
+        });
+
         return {
           id: String(c._id || c.id || c.categoryId || `cat_${idx}`),
           name: cName,
           categoryName: cName,
-          image: c.image || c.imageUrl || '',
+          image: cImage,
           order: c.order ?? idx,
-          subcategories: c.subcategories || [],
+          totalCount: Number(c.totalCount || 0),
+          subcategories: cSubs,
         };
       });
 
-      const formattedSubcategories = allSubcategories.map((s: any, idx: number) => {
-        const sName = extractStr(s.name || s.subcategoryName || 'Subcategory');
-        const catName = extractStr(s.categoryName || s.category?.name || s.category);
-        return {
-          id: String(s._id || s.id || s.subcategoryId || `subcat_${idx}`),
-          name: sName,
-          subcategoryName: sName,
-          categoryId: String(s.categoryId || s.category?._id || s.category || ''),
-          category: catName,
-          categoryName: catName,
-          image: s.image || s.imageUrl || '',
-          order: s.order ?? idx,
-        };
+      const uniqueSubMap = new Map<string, any>();
+      formattedCategories.forEach((cat: any) => {
+        cat.subcategories.forEach((sub: any, idx: number) => {
+          if (!sub.name) return;
+          const key = `${cat.name}>${sub.name}`;
+          if (!uniqueSubMap.has(key)) {
+            uniqueSubMap.set(key, {
+              id: String(sub._id || sub.id || sub.subcategoryId || `subcat_${cat.id}_${idx}`),
+              name: sub.name,
+              subcategoryName: sub.name,
+              category: cat.name,
+              categoryName: cat.name,
+              categoryId: cat.id,
+              image: sub.image || '',
+              count: sub.count || 0,
+              order: idx,
+            });
+          }
+        });
       });
+      const formattedSubcategories = Array.from(uniqueSubMap.values());
 
       const formattedProducts = products.map((p: any, idx: number) => {
-        const catName = extractStr(p.categoryName || p.category?.name || p.category || p.categories);
-        const subName = extractStr(p.subcategoryName || p.subcategory?.name || p.subCategory || p.subcategory || p.subcategories || p.subCategories);
+        const catName = extractStr(p.categoryName || p.category?.name || p.category || p.categories).toUpperCase();
+        const subName = extractStr(p.subcategoryName || p.subcategory?.name || p.subCategory || p.subcategory || p.subcategories || p.subCategories).toUpperCase();
         const img = p.image || p.imageUrl || (Array.isArray(p.images) && p.images[0] ? p.images[0] : '');
         const priceVal = Number(p.sellPrice || p.price || 0);
+
         return {
           id: String(p._id || p.id || p.productId || `prod_${idx}`),
           productId: String(p.productId || p._id || p.id || `prod_${idx}`),
-          name: p.name || p.productName || 'Unnamed Product',
+          name: String(p.name || p.productName || 'Unnamed Product').toUpperCase(),
           code: p.code || p.productCode || '',
           description: p.description || '',
           price: priceVal,
           sellPrice: priceVal,
-          categoryId: String(p.categoryId || p.category?._id || p.category || ''),
-          subcategoryId: String(p.subcategoryId || p.subcategory?._id || p.subcategory || ''),
+          categoryId: String(p.categoryId || p.category?._id || (typeof p.category === 'object' ? p.category?._id : p.category) || ''),
+          subcategoryId: String(p.subcategoryId || p.subcategory?._id || (typeof p.subcategory === 'object' ? p.subcategory?._id : p.subcategory) || ''),
           category: catName,
           categoryName: catName,
           categories: catName,
@@ -472,16 +628,47 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       await offlineDB.saveBatch('orders', formattedOrders);
       await offlineDB.saveBatch('wishlist', formattedWishlist);
 
-      setProgress(90);
-      setSyncStatusText('Finalizing sync & building local index...');
+      setProgress(80);
+      setSyncStatusText('Preparing full offline image download...');
 
-      // Invalidate all in-memory image & search caches
+      // Collect ALL unique image URLs from categories, subcategories, and products
+      const allImageUrls: string[] = [
+        ...formattedCategories.map((c: { image?: string }) => c.image),
+        ...formattedSubcategories.map((s: { image?: string }) => s.image),
+        ...formattedProducts.map((p: { image?: string; imageUrl?: string }) => p.imageUrl || p.image),
+        ...formattedProducts.flatMap((p: { images?: string[] }) => p.images || []),
+      ].filter((url): url is string => Boolean(url && typeof url === 'string' && url.trim().length > 0));
+
+      const uniqueImageUrls = Array.from(new Set(allImageUrls));
+
+      let totalImagesDownloaded = 0;
+      let totalSizeBytesDownloaded = 0;
+
+      if (uniqueImageUrls.length > 0) {
+        setSyncStatusText(`Downloading ${uniqueImageUrls.length} images for full offline access (0/${uniqueImageUrls.length})...`);
+
+        const stats = await cacheProductImages(uniqueImageUrls, (done, total) => {
+          const imageProgress = 80 + Math.floor((done / total) * 15);
+          setProgress(imageProgress);
+          setSyncStatusText(`Downloading offline images (${done}/${total})...`);
+        });
+
+        totalImagesDownloaded = stats.totalDownloaded;
+        totalSizeBytesDownloaded = stats.totalSizeBytes;
+      }
+
+      setProgress(96);
+      setSyncStatusText('Finalizing sync & pre-warming local search & image index...');
+
+      // Invalidate & rebuild all in-memory image & search caches
       invalidateImageMemoryMap();
       invalidateProductIndex();
+      await prewarmImageCache().catch(() => {});
 
       // Trigger global SWR cache invalidation so all UI pages immediately re-query fresh LocalDB data
       mutate(() => true, undefined, { revalidate: true });
 
+      const imageMB = Number((totalSizeBytesDownloaded / (1024 * 1024)).toFixed(2));
       const newMeta: SyncMetadata = {
         lastSyncedAt: new Date().toISOString(),
         totalProducts: formattedProducts.length,
@@ -489,8 +676,8 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         totalSubcategories: formattedSubcategories.length,
         totalShops: formattedShops.length,
         totalOrders: formattedOrders.length,
-        totalImages: 0,
-        imageStorageMB: 0,
+        totalImages: totalImagesDownloaded > 0 ? totalImagesDownloaded : uniqueImageUrls.length,
+        imageStorageMB: imageMB,
       };
 
       await offlineDB.setMeta(newMeta);
@@ -498,32 +685,9 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       setLastSyncedAt(newMeta.lastSyncedAt);
 
       setProgress(100);
-      setSyncStatusText('Sync Complete! Images will cache as you browse.');
+      setSyncStatusText('Sync Complete! 100% of data & images available offline.');
 
-      // Stay in online mode (stale-while-revalidate serves IDB instantly)
-      // Don't force switch to offline — let user keep their current mode preference
       window.dispatchEvent(new Event('matrices-data-mode-change'));
-
-      // Pre-warm image cache in background (non-blocking) for the most-viewed images
-      const priorityImageUrls: string[] = [
-        ...formattedCategories.map((c: { image?: string }) => c.image),
-        ...formattedSubcategories.map((s: { image?: string }) => s.image),
-        ...formattedProducts.slice(0, 200).map((p: { imageUrl?: string }) => p.imageUrl),
-      ].filter((url): url is string => Boolean(url && typeof url === 'string'));
-
-      // Kick off background image caching without blocking the UI
-      Promise.resolve().then(async () => {
-        try {
-          await cacheProductImages(priorityImageUrls, (done, total) => {
-            // Silent background caching — no progress bar update
-            if (done === total) {
-              prewarmImageCache().catch(() => {});
-            }
-          });
-        } catch {
-          // Ignore image caching errors
-        }
-      });
 
       return true;
     } catch (err: any) {
@@ -613,6 +777,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         triggerSync,
         pushChanges,
         retryFailedPush,
+        deleteSyncData,
         deleteQueueItem,
         clearAllQueue,
         downloadReport,

@@ -12,6 +12,7 @@ import QuickAddModal from './quick-add-modal';
 import Link from 'next/link';
 import RelatedProducts from './related-products';
 import { Menu, Home, Grid, BookOpen } from 'lucide-react';
+import SmartImage from './smart-image';
 import { getCachedImageUrl, getCachedImageUrlSync } from '@/lib/offline/image-cache';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
@@ -382,13 +383,11 @@ export default function FullscreenProductViewer({
               animate={imageZoomed ? { scale: 1.1 } : { scale: 1 }}
               transition={{ duration: 0.3 }}
             >
-              <img
-                src={displayImg || currentProduct?.image || '/placeholder.png'}
+              <SmartImage
+                src={displayImg || currentProduct?.image || currentProduct?.imageUrl || ''}
                 alt={currentProduct?.name || 'Product Image'}
                 className="w-full h-full object-contain rounded-3xl shadow-2xl"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src = '/placeholder.png';
-                }}
+                priority
               />
               <div className="absolute bottom-4 right-4 bg-white/80 text-[#0f172a] px-4 py-1.5 rounded-full text-xs font-semibold shadow-sm opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity uppercase">
                 CLICK TO ZOOM
@@ -686,13 +685,10 @@ function ThumbnailStrip({
               : 'border-white/40 hover:border-white/80'
           }`}
         >
-          <img
-            src={product.image || '/placeholder.png'}
+          <SmartImage
+            src={product.image || product.imageUrl || ''}
             alt={product.name || 'Thumbnail'}
             className="w-full h-full object-cover animate-fade-in"
-            onError={(e) => {
-              (e.target as HTMLImageElement).src = '/placeholder.png';
-            }}
           />
         </motion.button>
       ))}

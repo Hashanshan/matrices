@@ -9,6 +9,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { MOCK_PRODUCTS } from '@/lib/mock-data';
 
+import SmartImage from './smart-image';
+
 interface SwipableProductViewerProps {
   initialProductId?: string;
   onClose?: () => void;
@@ -148,7 +150,7 @@ export default function SwipableProductViewer({
                   }}
                   className="absolute inset-0"
                 >
-                  <img
+                  <SmartImage
                     src={currentProduct.image}
                     alt={currentProduct.name}
                     className={`w-full h-full object-cover transition-transform duration-300 ${
@@ -206,7 +208,7 @@ export default function SwipableProductViewer({
                       : 'border-border hover:border-muted'
                   }`}
                 >
-                  <img
+                  <SmartImage
                     src={product.image}
                     alt={product.name}
                     className="w-full h-full object-cover"

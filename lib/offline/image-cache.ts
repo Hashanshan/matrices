@@ -204,9 +204,16 @@ export async function cacheProductImages(
 
   // Filter out already-cached URLs
   const uncachedUrls = uniqueUrls.filter((url) => !map.has(url) && !isLocalUri(url));
+  const alreadyCachedCount = uniqueUrls.length - uncachedUrls.length;
 
-  for (let i = 0; i < uncachedUrls.length; i += 6) {
-    const chunk = uncachedUrls.slice(i, i + 6);
+  if (alreadyCachedCount > 0) {
+    done += alreadyCachedCount;
+    onProgress?.(done, uniqueUrls.length);
+  }
+
+  const CONCURRENCY = 12;
+  for (let i = 0; i < uncachedUrls.length; i += CONCURRENCY) {
+    const chunk = uncachedUrls.slice(i, i + CONCURRENCY);
     await Promise.all(
       chunk.map(async (url) => {
         try {
@@ -219,7 +226,7 @@ export async function cacheProductImages(
           console.warn(`Error processing image ${url}`, e);
         } finally {
           done++;
-          onProgress?.(done, uncachedUrls.length);
+          onProgress?.(done, uniqueUrls.length);
         }
       })
     );
