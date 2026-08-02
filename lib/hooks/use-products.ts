@@ -1,5 +1,6 @@
 import useSWRInfinite from 'swr/infinite';
 import useSWR from 'swr';
+import { resolveApiUrl, getAuthToken } from '../utils';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -28,9 +29,10 @@ interface ProductsResponse {
 // ─── Fetcher ────────────────────────────────────────────────────────────────
 
 const fetcher = async <T = any>(url: string): Promise<T> => {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  const token = getAuthToken();
+  const targetUrl = resolveApiUrl(url);
 
-  const res = await fetch(url, {
+  const res = await fetch(targetUrl, {
     headers: {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },

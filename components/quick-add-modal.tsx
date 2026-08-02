@@ -65,7 +65,7 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
     onClose();
   };
 
-  if (!mounted) return null;
+  if (!mounted || !product) return null;
 
   return createPortal(
     <AnimatePresence>

@@ -16,6 +16,8 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+import { resolveApiUrl, getAuthToken } from '../utils';
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -64,9 +66,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const verifyPin = async (params: { pin?: string; password?: string; newPin?: string }): Promise<{ success: boolean; msg: string; hasPinSet?: boolean; requirePassword?: boolean; requireNewPin?: boolean }> => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    const token = getAuthToken();
+    const targetUrl = resolveApiUrl('/api/auth/verify-pin');
     try {
-      const res = await fetch('/api/auth/verify-pin', {
+      const res = await fetch(targetUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

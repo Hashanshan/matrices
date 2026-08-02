@@ -89,9 +89,6 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
 
           {/* Right Section */}
           <div className="flex items-center gap-3 md:gap-6">
-            {/* Sync Button for Offline Bulk Data Sync */}
-            <SyncButton />
-
             {/* Cart Button */}
             <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }}>
 

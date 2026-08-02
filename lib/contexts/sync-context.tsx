@@ -4,6 +4,8 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { offlineDB, SyncMetadata } from '../offline/indexed-db';
 import { cacheProductImages } from '../offline/image-cache';
 import { NativeAdapter } from '../../mobile/bridge/native-adapter';
+import { resolveApiUrl, getAuthToken } from '../utils';
+import SyncProgressModal from '@/components/sync-progress-modal';
 
 interface SyncContextType {
   isSyncing: boolean;
@@ -64,56 +66,143 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     }
 
     setIsSyncing(true);
-    setProgress(5);
-    setSyncStatusText('Requesting bulk sync payload...');
+    setProgress(10);
+    setSyncStatusText('Connecting to Magnum Server...');
 
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch('/api/sync/all', {
-        headers: {
-          'Authorization': token ? `Bearer ${token}` : '',
-        },
-      });
+      const token = getAuthToken();
+      const headers = {
+        'Authorization': token ? `Bearer ${token}` : '',
+        'Content-Type': 'application/json',
+      };
 
-      if (!res.ok) {
-        throw new Error(`Sync API responded with status ${res.status}`);
+      // 1. Fetch Active Products & Categories Filters
+      setProgress(25);
+      setSyncStatusText('Syncing Products & Categories...');
+
+      const productsUrl = resolveApiUrl('/api/products?limit=5000');
+      const filtersUrl = resolveApiUrl('/api/products/filters');
+      const shopsUrl = resolveApiUrl('/api/shops?limit=5000');
+      const ordersUrl = resolveApiUrl('/api/orders?limit=5000');
+      const wishlistUrl = resolveApiUrl('/api/wishlist');
+
+      const [productsRes, filtersRes, shopsRes, ordersRes, wishlistRes] = await Promise.allSettled([
+        fetch(productsUrl, { headers, cache: 'no-store' }),
+        fetch(filtersUrl, { headers, cache: 'no-store' }),
+        fetch(shopsUrl, { headers, cache: 'no-store' }),
+        fetch(ordersUrl, { headers, cache: 'no-store' }),
+        fetch(wishlistUrl, { headers, cache: 'no-store' }),
+      ]);
+
+      let products: any[] = [];
+      let categories: any[] = [];
+      let subcategories: any[] = [];
+      let shops: any[] = [];
+      let orders: any[] = [];
+      let wishlist: any = null;
+
+      if (productsRes.status === 'fulfilled' && productsRes.value.ok) {
+        const json = await productsRes.value.json();
+        products = json.data || json.products || (Array.isArray(json) ? json : []);
       }
 
-      const json = await res.json();
-      if (!json.success || !json.data) {
-        throw new Error(json.msg || 'Invalid sync response');
+      if (filtersRes.status === 'fulfilled' && filtersRes.value.ok) {
+        const json = await filtersRes.value.json();
+        categories = json.categories || json.data?.categories || [];
+        subcategories = json.subcategories || json.data?.subcategories || [];
       }
 
-      const { products, categories, subcategories, shops } = json.data;
+      // 2. Fetch Assigned Salesrep Shops
+      setProgress(50);
+      setSyncStatusText('Syncing Customer Shops assigned to logged-in salesrep...');
+      if (shopsRes.status === 'fulfilled' && shopsRes.value.ok) {
+        const json = await shopsRes.value.json();
+        shops = json.data || json.shops || (Array.isArray(json) ? json : []);
+      }
 
-      setProgress(30);
-      setSyncStatusText(`Saving ${products.length} products to offline storage...`);
+      // 3. Fetch Salesrep Invoices & Orders
+      setProgress(75);
+      setSyncStatusText('Syncing Salesrep Invoices & Orders...');
+      if (ordersRes.status === 'fulfilled' && ordersRes.value.ok) {
+        const json = await ordersRes.value.json();
+        orders = json.orders || json.data || (Array.isArray(json) ? json : []);
+      }
 
-      // Store batch in IndexedDB
-      await offlineDB.saveBatch('products', products);
+      if (wishlistRes.status === 'fulfilled' && wishlistRes.value.ok) {
+        wishlist = await wishlistRes.value.json();
+      }
+
+      // Save to IndexedDB offline storage
+      setProgress(85);
+      setSyncStatusText(`Saving ${products.length} products, ${shops.length} shops, and ${orders.length} orders offline...`);
+
+      const formattedProducts = products.map((p: any) => ({
+        id: p._id || p.id || p.productId,
+        productId: p.productId || p._id || p.id,
+        name: p.name || p.productName || 'Unnamed Product',
+        code: p.code || p.productCode || '',
+        description: p.description || '',
+        price: p.price || 0,
+        categoryId: p.categoryId || p.category?._id || p.category || '',
+        subcategoryId: p.subcategoryId || p.subcategory?._id || p.subcategory || '',
+        categoryName: p.categoryName || p.category?.name || '',
+        subcategoryName: p.subcategoryName || p.subcategory?.name || '',
+        imageUrl: p.image || p.imageUrl || '',
+        images: p.images || (p.image ? [p.image] : []),
+      }));
+
+      const formattedShops = shops.map((s: any) => ({
+        id: s._id || s.id || s.shopId,
+        shopId: s.shopId || s.id,
+        name: s.name || s.shopName,
+        phone: s.phone || '',
+        address: s.address || '',
+        deliveredOrders: s.deliveredOrders || 0,
+        pendingOrders: s.pendingOrders || 0,
+        currentCredit: s.currentCredit || 0,
+      }));
+
+      const formattedOrders = orders.map((o: any) => ({
+        id: o._id || o.id || o.orderId,
+        orderId: o.orderId || o.id,
+        date: o.date,
+        shop: o.shop,
+        items: o.items || [],
+        total: o.total || 0,
+        status: o.status || 'PENDING',
+      }));
+
+      await offlineDB.saveBatch('products', formattedProducts);
       await offlineDB.saveBatch('categories', categories);
       await offlineDB.saveBatch('subcategories', subcategories);
-      await offlineDB.saveBatch('shops', shops);
+      await offlineDB.saveBatch('shops', formattedShops);
+      await offlineDB.saveBatch('orders', formattedOrders);
 
-      setProgress(60);
+      if (wishlist) {
+        await offlineDB.saveBatch('wishlist', Array.isArray(wishlist) ? wishlist : [wishlist]);
+      }
+
+      // 4. Cache Product Images
+      setProgress(90);
       setSyncStatusText('Caching product images for offline display...');
 
-      // Collect image URLs
-      const imageUrls: string[] = products
+      const imageUrls: string[] = formattedProducts
         .map((p: { imageUrl?: string }) => p.imageUrl)
         .filter(Boolean);
 
-      await cacheProductImages(imageUrls, (done, total) => {
-        const pct = Math.floor(60 + (done / (total || 1)) * 35);
-        setProgress(Math.min(pct, 95));
-      });
+      if (imageUrls.length > 0) {
+        await cacheProductImages(imageUrls, (done, total) => {
+          const pct = Math.floor(90 + (done / (total || 1)) * 10);
+          setProgress(Math.min(pct, 99));
+        });
+      }
 
       const newMeta: SyncMetadata = {
         lastSyncedAt: new Date().toISOString(),
-        totalProducts: products.length,
+        totalProducts: formattedProducts.length,
         totalCategories: categories.length,
         totalSubcategories: subcategories.length,
-        totalShops: shops.length,
+        totalShops: formattedShops.length,
       };
 
       await offlineDB.setMeta(newMeta);
@@ -121,18 +210,12 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       setLastSyncedAt(newMeta.lastSyncedAt);
 
       setProgress(100);
-      setSyncStatusText('Sync Complete');
+      setSyncStatusText('Database Sync Complete!');
       return true;
     } catch (err: any) {
       console.error('Error during data sync:', err);
-      setSyncStatusText(`Sync Failed: ${err.message || 'Error'}`);
+      setSyncStatusText(`Sync Failed: ${err.message || 'Server connection error'}`);
       return false;
-    } finally {
-      setTimeout(() => {
-        setIsSyncing(false);
-        setProgress(0);
-        setSyncStatusText('Idle');
-      }, 1200);
     }
   }, [isSyncing]);
 
@@ -150,6 +233,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       }}
     >
       {children}
+      <SyncProgressModal />
     </SyncContext.Provider>
   );
 }

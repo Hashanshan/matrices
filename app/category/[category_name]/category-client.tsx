@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/contexts/auth-context';
 import LoginForm from '@/components/login-form';
 import Header from '@/components/header';
@@ -15,8 +15,11 @@ import { useRouter } from "next/navigation";
 
 export default function CategoryClient() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const { isLoggedIn } = useAuth();
-  const rawCategoryName = (params?.category_name as string) || 'all';
+  const rawParam = (params?.category_name as string) || '';
+  const queryParam = searchParams?.get('category') || '';
+  const rawCategoryName = (rawParam && rawParam !== 'all' && rawParam !== 'general') ? rawParam : (queryParam || rawParam || 'all');
   const categoryName = decodeURIComponent(rawCategoryName);
   const router = useRouter();
 

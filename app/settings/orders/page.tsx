@@ -48,9 +48,13 @@ interface Order {
   payments: Payment[];
 }
 
+import { resolveApiUrl, getAuthToken } from '@/lib/utils';
+import SyncButton from '@/components/mobile/sync-button';
+
 const fetcher = async (url: string) => {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-  const res = await fetch(url, {
+  const token = getAuthToken();
+  const targetUrl = resolveApiUrl(url);
+  const res = await fetch(targetUrl, {
     headers: {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
@@ -222,6 +226,7 @@ export default function SettingsOrdersPage() {
 
                 {/* Top Mobile Scrollable Navigation */}
                 <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none w-full sm:w-auto max-w-full shrink-0">
+                  <SyncButton />
                   <Link
                     href="/settings/shops"
                     className="text-xs font-black text-[#0f172a] uppercase bg-white/60 hover:bg-white border border-white/60 px-3.5 py-2.5 rounded-full shadow-xs transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0"

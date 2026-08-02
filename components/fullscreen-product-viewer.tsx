@@ -146,7 +146,18 @@ export default function FullscreenProductViewer({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleSwipe]);
 
-  const currentProduct = products[currentIndex] || products[0];
+  const validProducts = useMemo(
+    () => (products || []).filter((p): p is Product => Boolean(p && (p.image || p.name))),
+    [products]
+  );
+
+  useEffect(() => {
+    if (currentIndex >= validProducts.length && validProducts.length > 0) {
+      setCurrentIndex(0);
+    }
+  }, [validProducts.length, currentIndex]);
+
+  const currentProduct = validProducts[currentIndex] || validProducts[0] || null;
 
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX;
@@ -193,8 +204,8 @@ export default function FullscreenProductViewer({
       const shareUrl = `${window.location.origin}/view?productId=${currentProduct.productId || currentProduct.id}`;
       if (navigator.share) {
         navigator.share({
-          title: currentProduct.name.toUpperCase(),
-          text: `Check out ${currentProduct.name.toUpperCase()} - ${formatPrice(currentProduct.price)}`,
+          title: (currentProduct.name || '').toUpperCase(),
+          text: `Check out ${(currentProduct.name || '').toUpperCase()} - ${formatPrice(currentProduct.price || 0)}`,
           url: shareUrl,
         });
       } else {
@@ -215,8 +226,8 @@ export default function FullscreenProductViewer({
     setCurrentIndex(0);
   };
 
-  // If no products found, render a clean blank search/no results state
-  if (products.length === 0) {
+  // If no valid products found, render clean blank search/no results state
+  if (!currentProduct || validProducts.length === 0) {
     return (
       <div className="w-full min-h-screen flex flex-col items-center relative p-8 !backdrop-blur-[2px] overflow-y-auto no-scrollbar pb-24">
         <div className="absolute top-6 sm:top-8 right-6 sm:right-8 flex gap-3 z-20">
@@ -303,8 +314,8 @@ export default function FullscreenProductViewer({
               transition={{ duration: 0.3 }}
             >
               <img
-                src={currentProduct.image}
-                alt={currentProduct.name}
+                src={currentProduct?.image || ''}
+                alt={currentProduct?.name || ''}
                 className="w-full h-full object-contain rounded-3xl shadow-2xl"
               />
               <div className="absolute bottom-4 right-4 bg-white/80 text-[#0f172a] px-4 py-1.5 rounded-full text-xs font-semibold shadow-sm opacity-0 group-hover:opacity-100 transition-opacity uppercase">

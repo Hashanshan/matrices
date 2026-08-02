@@ -46,9 +46,12 @@ interface Order {
   payments: Payment[];
 }
 
+import { resolveApiUrl, getAuthToken } from '@/lib/utils';
+
 const fetcher = async (url: string) => {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-  const res = await fetch(url, {
+  const token = getAuthToken();
+  const targetUrl = resolveApiUrl(url);
+  const res = await fetch(targetUrl, {
     headers: {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
@@ -60,9 +63,26 @@ const fetcher = async (url: string) => {
   return res.json();
 };
 
-export default function OrderPdfClient({ params }: { params: Promise<{ orderId: string }> }) {
-  const resolvedParams = use(params);
-  const orderId = resolvedParams?.orderId || '1';
+import { useParams, useSearchParams } from 'next/navigation';
+
+export default function OrderPdfClient({ params }: { params?: Promise<{ orderId: string }> }) {
+  const routerParams = useParams();
+  const searchParams = useSearchParams();
+
+  let resolvedOrderId = '';
+  try {
+    if (params) {
+      const resolved = use(params);
+      resolvedOrderId = resolved?.orderId || '';
+    }
+  } catch (e) {}
+
+  const rawParam = (routerParams?.orderId as string) || resolvedOrderId;
+  const queryParam = searchParams?.get('orderId') || '';
+
+  const orderId = (rawParam && rawParam !== 'default' && rawParam !== '1')
+    ? rawParam
+    : (queryParam || rawParam || '1');
 
   const { isPinVerified, resetPinVerification } = useAuth();
   const [showPinModal, setShowPinModal] = useState(true);

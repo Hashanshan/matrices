@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useCallback } from 'react';
 import useSWR from 'swr';
 import { CatalogueProduct } from '../hooks/use-products';
+import { resolveApiUrl, getAuthToken } from '../utils';
 
 export interface WishlistCategory {
   name: string;
@@ -58,10 +59,14 @@ interface WishlistContextType {
 const WishlistContext = createContext<WishlistContextType | undefined>(undefined);
 
 const fetcher = async (url: string): Promise<WishlistResponse> => {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-  const res = await fetch(url, {
+  const token = getAuthToken();
+  if (!token) {
+    return { success: true, wishlist: { categories: [], subcategories: [], products: [], fullProducts: [] } };
+  }
+  const targetUrl = resolveApiUrl(url);
+  const res = await fetch(targetUrl, {
     headers: {
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      Authorization: `Bearer ${token}`,
     },
   });
 
@@ -72,7 +77,8 @@ const fetcher = async (url: string): Promise<WishlistResponse> => {
 };
 
 export function WishlistProvider({ children }: { children: React.ReactNode }) {
-  const { data, isLoading, mutate } = useSWR<WishlistResponse>('/api/wishlist', fetcher, {
+  const token = typeof window !== 'undefined' ? getAuthToken() : null;
+  const { data, isLoading, mutate } = useSWR<WishlistResponse>(token ? '/api/wishlist' : null, fetcher, {
     revalidateOnFocus: true,
     dedupingInterval: 5000,
   });
@@ -116,11 +122,12 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
   );
 
   const toggleCategoryWishlist = async (name: string) => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    const token = getAuthToken();
     try {
       // Optimistic mutate
-      mutate(async (currentData) => {
-        const res = await fetch('/api/wishlist', {
+      mutate(async () => {
+        const targetUrl = resolveApiUrl('/api/wishlist');
+        const res = await fetch(targetUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -137,10 +144,11 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
   };
 
   const toggleSubcategoryWishlist = async (category: string, name: string) => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    const token = getAuthToken();
     try {
-      mutate(async (currentData) => {
-        const res = await fetch('/api/wishlist', {
+      mutate(async () => {
+        const targetUrl = resolveApiUrl('/api/wishlist');
+        const res = await fetch(targetUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -157,10 +165,11 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
   };
 
   const toggleProductWishlist = async (productId: string) => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    const token = getAuthToken();
     try {
-      mutate(async (currentData) => {
-        const res = await fetch('/api/wishlist', {
+      mutate(async () => {
+        const targetUrl = resolveApiUrl('/api/wishlist');
+        const res = await fetch(targetUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -177,10 +186,11 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
   };
 
   const reorderWishlist = async (type: 'category' | 'subcategory' | 'product', items: any[]) => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    const token = getAuthToken();
     try {
       mutate(async () => {
-        const res = await fetch('/api/wishlist/reorder', {
+        const targetUrl = resolveApiUrl('/api/wishlist/reorder');
+        const res = await fetch(targetUrl, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',

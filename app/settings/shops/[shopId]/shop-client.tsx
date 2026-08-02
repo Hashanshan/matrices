@@ -63,9 +63,12 @@ interface Order {
   payments: Payment[];
 }
 
+import { resolveApiUrl, getAuthToken } from '@/lib/utils';
+
 const fetcher = async (url: string) => {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-  const res = await fetch(url, {
+  const token = getAuthToken();
+  const targetUrl = resolveApiUrl(url);
+  const res = await fetch(targetUrl, {
     headers: {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
@@ -77,9 +80,26 @@ const fetcher = async (url: string) => {
   return res.json();
 };
 
-export default function ShopClient({ params }: { params: Promise<{ shopId: string }> }) {
-  const resolvedParams = use(params);
-  const shopId = resolvedParams?.shopId || '1';
+import { useParams, useSearchParams } from 'next/navigation';
+
+export default function ShopClient({ params }: { params?: Promise<{ shopId: string }> }) {
+  const routerParams = useParams();
+  const searchParams = useSearchParams();
+
+  let resolvedShopId = '';
+  try {
+    if (params) {
+      const resolved = use(params);
+      resolvedShopId = resolved?.shopId || '';
+    }
+  } catch (e) {}
+
+  const rawParam = (routerParams?.shopId as string) || resolvedShopId;
+  const queryParam = searchParams?.get('shopId') || '';
+
+  const shopId = (rawParam && rawParam !== 'default' && rawParam !== '1')
+    ? rawParam
+    : (queryParam || rawParam || '1');
 
   const { isPinVerified, resetPinVerification } = useAuth();
   const [showPinModal, setShowPinModal] = useState(true);

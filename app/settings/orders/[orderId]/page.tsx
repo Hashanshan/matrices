@@ -1,5 +1,7 @@
 import OrderPdfClient from './order-client';
 
+export const dynamicParams = false;
+
 export function generateStaticParams() {
   return [{ orderId: '1' }, { orderId: 'default' }];
 }

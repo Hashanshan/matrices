@@ -8,6 +8,8 @@ import { motion } from 'framer-motion';
 import { User, Lock, Key, ShieldCheck, Check, ShieldAlert, Heart } from 'lucide-react';
 import Link from 'next/link';
 
+import { resolveApiUrl, getAuthToken } from '@/lib/utils';
+
 export default function SecuritySettingsPage() {
   const { user, isPinVerified, updateProfile, resetPinVerification } = useAuth();
   const [showPinModal, setShowPinModal] = useState(true);
@@ -55,10 +57,11 @@ export default function SecuritySettingsPage() {
     }
 
     setIsUpdating(true);
-    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    const token = getAuthToken();
+    const targetUrl = resolveApiUrl('/api/auth/profile');
 
     try {
-      const res = await fetch('/api/auth/profile', {
+      const res = await fetch(targetUrl, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -103,10 +106,11 @@ export default function SecuritySettingsPage() {
     }
 
     setIsUpdating(true);
-    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    const token = getAuthToken();
+    const targetUrl = resolveApiUrl('/api/auth/profile');
 
     try {
-      const res = await fetch('/api/auth/profile', {
+      const res = await fetch(targetUrl, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

@@ -15,6 +15,9 @@ import useSWR, { mutate } from 'swr';
 import Swal from 'sweetalert2';
 import { formatPrice } from '@/lib/currency';
 
+import { resolveApiUrl, getAuthToken } from '@/lib/utils';
+import SyncButton from '@/components/mobile/sync-button';
+
 interface Shop {
   shopId: string;
   name: string;
@@ -31,8 +34,9 @@ interface Shop {
 }
 
 const fetcher = async (url: string) => {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-  const res = await fetch(url, {
+  const token = getAuthToken();
+  const targetUrl = resolveApiUrl(url);
+  const res = await fetch(targetUrl, {
     headers: {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
@@ -250,12 +254,13 @@ export default function ShopsSettingsPage() {
     setIsSubmitting(true);
 
     try {
-      const token = localStorage.getItem('token');
+      const token = getAuthToken();
       const isEdit = !!editingShop;
-      const url = isEdit ? `/api/shops/${editingShop.shopId}` : '/api/shops/create';
+      const rawUrl = isEdit ? `/api/shops/${editingShop.shopId}` : '/api/shops/create';
+      const targetUrl = resolveApiUrl(rawUrl);
       const method = isEdit ? 'PUT' : 'POST';
 
-      const res = await fetch(url, {
+      const res = await fetch(targetUrl, {
         method,
         headers: {
           'Content-Type': 'application/json',
@@ -354,6 +359,7 @@ export default function ShopsSettingsPage() {
 
                 {/* Right Header Controls: Add Shop Button + Mobile Nav Links */}
                 <div className="flex flex-wrap items-center gap-2.5">
+                  <SyncButton />
                   <button
                     onClick={handleOpenAddModal}
                     className="bg-[#0f172a] hover:bg-[#1e293b] text-white font-black text-xs uppercase tracking-wider px-5 py-3 rounded-full shadow-lg hover:shadow-xl transition-all flex items-center gap-2 cursor-pointer active:scale-95"
@@ -529,7 +535,7 @@ export default function ShopsSettingsPage() {
 
                         {/* View Invoices / Single View Action Button */}
                         <Link
-                          href={`/settings/shops/${shop.shopId}`}
+                          href={`/settings/shops/default?shopId=${shop.shopId}`}
                           className="w-full py-3 bg-[#0f172a] hover:bg-[#1e293b] text-white font-black text-xs uppercase tracking-wider rounded-full shadow-md transition-all text-center block"
                         >
                           VIEW SHOP INVOICES

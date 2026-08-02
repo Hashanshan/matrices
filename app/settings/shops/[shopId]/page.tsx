@@ -1,5 +1,7 @@
 import ShopClient from './shop-client';
 
+export const dynamicParams = false;
+
 export function generateStaticParams() {
   return [{ shopId: '1' }, { shopId: 'default' }];
 }
