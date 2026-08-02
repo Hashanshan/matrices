@@ -222,6 +222,9 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         fullProducts: rawWishlist.fullProducts || [],
       }];
 
+      // Clear all old synced data prior to persisting fresh dataset
+      await offlineDB.clearAllData();
+
       await offlineDB.saveBatch('categories', formattedCategories);
       await offlineDB.saveBatch('subcategories', formattedSubcategories);
       await offlineDB.saveBatch('products', formattedProducts);
@@ -229,20 +232,25 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       await offlineDB.saveBatch('orders', formattedOrders);
       await offlineDB.saveBatch('wishlist', formattedWishlist);
 
-      // ── Step 5: Cache images ────────────────────────────────────────────────
+      // ── Step 5: Cache & Download Images directly to LocalDB / Filesystem ──
       setProgress(88);
-      setSyncStatusText('Caching product images for offline display...');
+      setSyncStatusText('Downloading & storing images locally for offline use...');
 
-      const imageUrls: string[] = formattedProducts
-        .map((p: { imageUrl?: string }) => p.imageUrl)
-        .filter(Boolean);
+      const imageUrls: string[] = [
+        ...formattedProducts.map((p: { imageUrl?: string }) => p.imageUrl),
+        ...formattedCategories.map((c: { image?: string }) => c.image),
+        ...formattedSubcategories.map((s: { image?: string }) => s.image),
+      ].filter((url): url is string => Boolean(url && typeof url === 'string'));
 
+      let imageStats = { totalDownloaded: 0, totalSizeBytes: 0 };
       if (imageUrls.length > 0) {
-        await cacheProductImages(imageUrls, (done, total) => {
+        imageStats = await cacheProductImages(imageUrls, (done, total) => {
           const pct = Math.floor(88 + (done / (total || 1)) * 10);
           setProgress(Math.min(pct, 99));
         });
       }
+
+      const imageStorageMB = Number((imageStats.totalSizeBytes / (1024 * 1024)).toFixed(2));
 
       const newMeta: SyncMetadata = {
         lastSyncedAt: new Date().toISOString(),
@@ -250,6 +258,9 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         totalCategories: formattedCategories.length,
         totalSubcategories: formattedSubcategories.length,
         totalShops: formattedShops.length,
+        totalOrders: formattedOrders.length,
+        totalImages: imageStats.totalDownloaded,
+        imageStorageMB: imageStorageMB,
       };
 
       await offlineDB.setMeta(newMeta);

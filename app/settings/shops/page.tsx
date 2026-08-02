@@ -8,7 +8,7 @@ import Pagination from '@/components/pagination';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Store, Phone, MapPin, Edit, ShieldCheck, Heart, Search, Lock, X, Check, FileText,
-  Plus, Camera, Upload, Navigation, ExternalLink, Image as ImageIcon, Trash2, Compass
+  Plus, Camera, Upload, Navigation, ExternalLink, Image as ImageIcon, Trash2, Compass, RefreshCw
 } from 'lucide-react';
 import Link from 'next/link';
 import useSWR, { mutate } from 'swr';
@@ -18,7 +18,6 @@ import { formatPrice } from '@/lib/currency';
 import { resolveApiUrl, getAuthToken } from '@/lib/utils';
 import { offlineDB } from '@/lib/offline/indexed-db';
 import { useDataMode } from '@/lib/contexts/data-mode-context';
-import SyncButton from '@/components/mobile/sync-button';
 
 interface Shop {
   shopId: string;
@@ -416,7 +415,12 @@ export default function ShopsSettingsPage() {
                   </button>
 
                   <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none max-w-full shrink-0">
-                    <SyncButton />
+                    <Link
+                      href="/settings/sync"
+                      className="text-xs font-black text-[#0f172a] uppercase bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 px-3.5 py-2.5 rounded-full shadow-xs transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0"
+                    >
+                      <RefreshCw size={14} className="text-emerald-600" /> SYNC
+                    </Link>
                     <Link
                       href="/settings/orders"
                       className="text-xs font-black text-[#0f172a] uppercase bg-white/60 hover:bg-white border border-white/60 px-3.5 py-2.5 rounded-full shadow-xs transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0"

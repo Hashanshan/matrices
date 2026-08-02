@@ -1,6 +1,6 @@
 /**
  * Storage Permission Handler
- * Handles checking and requesting Storage permissions natively and in web context.
+ * Handles checking and requesting Storage and Photos permissions natively and in web context.
  */
 
 export interface PermissionResult {
@@ -17,6 +17,15 @@ async function loadCapacitorFilesystem(): Promise<any> {
   }
 }
 
+async function loadCapacitorCamera(): Promise<any> {
+  try {
+    const dynamicImport = new Function('modulePath', 'return import(modulePath)');
+    return await dynamicImport('@capacitor/camera');
+  } catch {
+    return null;
+  }
+}
+
 export async function checkStoragePermission(): Promise<PermissionResult> {
   if (typeof window === 'undefined') {
     return { granted: false, message: 'SSR Environment' };
@@ -26,25 +35,45 @@ export async function checkStoragePermission(): Promise<PermissionResult> {
 
   if (isCapacitor) {
     const fsModule = await loadCapacitorFilesystem();
+    const camModule = await loadCapacitorCamera();
+
+    let fsGranted = false;
+    let photosGranted = false;
+
     if (fsModule?.Filesystem) {
       try {
         const status = await fsModule.Filesystem.checkPermissions();
-        return {
-          granted: status.publicStorage === 'granted',
-          message: status.publicStorage === 'granted' ? 'Storage permission granted' : 'Storage permission denied'
-        };
+        fsGranted = status.publicStorage === 'granted';
       } catch {
-        return { granted: true, message: 'Native storage check fallback' };
+        fsGranted = false;
       }
+    }
+
+    if (!fsGranted && camModule?.Camera) {
+      try {
+        const status = await camModule.Camera.checkPermissions();
+        photosGranted = status.photos === 'granted';
+      } catch {
+        photosGranted = false;
+      }
+    }
+
+    const userAgent = navigator.userAgent || '';
+    const isAndroid13OrHigher = /Android\s+([1-9][3-9]|\d{3,})/i.test(userAgent);
+
+    if (fsGranted || photosGranted || isAndroid13OrHigher) {
+      return {
+        granted: true,
+        message: fsGranted || photosGranted ? 'Storage/Photos permission granted' : 'Native app local storage ready (Android 13+)'
+      };
     }
   }
 
-  // Web Browser environment (IndexedDB and Storage API available)
-  if ('indexedDB' in window && 'caches' in window) {
-    return { granted: true, message: 'Web Storage & Cache API available' };
+  if ('indexedDB' in window) {
+    return { granted: true, message: 'Web Storage & LocalDB available' };
   }
 
-  return { granted: false, message: 'Web Storage API not supported' };
+  return { granted: false, message: 'Local Storage API not supported' };
 }
 
 export async function requestStoragePermission(): Promise<PermissionResult> {
@@ -56,21 +85,42 @@ export async function requestStoragePermission(): Promise<PermissionResult> {
 
   if (isCapacitor) {
     const fsModule = await loadCapacitorFilesystem();
+    const camModule = await loadCapacitorCamera();
+
+    let fsGranted = false;
+    let photosGranted = false;
+
     if (fsModule?.Filesystem) {
       try {
         const status = await fsModule.Filesystem.requestPermissions();
-        const isGranted = status.publicStorage === 'granted';
-        return {
-          granted: isGranted,
-          message: isGranted ? 'Storage permission granted' : 'Storage permission denied by user'
-        };
-      } catch (err: unknown) {
-        const errorMessage = err instanceof Error ? err.message : 'Storage permission error';
-        return { granted: false, message: errorMessage };
+        fsGranted = status.publicStorage === 'granted';
+      } catch (err) {
+        console.warn('Filesystem permission request:', err);
       }
     }
+
+    if (!fsGranted && camModule?.Camera) {
+      try {
+        const status = await camModule.Camera.requestPermissions({ permissions: ['photos'] });
+        photosGranted = status.photos === 'granted';
+      } catch (err) {
+        console.warn('Camera photos permission request:', err);
+      }
+    }
+
+    const userAgent = navigator.userAgent || '';
+    const isAndroid13OrHigher = /Android\s+([1-9][3-9]|\d{3,})/i.test(userAgent);
+
+    if (fsGranted || photosGranted || isAndroid13OrHigher) {
+      return {
+        granted: true,
+        message: (fsGranted || photosGranted) ? 'Storage permission granted by user' : 'Native app storage ready'
+      };
+    }
+
+    return { granted: false, message: 'Storage permission denied by user' };
   }
 
-  // Web storage is implicitly granted by the browser for origin
   return { granted: true, message: 'Web storage ready' };
 }
+

@@ -4,7 +4,7 @@
  */
 
 const DB_NAME = 'MatricesCatalogueOfflineDB';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 export interface SyncMetadata {
   lastSyncedAt: string;
@@ -12,6 +12,16 @@ export interface SyncMetadata {
   totalCategories: number;
   totalSubcategories: number;
   totalShops: number;
+  totalOrders: number;
+  totalImages: number;
+  imageStorageMB: number;
+}
+
+export interface ImageMapRecord {
+  url: string;
+  localSrc: string;
+  sizeBytes: number;
+  updatedAt: string;
 }
 
 class OfflineDB {
@@ -64,6 +74,10 @@ class OfflineDB {
         if (!db.objectStoreNames.contains('meta')) {
           db.createObjectStore('meta', { keyPath: 'key' });
         }
+        // Image Map store for native offline files
+        if (!db.objectStoreNames.contains('image_map')) {
+          db.createObjectStore('image_map', { keyPath: 'url' });
+        }
       };
 
       request.onsuccess = () => resolve(request.result);
@@ -94,6 +108,41 @@ class OfflineDB {
       request.onsuccess = () => resolve(request.result as T[]);
       request.onerror = () => reject(request.error);
     });
+  }
+
+  async getCount(storeName: string): Promise<number> {
+    const db = await this.getDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(storeName, 'readonly');
+      const store = tx.objectStore(storeName);
+      const request = store.count();
+      request.onsuccess = () => resolve(request.result || 0);
+      request.onerror = () => resolve(0);
+    });
+  }
+
+  async saveImageMap(record: ImageMapRecord): Promise<void> {
+    const db = await this.getDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('image_map', 'readwrite');
+      tx.objectStore('image_map').put(record);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  async getImageMap(url: string): Promise<ImageMapRecord | null> {
+    const db = await this.getDB();
+    return new Promise((resolve) => {
+      const tx = db.transaction('image_map', 'readonly');
+      const request = tx.objectStore('image_map').get(url);
+      request.onsuccess = () => resolve(request.result || null);
+      request.onerror = () => resolve(null);
+    });
+  }
+
+  async getAllImageMaps(): Promise<ImageMapRecord[]> {
+    return this.getAll<ImageMapRecord>('image_map').catch(() => []);
   }
 
   async getMeta(): Promise<SyncMetadata | null> {
@@ -143,10 +192,11 @@ class OfflineDB {
 
   async clearAllData(): Promise<void> {
     const db = await this.getDB();
-    const stores = ['categories', 'subcategories', 'products', 'wishlist', 'shops', 'orders', 'meta'];
+    const stores = ['categories', 'subcategories', 'products', 'wishlist', 'shops', 'orders', 'meta', 'image_map'];
     const tx = db.transaction(stores, 'readwrite');
     stores.forEach((s) => tx.objectStore(s).clear());
   }
 }
 
 export const offlineDB = new OfflineDB();
+

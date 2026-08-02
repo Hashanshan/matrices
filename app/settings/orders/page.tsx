@@ -50,7 +50,6 @@ interface Order {
 
 import { resolveApiUrl, getAuthToken } from '@/lib/utils';
 import { offlineDB } from '@/lib/offline/indexed-db';
-import SyncButton from '@/components/mobile/sync-button';
 
 const fetcher = async (url: string) => {
   const mode = typeof window !== 'undefined' ? (localStorage.getItem('matrices_data_mode') as string) : 'online';
@@ -257,7 +256,12 @@ export default function SettingsOrdersPage() {
 
                 {/* Top Mobile Scrollable Navigation */}
                 <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none w-full sm:w-auto max-w-full shrink-0">
-                  <SyncButton />
+                  <Link
+                    href="/settings/sync"
+                    className="text-xs font-black text-[#0f172a] uppercase bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 px-3.5 py-2.5 rounded-full shadow-xs transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0"
+                  >
+                    <RefreshCw size={14} className="text-emerald-600" /> SYNC
+                  </Link>
                   <Link
                     href="/settings/shops"
                     className="text-xs font-black text-[#0f172a] uppercase bg-white/60 hover:bg-white border border-white/60 px-3.5 py-2.5 rounded-full shadow-xs transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0"

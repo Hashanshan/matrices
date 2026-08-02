@@ -223,13 +223,13 @@ export default function CategoriesPage({ fallbackData }: { fallbackData?: any } 
                               <span className="text-xs text-gray-500 font-medium uppercase">TOTAL AVAILABLE</span>
                             </div>
                             <div className="flex items-center gap-2">
-                              <button
+                              {/* <button
                                 onClick={(e) => { e.stopPropagation(); router.push(`/view?category=${encodeURIComponent(cat.name)}`); }}
                                 className="p-2.5 bg-[#0f172a] text-white rounded-full shadow-md hover:bg-[#1e293b] transition-all active:scale-90"
                                 title={`Shop ${cat.name} products`}
                               >
                                 <ShoppingCart size={15} />
-                              </button>
+                              </button> */}
                               <div className="flex items-center gap-1 text-sm font-bold text-[#0f172a] group-hover:text-[#1e3a8a] transition-colors bg-white/50 px-4 py-2 rounded-full">
                                 EXPLORE <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform" />
                               </div>
@@ -308,13 +308,13 @@ export default function CategoriesPage({ fallbackData }: { fallbackData?: any } 
                                 <span className="text-xs text-gray-500 font-medium uppercase">AVAILABLE</span>
                               </div>
                               <div className="flex items-center gap-2">
-                                <button
+                                {/* <button
                                   onClick={(e) => { e.stopPropagation(); e.preventDefault(); router.push(`/view?category=${encodeURIComponent(selectedCategory || '')}&subcategory=${encodeURIComponent(sub.name)}`); }}
                                   className="p-2.5 bg-[#0f172a] text-white rounded-full shadow-md hover:bg-[#1e293b] transition-all active:scale-90"
                                   title={`Shop ${sub.name} products`}
                                 >
                                   <ShoppingCart size={15} />
-                                </button>
+                                </button> */}
                                 <div className="flex items-center gap-1 text-sm font-bold text-[#0f172a] group-hover:text-[#1e3a8a] transition-colors bg-white/50 px-4 py-2 rounded-full">
                                   VIEW GALLERY <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform" />
                                 </div>

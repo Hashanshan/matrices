@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Product } from '@/lib/types';
 import { motion } from 'framer-motion';
 import { Star, ShoppingCart, Heart, Eye } from 'lucide-react';
@@ -10,6 +10,8 @@ import { formatPrice } from '@/lib/currency';
 import { useRouter } from "next/navigation";
 import { useWishlist } from '@/lib/contexts/wishlist-context';
 
+import { getCachedImageUrl } from '@/lib/offline/image-cache';
+
 interface ProductCardProps {
   product: Product;
   index?: number;
@@ -17,12 +19,22 @@ interface ProductCardProps {
 
 export default function ProductCard({ product, index = 0 }: ProductCardProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [displayImg, setDisplayImg] = useState<string>(product.image || product.imageUrl || '');
   const router = useRouter();
 
   const { isProductWishlisted, toggleProductWishlist } = useWishlist();
 
   const targetProductId = product.productId || product.id || '';
   const isFavorite = isProductWishlisted(targetProductId);
+
+  useEffect(() => {
+    const rawUrl = product.image || product.imageUrl || '';
+    if (rawUrl) {
+      getCachedImageUrl(rawUrl).then((resolved) => {
+        if (resolved) setDisplayImg(resolved);
+      });
+    }
+  }, [product.image, product.imageUrl]);
 
   const handleQuickAdd = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -58,7 +70,7 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
               className="relative aspect-[4/5] rounded-[1.5rem] overflow-hidden bg-[#eef1f6] flex items-center justify-center p-6 shadow-inner cursor-pointer z-0 border border-black/5"
             >
               <Image
-                src={product.image}
+                src={displayImg || '/placeholder.png'}
                 alt={product.name}
                 fill
                 className="object-contain w-full h-full p-4 group-hover:scale-105 transition-transform duration-700 ease-out mix-blend-multiply drop-shadow-xl"

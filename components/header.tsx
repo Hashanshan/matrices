@@ -49,6 +49,7 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
     { href: '/settings/wishlist', label: 'My Wishlist', icon: Heart, iconClass: 'text-red-500 fill-red-500' },
     { href: '/settings/shops', label: 'My Shops', icon: Store, iconClass: '' },
     { href: '/settings/orders', label: 'My Orders', icon: FileText, iconClass: '' },
+    { href: '/settings/sync', label: 'Data Sync & Storage', icon: RefreshCw, iconClass: 'text-emerald-600' },
     { href: '/settings/security', label: 'Security Settings', icon: ShieldCheck, iconClass: '' },
   ];
 
@@ -165,13 +166,14 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
                         );
                       })}
 
-                      <button
-                        onClick={() => { setShowProfileMenu(false); triggerSync(); }}
+                      {/* <Link
+                        href="/settings/sync"
+                        onClick={() => setShowProfileMenu(false)}
                         className="w-full flex items-center gap-3 px-5 py-3.5 font-black text-xs uppercase tracking-wider text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-full transition-all shadow-xs cursor-pointer"
                       >
                         <RefreshCw size={18} className="text-emerald-600" />
-                        Sync
-                      </button>
+                        Sync Dashboard
+                      </Link> */}
 
                       <motion.button
                         whileHover={{ scale: 1.02 }}
@@ -289,13 +291,14 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
                             );
                           })}
 
-                          <button
-                            onClick={() => { closeAll(); triggerSync(); }}
+                          {/* <Link
+                            href="/settings/sync"
+                            onClick={closeAll}
                             className="w-full flex items-center gap-3 px-5 py-3.5 font-black text-xs uppercase tracking-wider text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-full transition-all shadow-xs cursor-pointer"
                           >
                             <RefreshCw size={18} className="text-emerald-600" />
-                            Sync
-                          </button>
+                            Sync Dashboard
+                          </Link> */}
 
                           <motion.button
                             whileTap={{ scale: 0.98 }}
