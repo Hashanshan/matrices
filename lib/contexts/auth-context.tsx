@@ -99,23 +99,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const token = getAuthToken();
     const isOnline = typeof navigator !== 'undefined' && navigator.onLine;
 
-    // ── Offline PIN check ────────────────────────────────────────────────────
-    if (!isOnline && params.pin && !params.password) {
+    // ── Local PIN check FIRST (synced local DB priority) ─────────────────────
+    if (params.pin && !params.password) {
       try {
         const storedHash = await offlineDB.getSecure('pin_hash');
         if (storedHash) {
           const inputHash = hashPin(params.pin);
           if (inputHash === storedHash) {
             markPinVerified(true);
-            return { success: true, msg: 'PIN verified (offline)' };
+            return { success: true, msg: 'PIN verified' };
           } else {
-            return { success: false, msg: 'Incorrect PIN (offline mode)' };
+            return { success: false, msg: 'Incorrect PIN' };
           }
-        } else {
-          return { success: false, msg: 'No offline PIN stored. Please sync first.', hasPinSet: false, requirePassword: true };
         }
       } catch {
-        return { success: false, msg: 'Offline PIN check failed.' };
+        /* Fallthrough to live API if local check errors */
       }
     }
 

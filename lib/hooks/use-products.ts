@@ -33,6 +33,7 @@ interface ProductsResponse {
 
 /** Shape IndexedDB products into the ProductsResponse format the hooks expect */
 async function getOfflineProducts(options: {
+  sort?: string;
   category?: string | string[];
   prioritizeCategory?: string;
   subcategory?: string | string[];
@@ -61,16 +62,38 @@ async function getOfflineProducts(options: {
       if (!subFilter.some(s => pSub === s || pSub.includes(s) || s.includes(pSub))) return false;
     }
     if (search) {
+      const pName = (p.name || '').toLowerCase();
+      const pProdId = String(p.productId || p.id || '').toLowerCase();
+      const pCode = String(p.code || p.productCode || '').toLowerCase();
+      const pCat = (p.categoryName || p.categories || '').toLowerCase();
+      const pSub = (p.subcategoryName || p.subcategories || '').toLowerCase();
+
       return (
-        (p.name || '').toLowerCase().includes(search) ||
-        (p.productId || '').toLowerCase().includes(search) ||
-        (p.code || '').toLowerCase().includes(search)
+        pName.includes(search) ||
+        pProdId.includes(search) ||
+        pCode.includes(search) ||
+        pCat.includes(search) ||
+        pSub.includes(search)
       );
     }
     return true;
   });
 
-  // If a specific productId is requested, bring it to the very front and group same subcategory/category next
+  // Apply sorting on LocalDB products
+  if (options.sort) {
+    const s = options.sort.toLowerCase();
+    if (s === 'price_asc' || s === 'price-low' || s === 'low-to-high') {
+      filtered.sort((a: any, b: any) => (a.sellPrice || a.price || 0) - (b.sellPrice || b.price || 0));
+    } else if (s === 'price_desc' || s === 'price-high' || s === 'high-to-low') {
+      filtered.sort((a: any, b: any) => (b.sellPrice || b.price || 0) - (a.sellPrice || a.price || 0));
+    } else if (s === 'name_asc' || s === 'a-z') {
+      filtered.sort((a: any, b: any) => String(a.name || '').localeCompare(String(b.name || '')));
+    } else if (s === 'name_desc' || s === 'z-a') {
+      filtered.sort((a: any, b: any) => String(b.name || '').localeCompare(String(a.name || '')));
+    }
+  }
+
+  // If a specific productId is requested, bring exact match to front
   if (options.productId) {
     const targetStr = options.productId.toLowerCase().trim();
     const targetClean = options.productId.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
@@ -121,7 +144,15 @@ async function getOfflineProducts(options: {
     }
   }
 
-  const mapped: CatalogueProduct[] = filtered.map((p: any) => ({
+  const totalCount = filtered.length;
+  const page = options.page || 1;
+  const limit = options.limit || 5000;
+  const startIndex = (page - 1) * limit;
+  const endIndex = page * limit;
+  const pageItems = filtered.slice(startIndex, endIndex);
+  const hasNextPage = endIndex < totalCount;
+
+  const mapped: CatalogueProduct[] = pageItems.map((p: any) => ({
     id: String(p.id || p.productId || ''),
     name: p.name || '',
     productId: String(p.productId || p.id || ''),
@@ -136,9 +167,9 @@ async function getOfflineProducts(options: {
   return {
     success: true,
     count: mapped.length,
-    totalCount: mapped.length,
-    hasNextPage: false,
-    nextCursor: null,
+    totalCount,
+    hasNextPage,
+    nextCursor: hasNextPage ? String(page + 1) : null,
     data: mapped,
   };
 }
@@ -241,14 +272,19 @@ async function getOfflineFilters(): Promise<FiltersResponse> {
     };
   }
 
-  const catMap = new Map<string, { image: string; subcats: Map<string, number> }>();
+  const catMap = new Map<string, { image: string; totalProducts: number; subcats: Map<string, number> }>();
   for (const p of dbProducts) {
-    const cat = (p.categoryName || p.categories || 'Uncategorized').trim();
-    const sub = (p.subcategoryName || p.subcategories || '').trim();
+    const cat = (p.categoryName || p.categories || p.category || 'Uncategorized').trim();
+    if (!cat) continue;
+    const sub = (p.subcategoryName || p.subcategories || p.subcategory || '').trim();
     if (!catMap.has(cat)) {
-      catMap.set(cat, { image: p.image || p.imageUrl || '', subcats: new Map() });
+      catMap.set(cat, { image: p.image || p.imageUrl || '', totalProducts: 0, subcats: new Map() });
     }
     const entry = catMap.get(cat)!;
+    entry.totalProducts += 1;
+    if (!entry.image && (p.image || p.imageUrl)) {
+      entry.image = p.image || p.imageUrl;
+    }
     if (sub) {
       entry.subcats.set(sub, (entry.subcats.get(sub) ?? 0) + 1);
     }
@@ -263,7 +299,7 @@ async function getOfflineFilters(): Promise<FiltersResponse> {
     categories.push({
       name,
       image: val.image,
-      totalCount: Array.from(val.subcats.values()).reduce((a, b) => a + b, 0),
+      totalCount: val.totalProducts,
       subcategories: subs,
     });
   });
@@ -275,9 +311,9 @@ async function getOfflineFilters(): Promise<FiltersResponse> {
   };
 }
 
-// ─── Fetcher (stale-while-revalidate: IDB first → API background) ────────────
+// ─── Fetcher (LocalDB Priority → Live API Fallback) ──────────────────────────
 
-/** Read the current data mode from localStorage (avoids React context in SWR fetcher) */
+/** Read the current data mode from localStorage */
 const getDataMode = (): 'online' | 'offline' => {
   if (typeof window === 'undefined') return 'online';
   return (localStorage.getItem('matrices_data_mode') as 'online' | 'offline') || 'online';
@@ -291,6 +327,7 @@ const fetcher = async <T = any>(url: string): Promise<T> => {
     try {
       const u = new URL(url, 'http://x');
       return {
+        sort: u.searchParams.get('sort') || undefined,
         category: u.searchParams.get('category') || u.searchParams.get('prioritizeCategory') || undefined,
         prioritizeCategory: u.searchParams.get('prioritizeCategory') || undefined,
         subcategory: u.searchParams.get('subcategory') || undefined,
@@ -309,8 +346,24 @@ const fetcher = async <T = any>(url: string): Promise<T> => {
   const mode = getDataMode();
   const isOfflineNetwork = typeof navigator !== 'undefined' && !navigator.onLine;
 
-  // ── OFFLINE MODE / NO NETWORK: Always return IDB data directly ──────────────
+  // ── LOCAL DB PRIORITY FIRST: Check local IndexedDB data ───────────────────
   if (isProducts || isProductsFilters) {
+    try {
+      if (isProducts) {
+        const localData = await getOfflineProducts(parseOptions());
+        if (localData.data.length > 0) {
+          return localData as unknown as T;
+        }
+      } else if (isProductsFilters) {
+        const localFilters = await getOfflineFilters();
+        if (localFilters.categories.length > 0) {
+          return localFilters as unknown as T;
+        }
+      }
+    } catch {
+      /* Fallback to live API if local read fails */
+    }
+
     if (mode === 'offline' || isOfflineNetwork) {
       if (isProductsFilters) return getOfflineFilters() as unknown as T;
       if (isProducts) return getOfflineProducts(parseOptions()) as unknown as T;
@@ -571,7 +624,7 @@ export function useFilters(options: { fallbackData?: FiltersResponse } = {}) {
   const key = `/api/products/filters?_mode=${dataMode}`;
 
   const { data, error, isLoading, isValidating, mutate } = useSWR<FiltersResponse>(key, fetcher, {
-    fallbackData,
+    fallbackData: fallbackData && fallbackData.categories && fallbackData.categories.length > 0 ? fallbackData : undefined,
     revalidateOnFocus: false,
     revalidateOnReconnect: true,
     // Filters are stable — revalidate once every 2 minutes
