@@ -136,7 +136,7 @@ export default function InvoicePdfModal({ order, onClose }: InvoicePdfModalProps
   return (
     <AnimatePresence>
       {/* Global CSS for @media print to eliminate dark background bleed */}
-      <style jsx global>{`
+      <style>{`
         @media print {
           body * {
             visibility: hidden !important;

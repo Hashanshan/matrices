@@ -4,7 +4,7 @@ import { useState, useEffect, use } from 'react';
 import Header from '@/components/header';
 import { useAuth } from '@/lib/contexts/auth-context';
 import PinModal from '@/components/pin-modal';
-import { motion } from 'framer-[#0f172a]' ;
+import { motion } from 'framer-motion';
 import { FileText, ArrowLeft, Printer, Download, Lock, CheckCircle2, Clock, AlertCircle, XCircle, ShoppingBag, Store, Phone, MapPin } from 'lucide-react';
 import Link from 'next/link';
 import useSWR from 'swr';
@@ -165,7 +165,7 @@ export default function OrderPdfClient({ params }: { params?: Promise<{ orderId:
 
   return (
     <>
-      <style jsx global>{`
+      <style>{`
         @media print {
           body * {
             visibility: hidden !important;

@@ -497,3 +497,4 @@ export const MOCK_PRODUCTS: Product[] = [
 
 // Dynamically get all categories from config + 'All' option
 export const CATEGORIES = ['All', ...getAllCategoryNames()];
+export const PRODUCTS = MOCK_PRODUCTS;

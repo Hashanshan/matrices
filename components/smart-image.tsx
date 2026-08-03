@@ -14,6 +14,8 @@ interface SmartImageProps {
   priority?: boolean;
   /** When true, shows a shimmer placeholder while loading */
   showShimmer?: boolean;
+  fill?: boolean;
+  sizes?: string;
 }
 
 /** Returns true if the URL is already a local/native URI that never needs Next.js optimization */
@@ -36,6 +38,8 @@ export default function SmartImage({
   onClick,
   priority = false,
   showShimmer = false,
+  fill,
+  sizes,
 }: SmartImageProps) {
   // Try synchronous lookup first so we can start with the correct src immediately
   const getInitialSrc = () => {

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/contexts/auth-context';
 import { useCart } from '@/lib/contexts/cart-context';
+import { Order } from '@/lib/types';
 import LoginForm from '@/components/login-form';
 import Header from '@/components/header';
 import Link from 'next/link';
@@ -10,19 +11,6 @@ import { motion } from 'framer-motion';
 import { CheckCircle, Package, Calendar, MapPin, Mail, Phone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
-interface Order {
-  id: string;
-  date: string;
-  items: any[];
-  total: number;
-  user: {
-    name: string;
-    email: string;
-    phone: string;
-    address: string;
-    city: string;
-  };
-}
 
 export default function OrderConfirmationPage() {
   const { isLoggedIn, user } = useAuth();

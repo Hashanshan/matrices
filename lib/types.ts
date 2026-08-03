@@ -26,6 +26,7 @@ export interface Product {
   categories?: string;       // Mapped from backend `category`
   subcategories?: string;    // Mapped from backend `subCategory`
   image: string;
+  imageUrl?: string;
   images?: string[];
   description: string;
   rating?: number;
@@ -42,8 +43,8 @@ export interface Product {
 }
 
 // Cart & Orders
-export interface CartItem {
-  productId: string;
+export interface CartItem extends Partial<Product> {
+  productId?: string;
   quantity: number;
   selectedColor?: string;
   selectedSize?: string;
@@ -58,12 +59,20 @@ export interface Cart {
 
 export interface Order {
   id: string;
-  userId: string;
+  userId?: string;
   items: CartItem[];
   total: number;
-  userDetails: UserProfile;
-  createdAt: string;
-  status: 'pending' | 'confirmed' | 'shipped' | 'delivered';
+  date?: string;
+  user?: {
+    name: string;
+    email: string;
+    phone: string;
+    address: string;
+    city: string;
+  };
+  userDetails?: UserProfile;
+  createdAt?: string;
+  status?: 'pending' | 'confirmed' | 'shipped' | 'delivered' | string;
 }
 
 // Filters & Search

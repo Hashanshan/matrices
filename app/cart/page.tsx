@@ -94,11 +94,14 @@ export default function CartPage() {
               {/* Cart Items */}
               <div className="lg:col-span-2 space-y-4">
                 {cart.items.map((item, index) => {
-                  const product = item;
+                  const itemId = item.id || item.productId || String(index);
+                  const itemImage = item.image || item.imageUrl || '';
+                  const itemName = item.name || '';
+                  const itemPrice = item.price || 0;
 
                   return (
                     <motion.div
-                      key={item.id}
+                      key={itemId}
                       initial={{ opacity: 0, x: -20 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: index * 0.1 }}
@@ -107,8 +110,8 @@ export default function CartPage() {
                       {/* Product Image */}
                       <div className="flex-shrink-0 w-28 h-28 rounded-2xl overflow-hidden bg-[#f8f9fc] p-2">
                         <img
-                          src={product.image}
-                          alt={product.name}
+                          src={itemImage}
+                          alt={itemName}
                           className="w-full h-full object-contain mix-blend-multiply"
                         />
                       </div>
@@ -116,19 +119,19 @@ export default function CartPage() {
                       {/* Product Details */}
                       <div className="flex-1">
                         <h3 className="font-bold text-[#0f172a] text-xl mb-1">
-                          {product.name}
+                          {itemName}
                         </h3>
 
                         {/* Variants */}
                         <div className="flex gap-4 text-sm text-gray-500 font-medium mb-3">
-                          {product.selectedColor && <span>Color: {product.selectedColor}</span>}
-                          {product.selectedSize && <span>Size: {product.selectedSize}</span>}
+                          {item.selectedColor && <span>Color: {item.selectedColor}</span>}
+                          {item.selectedSize && <span>Size: {item.selectedSize}</span>}
                         </div>
 
                         {/* Notes */}
-                        {product.notes && (
+                        {item.notes && (
                           <p className="text-xs text-muted-foreground mb-3 italic">
-                            Note: {product.notes}
+                            Note: {item.notes}
                           </p>
                         )}
 
@@ -138,18 +141,18 @@ export default function CartPage() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => handleQuantityChange(product.id, product.quantity - 1)}
+                              onClick={() => handleQuantityChange(itemId, item.quantity - 1)}
                               className="h-8 w-8 p-0 rounded-full hover:bg-white hover:text-[#0f172a]"
                             >
                               -
                             </Button>
                             <span className="text-sm font-bold text-[#0f172a] w-6 text-center">
-                              {product.quantity}
+                              {item.quantity}
                             </span>
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => handleQuantityChange(product.id, product.quantity + 1)}
+                              onClick={() => handleQuantityChange(itemId, item.quantity + 1)}
                               className="h-8 w-8 p-0 rounded-full hover:bg-white hover:text-[#0f172a]"
                             >
                               +
@@ -158,10 +161,10 @@ export default function CartPage() {
 
                           <div className="text-right">
                             <p className="text-2xl font-black text-[#0f172a]">
-                              {formatPrice(product.price * product.quantity)}
+                              {formatPrice(itemPrice * item.quantity)}
                             </p>
                             <p className="text-xs font-semibold text-gray-400 mt-1">
-                              {formatPrice(product.price)} each
+                              {formatPrice(itemPrice)} each
                             </p>
                           </div>
                         </div>
@@ -171,7 +174,7 @@ export default function CartPage() {
                       <motion.button
                         whileHover={{ scale: 1.1, rotate: 10 }}
                         whileTap={{ scale: 0.95 }}
-                        onClick={() => removeFromCart(product.id)}
+                        onClick={() => removeFromCart(itemId)}
                         className="text-gray-300 hover:text-red-500 transition-colors self-start p-2"
                       >
                         <Trash2 size={20} />

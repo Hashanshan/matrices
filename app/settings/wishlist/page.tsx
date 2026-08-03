@@ -246,9 +246,9 @@ export default function SettingsWishlistPage() {
                               {new Date(action.createdAt).toLocaleTimeString()}
                             </span>
                             <span className={`px-3 py-1 rounded-full text-[0.65rem] font-black uppercase ${
-                              action.status === 'completed' ? 'bg-green-100 text-green-800' :
-                              action.status === 'failed' ? 'bg-red-100 text-red-800' :
-                              action.status === 'syncing' ? 'bg-blue-100 text-blue-800 animate-pulse' :
+                              action.status === 'SUCCESS' ? 'bg-green-100 text-green-800' :
+                              action.status === 'FAILED' ? 'bg-red-100 text-red-800' :
+                              action.status === 'PROCESSING' ? 'bg-blue-100 text-blue-800 animate-pulse' :
                               'bg-amber-100 text-amber-800'
                             }`}>
                               {action.status}
