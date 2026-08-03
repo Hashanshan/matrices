@@ -3,18 +3,15 @@
 import { useState, useEffect, useCallback } from 'react';
 import Header from '@/components/header';
 import { useAuth } from '@/lib/contexts/auth-context';
-import { useDataMode } from '@/lib/contexts/data-mode-context';
 import Pagination from '@/components/pagination';
 import { motion } from 'framer-motion';
 import {
-  ShoppingBag, Search, Plus, Trash2, Edit3, Eye, Clock, CheckCircle2,
+  ShoppingBag, Search, Plus, Trash2, Edit3, Clock,
   RefreshCw, Store, FileText, Heart, ShieldCheck, Calendar, MapPin, Phone
 } from 'lucide-react';
 import Link from 'next/link';
-import useSWR from 'swr';
 import Swal from 'sweetalert2';
 import { formatPrice } from '@/lib/currency';
-import { resolveApiUrl, getAuthToken } from '@/lib/utils';
 import { offlineDB } from '@/lib/offline/indexed-db';
 import { deleteSyncQueueItem, getSyncQueue } from '@/lib/offline/pending-sync';
 
@@ -53,46 +50,24 @@ export interface LocalOrder {
   notes?: string;
 }
 
-const fetcher = async (url: string) => {
-  const token = getAuthToken();
-  const targetUrl = resolveApiUrl(url);
-  const res = await fetch(targetUrl, {
-    headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-  });
-  if (!res.ok) throw new Error('Failed to fetch orders');
-  return res.json();
-};
-
 export default function SettingsOrdersPage() {
   const { user } = useAuth();
-  const { dataMode } = useDataMode();
 
-  const [activeTab, setActiveTab] = useState<'all' | 'local' | 'synced'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [page, setPage] = useState(1);
   const [localOrders, setLocalOrders] = useState<LocalOrder[]>([]);
   const [loadingLocal, setLoadingLocal] = useState(true);
 
-  // SWR for live backend orders (when online)
-  const queryParams = new URLSearchParams();
-  queryParams.set('page', String(page));
-  queryParams.set('limit', '20');
-  queryParams.set('sortField', 'orderId');
-  queryParams.set('sortOrder', '-1');
-  if (searchQuery) queryParams.set('searchQuery', searchQuery);
-
-  const swrKey = `/api/orders?${queryParams.toString()}`;
-  const { data: apiData, mutate: mutateApi } = useSWR(swrKey, fetcher, {
-    revalidateOnFocus: true,
-  });
-
-  // Fetch local IndexedDB orders
+  // Fetch local IndexedDB orders (ONLY unsynced / local draft orders!)
   const loadLocalOrders = useCallback(async () => {
     setLoadingLocal(true);
     try {
       const rawOrders = await offlineDB.getAll<LocalOrder>('orders').catch(() => []);
+      // Filter strictly for local draft / unsynced orders
+      const unsyncedOnly = (rawOrders || []).filter(o => !o.isSynced);
+
       // Sort newest first
-      const sorted = (rawOrders || []).sort((a, b) =>
+      const sorted = unsyncedOnly.sort((a, b) =>
         new Date(b.createdAt || b.orderDate || 0).getTime() - new Date(a.createdAt || a.orderDate || 0).getTime()
       );
       setLocalOrders(sorted);
@@ -111,45 +86,12 @@ export default function SettingsOrdersPage() {
   useEffect(() => {
     const handleSyncEvent = () => {
       loadLocalOrders();
-      mutateApi();
     };
     window.addEventListener('matrices-sync-queue-updated', handleSyncEvent);
     return () => window.removeEventListener('matrices-sync-queue-updated', handleSyncEvent);
-  }, [loadLocalOrders, mutateApi]);
+  }, [loadLocalOrders]);
 
-  // Merge live API orders with local orders without duplicates
-  const liveOrders: LocalOrder[] = (apiData?.orders || []).map((o: any) => ({
-    id: o.orderId,
-    orderId: o.orderId,
-    shop: o.shop || { shopId: '', name: 'Unknown Shop', phone: '', address: '' },
-    items: o.items || [],
-    subtotal: o.subtotal || 0,
-    discount: o.discount || 0,
-    discountAmount: o.discountAmount || 0,
-    total: o.total || 0,
-    orderDate: o.date || o.createdAt || new Date().toISOString(),
-    createdAt: o.date || o.createdAt || new Date().toISOString(),
-    status: o.status || 'synced',
-    isSynced: true,
-  }));
-
-  // Combine local and live orders
-  const combinedMap = new Map<string, LocalOrder>();
-  
-  // Add local orders first
-  localOrders.forEach(ord => {
-    const key = ord.liveOrderId || ord.orderId || ord.id;
-    combinedMap.set(key, ord);
-  });
-
-  // Add live orders if not already overridden by local record
-  liveOrders.forEach(ord => {
-    if (!combinedMap.has(ord.orderId)) {
-      combinedMap.set(ord.orderId, ord);
-    }
-  });
-
-  let allOrdersList = Array.from(combinedMap.values());
+  let allOrdersList = [...localOrders];
 
   // Apply search query filter
   if (searchQuery.trim()) {
@@ -162,13 +104,6 @@ export default function SettingsOrdersPage() {
     );
   }
 
-  // Apply tab filter
-  if (activeTab === 'local') {
-    allOrdersList = allOrdersList.filter(o => !o.isSynced);
-  } else if (activeTab === 'synced') {
-    allOrdersList = allOrdersList.filter(o => o.isSynced);
-  }
-
   const limit = 10;
   const totalRecords = allOrdersList.length;
   const totalPages = Math.ceil(totalRecords / limit) || 1;
@@ -176,11 +111,6 @@ export default function SettingsOrdersPage() {
 
   // Handle Order Deletion (Local / Unsynced ONLY)
   const handleDeleteOrder = async (order: LocalOrder) => {
-    if (order.isSynced) {
-      Swal.fire('Action Denied', 'Synced orders cannot be deleted locally.', 'warning');
-      return;
-    }
-
     const result = await Swal.fire({
       title: 'Delete Unsynced Order?',
       text: `Are you sure you want to delete local order ${order.orderId || order.id}? This will remove it from IndexedDB and cancel its pending push to live DB.`,
@@ -198,7 +128,7 @@ export default function SettingsOrdersPage() {
 
         // 2. Remove matching item from sync_queue
         const queue = await getSyncQueue();
-        const matchingItem = queue.find(q => q.entityId === order.id || (q.payload && q.payload.orderId === order.orderId));
+        const matchingItem = queue.find(q => q.entityId === order.id || (q.payload && q.payload.id === order.id));
         if (matchingItem) {
           await deleteSyncQueueItem(matchingItem.id);
         }
@@ -209,7 +139,7 @@ export default function SettingsOrdersPage() {
         Swal.fire({
           icon: 'success',
           title: 'Order Deleted',
-          text: 'The local order has been removed.',
+          text: 'The local draft order has been removed.',
           timer: 2000,
           showConfirmButton: false,
         });
@@ -236,10 +166,10 @@ export default function SettingsOrdersPage() {
                 </div>
                 <div>
                   <h1 className="text-2xl sm:text-3xl font-black text-[#0f172a] tracking-tight uppercase">
-                    MY ORDERS
+                    MY LOCAL ORDERS
                   </h1>
                   <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-                    Local Drafts & Live Synced Orders
+                    Unsynced Local Draft Orders (Synced orders are listed under Invoices)
                   </p>
                 </div>
               </div>
@@ -268,7 +198,7 @@ export default function SettingsOrdersPage() {
                   <Store size={14} /> SHOPS
                 </Link>
                 <span className="text-xs font-black uppercase bg-[#0f172a] text-white border border-[#0f172a] px-3.5 py-2.5 rounded-full shadow-xs flex items-center gap-1.5 whitespace-nowrap shrink-0">
-                  <ShoppingBag size={14} /> ORDERS
+                  <ShoppingBag size={14} /> ORDERS ({allOrdersList.length})
                 </span>
                 <Link
                   href="/settings/invoices"
@@ -292,45 +222,17 @@ export default function SettingsOrdersPage() {
             </div>
           </div>
 
-          {/* Search & Filter Tabs Bar */}
-          <div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          {/* Search Bar */}
+          <div className="mb-6">
             <div className="relative max-w-md w-full">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={e => { setSearchQuery(e.target.value); setPage(1); }}
-                placeholder="SEARCH ORDERS BY ID, SHOP, PRODUCT..."
+                placeholder="SEARCH LOCAL ORDERS BY ID, SHOP, PRODUCT..."
                 className="w-full pl-11 pr-4 py-3 bg-white/50 backdrop-blur-xl border border-white/60 rounded-full text-xs font-bold text-[#0f172a] placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0f172a]/30 shadow-sm uppercase"
               />
-            </div>
-
-            {/* Filter Tabs */}
-            <div className="flex items-center gap-1.5 bg-gray-100/80 p-1.5 rounded-full self-start md:self-auto border border-gray-200/60">
-              <button
-                onClick={() => { setActiveTab('all'); setPage(1); }}
-                className={`px-4 py-2 rounded-full text-xs font-black uppercase transition-all cursor-pointer ${
-                  activeTab === 'all' ? 'bg-[#0f172a] text-white shadow-md' : 'text-gray-600 hover:text-[#0f172a]'
-                }`}
-              >
-                ALL ({allOrdersList.length})
-              </button>
-              <button
-                onClick={() => { setActiveTab('local'); setPage(1); }}
-                className={`px-4 py-2 rounded-full text-xs font-black uppercase transition-all cursor-pointer flex items-center gap-1.5 ${
-                  activeTab === 'local' ? 'bg-amber-500 text-white shadow-md' : 'text-amber-700 hover:bg-amber-50'
-                }`}
-              >
-                <Clock size={13} /> LOCAL DRAFTS ({allOrdersList.filter(o => !o.isSynced).length})
-              </button>
-              <button
-                onClick={() => { setActiveTab('synced'); setPage(1); }}
-                className={`px-4 py-2 rounded-full text-xs font-black uppercase transition-all cursor-pointer flex items-center gap-1.5 ${
-                  activeTab === 'synced' ? 'bg-emerald-600 text-white shadow-md' : 'text-emerald-700 hover:bg-emerald-50'
-                }`}
-              >
-                <CheckCircle2 size={13} /> SYNCED ({allOrdersList.filter(o => o.isSynced).length})
-              </button>
             </div>
           </div>
 
@@ -338,20 +240,20 @@ export default function SettingsOrdersPage() {
           {loadingLocal ? (
             <div className="py-20 text-center">
               <div className="inline-block animate-spin rounded-full h-10 w-10 border-4 border-[#0f172a] border-t-transparent"></div>
-              <p className="mt-4 text-xs font-black uppercase text-gray-500">Loading Orders...</p>
+              <p className="mt-4 text-xs font-black uppercase text-gray-500">Loading Local Draft Orders...</p>
             </div>
           ) : paginatedOrders.length === 0 ? (
             <div className="py-20 text-center bg-gray-50/50 rounded-3xl border border-dashed border-gray-200 p-8">
               <ShoppingBag size={48} className="mx-auto text-gray-300 mb-3" />
-              <p className="text-base font-black text-[#0f172a] uppercase">No Orders Found</p>
+              <p className="text-base font-black text-[#0f172a] uppercase">No Local Draft Orders Found</p>
               <p className="text-xs font-bold text-gray-400 mt-1 uppercase max-w-sm mx-auto">
-                {searchQuery ? 'No orders match your search criteria.' : 'No orders have been created yet. Click "+ ADD NEW ORDER" to create one.'}
+                {searchQuery ? 'No draft orders match your search criteria.' : 'No unsynced orders in local DB. Click "+ ADD NEW ORDER" to create one.'}
               </p>
               <Link
                 href="/settings/orders/create"
                 className="mt-5 inline-flex items-center gap-2 bg-[#0f172a] text-white font-black text-xs uppercase px-6 py-3 rounded-full shadow-md hover:bg-[#1e293b] transition-all"
               >
-                <Plus size={16} /> Create First Order
+                <Plus size={16} /> Create New Order
               </Link>
             </div>
           ) : (
@@ -372,16 +274,9 @@ export default function SettingsOrdersPage() {
                           {ord.orderId || ord.id}
                         </span>
 
-                        {/* Status Badge */}
-                        {ord.isSynced ? (
-                          <span className="text-[11px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300 px-3 py-1 rounded-full flex items-center gap-1.5">
-                            <CheckCircle2 size={13} className="text-emerald-600" /> Synced to Live DB
-                          </span>
-                        ) : (
-                          <span className="text-[11px] font-black uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-300 px-3 py-1 rounded-full flex items-center gap-1.5 animate-pulse">
-                            <Clock size={13} className="text-amber-600" /> Local Draft (Unsynced)
-                          </span>
-                        )}
+                        <span className="text-[11px] font-black uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-300 px-3 py-1 rounded-full flex items-center gap-1.5 animate-pulse">
+                          <Clock size={13} className="text-amber-600" /> Local Draft (Unsynced)
+                        </span>
 
                         <span className="text-xs font-bold text-gray-500 flex items-center gap-1">
                           <Calendar size={13} />
@@ -442,30 +337,19 @@ export default function SettingsOrdersPage() {
 
                       {/* Action Buttons */}
                       <div className="flex items-center gap-2">
-                        {!ord.isSynced ? (
-                          <>
-                            <Link
-                              href={`/settings/orders/create?editId=${encodeURIComponent(ord.id)}`}
-                              className="px-4 py-2 bg-[#0f172a] hover:bg-[#1e293b] text-white text-xs font-black uppercase rounded-full shadow-xs flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
-                            >
-                              <Edit3 size={14} /> EDIT
-                            </Link>
+                        <Link
+                          href={`/settings/orders/create?editId=${encodeURIComponent(ord.id)}`}
+                          className="px-4 py-2 bg-[#0f172a] hover:bg-[#1e293b] text-white text-xs font-black uppercase rounded-full shadow-xs flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
+                        >
+                          <Edit3 size={14} /> EDIT
+                        </Link>
 
-                            <button
-                              onClick={() => handleDeleteOrder(ord)}
-                              className="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 text-xs font-black uppercase rounded-full border border-red-200 flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
-                            >
-                              <Trash2 size={14} /> DELETE
-                            </button>
-                          </>
-                        ) : (
-                          <Link
-                            href={`/settings/invoices/default?orderId=${encodeURIComponent(ord.orderId || ord.id)}`}
-                            className="px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-black uppercase rounded-full border border-emerald-300 flex items-center gap-1.5 transition-all cursor-pointer"
-                          >
-                            <Eye size={14} className="text-emerald-600" /> VIEW INVOICE
-                          </Link>
-                        )}
+                        <button
+                          onClick={() => handleDeleteOrder(ord)}
+                          className="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 text-xs font-black uppercase rounded-full border border-red-200 flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
+                        >
+                          <Trash2 size={14} /> DELETE
+                        </button>
                       </div>
                     </div>
 

@@ -3,11 +3,10 @@
 import { useState, useEffect, useRef, Suspense } from 'react';
 import Header from '@/components/header';
 import { useAuth } from '@/lib/contexts/auth-context';
-import { useDataMode } from '@/lib/contexts/data-mode-context';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ShoppingBag, Plus, Minus, Trash2, Search, X, Store, Calendar,
-  ArrowLeft, CheckCircle2, User, Percent, Save, Clock
+  ArrowLeft, User, Percent, Save, Clock
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -32,13 +31,10 @@ interface ProductItem {
   sellPrice: number;
   price: number;
   image?: string;
-  categories?: string;
-  subcategories?: string;
 }
 
 interface OrderItem {
   productId: string;
-  productCode?: string;
   name: string;
   quantity: number;
   price: number;
@@ -78,7 +74,6 @@ const productsFetcher = async (url: string) => {
 
   const getOfflineProducts = async () => {
     const rawProducts = await offlineDB.getAll<any>('products').catch(() => []);
-    // Filter for MTX- product IDs only
     const mtxProducts = rawProducts.filter((p: any) =>
       /^MTX-/i.test(p.productId || p.id || '')
     );
@@ -108,7 +103,6 @@ function CreateOrderContent() {
   const editId = searchParams.get('editId');
 
   const { user } = useAuth();
-  const { dataMode } = useDataMode();
 
   // State
   const [selectedShop, setSelectedShop] = useState<ShopOption | null>(null);
@@ -120,15 +114,16 @@ function CreateOrderContent() {
   const [notes, setNotes] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
-  // Product Selection Modal State
+  // Product Selection Modal State & Refs
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [productSearch, setProductSearch] = useState('');
   const [selectedProductForAdd, setSelectedProductForAdd] = useState<ProductItem | null>(null);
   const [addQuantity, setAddQuantity] = useState<number>(1);
-  const [addPrice, setAddPrice] = useState<string>('');
   const [addNote, setAddNote] = useState<string>('');
 
   const modalSearchInputRef = useRef<HTMLInputElement>(null);
+  const quantityInputRef = useRef<HTMLInputElement>(null);
+  const noteInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch assigned shops (includes offline shops)
   const { data: shopsData, isLoading: loadingShops } = useSWR(
@@ -136,17 +131,14 @@ function CreateOrderContent() {
     shopsFetcher
   );
 
-  // Combine SWR shops with IndexedDB local shops (to ensure newly created offline shops show up!)
   const [allShops, setAllShops] = useState<ShopOption[]>([]);
 
   useEffect(() => {
     async function mergeShops() {
       const dbShops = await offlineDB.getAll<any>('shops').catch(() => []);
       const apiShops: ShopOption[] = shopsData?.shops || [];
-
       const shopMap = new Map<string, ShopOption>();
 
-      // DB shops first (includes TMP_xxxx shops)
       dbShops.forEach((s: any) => {
         const id = s.shopId || s.id;
         if (id) {
@@ -159,7 +151,6 @@ function CreateOrderContent() {
         }
       });
 
-      // API shops second
       apiShops.forEach((s: any) => {
         if (s.shopId) {
           shopMap.set(s.shopId, {
@@ -188,7 +179,7 @@ function CreateOrderContent() {
     productsFetcher
   );
 
-  // Client-side safeguard filter: Strictly filter products matching /MTX-/i
+  // Filter products matching /^MTX-/i
   const rawProductsList: ProductItem[] = (productsData?.data || []).map((p: any) => ({
     id: p.id || p._id || p.productId,
     productId: p.productId || p.productCode || p.id,
@@ -196,8 +187,6 @@ function CreateOrderContent() {
     sellPrice: Number(p.sellPrice || p.price || 0),
     price: Number(p.sellPrice || p.price || 0),
     image: p.image || '',
-    categories: p.categories || '',
-    subcategories: p.subcategories || '',
   }));
 
   const mtxFilteredProducts = rawProductsList.filter(p =>
@@ -224,12 +213,22 @@ function CreateOrderContent() {
 
   // Focus modal search input on open
   useEffect(() => {
-    if (isProductModalOpen) {
+    if (isProductModalOpen && !selectedProductForAdd) {
       setTimeout(() => {
         modalSearchInputRef.current?.focus();
       }, 100);
     }
-  }, [isProductModalOpen]);
+  }, [isProductModalOpen, selectedProductForAdd]);
+
+  // Auto-focus quantity input after selecting a product
+  useEffect(() => {
+    if (selectedProductForAdd) {
+      setTimeout(() => {
+        quantityInputRef.current?.focus();
+        quantityInputRef.current?.select();
+      }, 100);
+    }
+  }, [selectedProductForAdd]);
 
   // Calculations
   const calculateSubtotal = () =>
@@ -238,47 +237,55 @@ function CreateOrderContent() {
   const calculateDiscountAmount = () => (calculateSubtotal() * discount) / 100;
   const calculateTotal = () => calculateSubtotal() - calculateDiscountAmount();
 
-  // Handlers
-  const handleSelectProductForAdd = (product: ProductItem) => {
+  // Select Product (Hides search list and opens Quantity view)
+  const handleSelectProduct = (product: ProductItem) => {
     setSelectedProductForAdd(product);
     setAddQuantity(1);
-    setAddPrice(String(product.sellPrice));
     setAddNote('');
   };
 
+  // Confirm Add Product to Order using unique combo key (productId + note)
   const handleConfirmAddProduct = () => {
     if (!selectedProductForAdd) return;
 
     const qty = Math.max(1, addQuantity);
-    const unitPrice = parseFloat(addPrice) >= 0 ? parseFloat(addPrice) : selectedProductForAdd.sellPrice;
+    const unitPrice = selectedProductForAdd.sellPrice;
+    const cleanNote = addNote.trim();
 
     const newItem: OrderItem = {
       productId: selectedProductForAdd.productId,
-      productCode: selectedProductForAdd.productId,
       name: selectedProductForAdd.name,
       quantity: qty,
       price: unitPrice,
       originalPrice: selectedProductForAdd.sellPrice,
-      note: addNote,
+      note: cleanNote,
     };
 
-    // If product already in list, update quantity
-    const existingIndex = orderItems.findIndex(it => it.productId === newItem.productId);
+    // Item combo matching: Check if exact same productId AND note combination exists
+    const comboKey = (pId: string, n?: string) => `${pId}___${(n || '').trim().toLowerCase()}`;
+    const targetKey = comboKey(newItem.productId, newItem.note);
+
+    const existingIndex = orderItems.findIndex(
+      it => comboKey(it.productId, it.note) === targetKey
+    );
+
     if (existingIndex >= 0) {
       const updated = [...orderItems];
       updated[existingIndex].quantity += qty;
-      if (addNote) updated[existingIndex].note = addNote;
       setOrderItems(updated);
     } else {
       setOrderItems(prev => [...prev, newItem]);
     }
 
-    // Reset selection in modal
+    // Reset product selection view so user can search & pick next product fast
     setSelectedProductForAdd(null);
     setAddQuantity(1);
-    setAddPrice('');
     setAddNote('');
-    setIsProductModalOpen(false);
+    setProductSearch('');
+
+    setTimeout(() => {
+      modalSearchInputRef.current?.focus();
+    }, 100);
   };
 
   const handleUpdateItemQuantity = (index: number, delta: number) => {
@@ -426,14 +433,14 @@ function CreateOrderContent() {
 
             <div className="flex items-center gap-2">
               <span className="text-xs font-black text-amber-900 bg-amber-100 border border-amber-300 px-3.5 py-1.5 rounded-full flex items-center gap-1.5 uppercase">
-                <Clock size={14} className="text-amber-600" /> Local Storage Mode
+                <Clock size={14} className="text-amber-600" /> Local Draft Mode
               </span>
             </div>
           </div>
 
           <form onSubmit={handleSaveOrder} className="space-y-6">
             
-            {/* Salesrep & Shop Details Grid */}
+            {/* Salesrep & Order Date Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               
               {/* Auto-Assigned Salesrep Card */}
@@ -441,7 +448,7 @@ function CreateOrderContent() {
                 <label className="text-xs font-black text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
                   <User size={14} className="text-blue-600" /> Sales Representative (Auto-Assigned)
                 </label>
-                <div className="flex items-center justify-between bg-gray-50/80 border border-gray-200/80 rounded-2xl p-3.5">
+                <div className="flex items-center justify-between bg-gray-50/80 border border-gray-200 rounded-2xl p-3.5">
                   <div>
                     <p className="text-sm font-black text-[#0f172a] uppercase">{user?.name || 'Logged-in Salesrep'}</p>
                     <p className="text-xs font-bold text-gray-400">{user?.email || 'salesrep@matrices.com'}</p>
@@ -461,16 +468,16 @@ function CreateOrderContent() {
                   type="date"
                   value={orderDate}
                   onChange={e => setOrderDate(e.target.value)}
-                  className="w-full bg-gray-50/80 border border-gray-200/80 rounded-2xl p-3 text-sm font-bold text-[#0f172a] focus:outline-none focus:ring-2 focus:ring-[#0f172a]/20"
+                  className="w-full bg-gray-50/80 border border-gray-200 rounded-2xl p-3.5 text-sm font-bold text-[#0f172a] focus:outline-none focus:ring-2 focus:ring-[#0f172a]/20"
                 />
               </div>
 
             </div>
 
-            {/* Shop Selection Field */}
+            {/* Shop Selection Field (Styling matching user screenshot 1!) */}
             <div className="bg-white/80 border border-white/90 rounded-3xl p-5 shadow-xs space-y-3">
               <label className="text-xs font-black text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
-                <Store size={14} className="text-blue-600" /> Select Customer Shop *
+                <Store size={14} className="text-blue-600" /> SELECT CUSTOMER SHOP *
               </label>
 
               {loadingShops ? (
@@ -482,7 +489,7 @@ function CreateOrderContent() {
                     const found = allShops.find(s => s.shopId === e.target.value);
                     setSelectedShop(found || null);
                   }}
-                  className="w-full bg-gray-50/80 border border-gray-200/80 rounded-2xl p-3.5 text-sm font-bold text-[#0f172a] focus:outline-none focus:ring-2 focus:ring-[#0f172a]/20 uppercase"
+                  className="w-full bg-gray-50/80 border border-gray-300 rounded-2xl p-4 text-sm font-black text-[#0f172a] focus:outline-none focus:ring-2 focus:ring-[#0f172a]/20 uppercase shadow-xs cursor-pointer"
                 >
                   <option value="">-- SELECT SHOP ASSIGNED TO YOU --</option>
                   {allShops.map(s => (
@@ -494,8 +501,8 @@ function CreateOrderContent() {
               )}
 
               {selectedShop && (
-                <div className="p-3 bg-blue-50/60 border border-blue-100 rounded-2xl flex items-center justify-between text-xs text-blue-900 font-bold">
-                  <span>Selected: <strong className="uppercase">{selectedShop.name}</strong> ({selectedShop.shopId})</span>
+                <div className="p-3.5 bg-blue-50/70 border border-blue-200 rounded-2xl flex items-center justify-between text-xs text-blue-900 font-bold">
+                  <span>Selected Shop: <strong className="uppercase font-black">{selectedShop.name}</strong> ({selectedShop.shopId})</span>
                   {selectedShop.phone && <span>Phone: {selectedShop.phone}</span>}
                 </div>
               )}
@@ -510,7 +517,11 @@ function CreateOrderContent() {
 
                 <button
                   type="button"
-                  onClick={() => setIsProductModalOpen(true)}
+                  onClick={() => {
+                    setSelectedProductForAdd(null);
+                    setProductSearch('');
+                    setIsProductModalOpen(true);
+                  }}
                   className="bg-[#0f172a] hover:bg-[#1e293b] text-white text-xs font-black uppercase px-4 py-2.5 rounded-full shadow-md transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
                 >
                   <Plus size={14} /> ADD PRODUCT
@@ -520,13 +531,17 @@ function CreateOrderContent() {
               {orderItems.length === 0 ? (
                 <div className="py-12 text-center border-2 border-dashed border-gray-200 rounded-2xl">
                   <ShoppingBag size={36} className="mx-auto text-gray-300 mb-2" />
-                  <p className="text-xs font-black text-gray-400 uppercase">No products added to order</p>
+                  <p className="text-xs font-black text-gray-400 uppercase">No products added to order yet</p>
                   <button
                     type="button"
-                    onClick={() => setIsProductModalOpen(true)}
+                    onClick={() => {
+                      setSelectedProductForAdd(null);
+                      setProductSearch('');
+                      setIsProductModalOpen(true);
+                    }}
                     className="mt-3 text-xs font-black text-blue-600 underline uppercase cursor-pointer"
                   >
-                    Click "+ ADD PRODUCT" to browse MTX products
+                    Click "+ ADD PRODUCT" to search MTX products
                   </button>
                 </div>
               ) : (
@@ -534,7 +549,7 @@ function CreateOrderContent() {
                   <table className="w-full text-left text-xs">
                     <thead>
                       <tr className="text-gray-400 uppercase font-black tracking-wider text-[10px]">
-                        <th className="py-2.5 px-3">Product</th>
+                        <th className="py-2.5 px-3">Product Name</th>
                         <th className="py-2.5 px-3">MTX ID</th>
                         <th className="py-2.5 px-3">Price</th>
                         <th className="py-2.5 px-3">Quantity</th>
@@ -547,10 +562,10 @@ function CreateOrderContent() {
                         <tr key={index} className="hover:bg-gray-50/50">
                           <td className="py-3 px-3">
                             <p className="font-black uppercase">{item.name}</p>
-                            {item.note && <p className="text-[10px] text-gray-400 italic">Note: {item.note}</p>}
+                            {item.note && <p className="text-[10px] text-blue-600 font-bold mt-0.5">Note: {item.note}</p>}
                           </td>
-                          <td className="py-3 px-3 font-mono text-gray-500 uppercase">
-                            {item.productId || item.productCode}
+                          <td className="py-3 px-3 font-mono text-gray-500 uppercase font-bold">
+                            {item.productId}
                           </td>
                           <td className="py-3 px-3">{formatPrice(item.price)}</td>
                           <td className="py-3 px-3">
@@ -609,15 +624,15 @@ function CreateOrderContent() {
                     rows={3}
                     value={notes}
                     onChange={e => setNotes(e.target.value)}
-                    placeholder="Enter any order notes or instructions..."
-                    className="w-full bg-gray-50/80 border border-gray-200/80 rounded-2xl p-3 text-xs font-bold text-[#0f172a] focus:outline-none focus:ring-2 focus:ring-[#0f172a]/20"
+                    placeholder="Enter order notes or special instructions..."
+                    className="w-full bg-gray-50/80 border border-gray-200 rounded-2xl p-3 text-xs font-bold text-[#0f172a] focus:outline-none focus:ring-2 focus:ring-[#0f172a]/20"
                   />
                 </div>
 
                 {/* Totals Breakdown */}
-                <div className="bg-gray-50/80 border border-gray-200/80 rounded-2xl p-4 space-y-3">
+                <div className="bg-gray-50/80 border border-gray-200 rounded-2xl p-4 space-y-3">
                   <div className="flex justify-between text-xs font-bold text-gray-600 uppercase">
-                    <span>Subtotal:</span>
+                    <span>Subtotal ({orderItems.reduce((acc, i) => acc + i.quantity, 0)} units):</span>
                     <span className="font-black text-[#0f172a]">{formatPrice(calculateSubtotal())}</span>
                   </div>
 
@@ -672,7 +687,7 @@ function CreateOrderContent() {
         </div>
       </main>
 
-      {/* ───── ADD PRODUCT MODAL (Matching User Screenshot Design!) ───── */}
+      {/* ───── ADD PRODUCT MODAL (Matching User Screenshot 2 & Project Fast-Add Workflow!) ───── */}
       <AnimatePresence>
         {isProductModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
@@ -680,15 +695,16 @@ function CreateOrderContent() {
               initial={{ opacity: 0, scale: 0.95, y: 15 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 15 }}
-              className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] flex flex-col overflow-hidden"
+              className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] flex flex-col overflow-hidden border border-gray-200"
             >
               {/* Modal Header */}
               <div className="flex items-center justify-between pb-2 border-b border-gray-100">
                 <div>
-                  <h2 className="text-lg font-black text-[#0f172a] uppercase">Add Product</h2>
+                  <h2 className="text-lg font-black text-[#0f172a] uppercase tracking-tight">ADD PRODUCT</h2>
                   <p className="text-xs font-bold text-gray-400">Search and select an MTX product</p>
                 </div>
                 <button
+                  type="button"
                   onClick={() => { setIsProductModalOpen(false); setSelectedProductForAdd(null); }}
                   className="p-1.5 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors"
                 >
@@ -696,113 +712,147 @@ function CreateOrderContent() {
                 </button>
               </div>
 
-              {/* Product Search Field */}
-              <div className="relative">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                <input
-                  ref={modalSearchInputRef}
-                  type="text"
-                  value={productSearch}
-                  onChange={e => setProductSearch(e.target.value)}
-                  placeholder="Search products..."
-                  className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-xs font-bold text-[#0f172a] focus:outline-none focus:ring-2 focus:ring-[#0f172a]/20"
-                />
-              </div>
-
-              {/* Product List / Selected Product Config */}
+              {/* VIEW 1: SEARCH PRODUCT LIST (Shown when no product is selected yet) */}
               {!selectedProductForAdd ? (
-                <div className="flex-1 overflow-y-auto space-y-2 pr-1 max-h-[350px]">
-                  {loadingProducts ? (
-                    <div className="py-12 text-center text-xs font-bold text-gray-400 uppercase">Loading products...</div>
-                  ) : mtxFilteredProducts.length === 0 ? (
-                    <div className="py-12 text-center text-xs font-bold text-gray-400 uppercase">
-                      No MTX products found
-                    </div>
-                  ) : (
-                    mtxFilteredProducts.map((product) => (
-                      <div
-                        key={product.id}
-                        onClick={() => handleSelectProductForAdd(product)}
-                        className="p-4 border border-gray-200 rounded-2xl hover:border-[#0f172a] hover:bg-gray-50/80 transition-all cursor-pointer group flex items-center justify-between"
-                      >
-                        <div className="space-y-0.5">
-                          <h4 className="text-sm font-black text-[#0f172a] uppercase group-hover:text-[#0f172a]">
-                            {product.name}
-                          </h4>
-                          <p className="text-sm font-black text-slate-600">
-                            Rs.{product.sellPrice}
-                          </p>
-                          <div className="flex items-center gap-3 text-[11px] font-bold text-gray-400">
-                            <span>ID: <strong className="text-gray-600 font-mono">{product.productId}</strong></span>
-                            <span>Code: <strong className="text-gray-600 font-mono">{product.productId.replace('MTX-', '')}</strong></span>
+                <>
+                  {/* Product Search Input (With Enter Key Fast Selection!) */}
+                  <div className="relative">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                    <input
+                      ref={modalSearchInputRef}
+                      type="text"
+                      value={productSearch}
+                      onChange={e => setProductSearch(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          if (mtxFilteredProducts.length > 0) {
+                            handleSelectProduct(mtxFilteredProducts[0]);
+                          }
+                        }
+                      }}
+                      placeholder="Search products..."
+                      className="w-full pl-11 pr-4 py-3.5 bg-gray-50/80 border border-gray-300 rounded-2xl text-xs font-bold text-[#0f172a] focus:outline-none focus:ring-2 focus:ring-[#0f172a]/20 shadow-xs"
+                    />
+                  </div>
+
+                  {/* Product Search Cards List (Matching Screenshot 2 exact design!) */}
+                  <div className="flex-1 overflow-y-auto space-y-3 pr-1 max-h-[360px]">
+                    {loadingProducts ? (
+                      <div className="py-12 text-center text-xs font-bold text-gray-400 uppercase animate-pulse">Loading MTX products...</div>
+                    ) : mtxFilteredProducts.length === 0 ? (
+                      <div className="py-12 text-center text-xs font-bold text-gray-400 uppercase">
+                        No MTX products found
+                      </div>
+                    ) : (
+                      mtxFilteredProducts.map((product) => (
+                        <div
+                          key={product.id}
+                          onClick={() => handleSelectProduct(product)}
+                          className="p-4 border border-gray-200 rounded-2xl hover:border-[#0f172a] hover:bg-gray-50/80 transition-all cursor-pointer group flex items-center justify-between bg-white"
+                        >
+                          <div className="space-y-1">
+                            <h4 className="text-sm font-black text-[#0f172a] uppercase tracking-wide">
+                              {product.name}
+                            </h4>
+                            <p className="text-sm font-black text-slate-700">
+                              Rs.{product.sellPrice}
+                            </p>
+                            {/* ONLY ID: MTX-XXXX IS SHOWN (Code & buyPrice are removed!) */}
+                            <p className="text-xs font-bold text-gray-400">
+                              ID: <strong className="text-gray-600 font-mono">{product.productId}</strong>
+                            </p>
+                          </div>
+
+                          <div className="w-9 h-9 bg-gray-100 group-hover:bg-[#0f172a] group-hover:text-white text-gray-700 rounded-xl flex items-center justify-center transition-colors">
+                            <Plus size={18} />
                           </div>
                         </div>
-
-                        <div className="p-2 bg-gray-100 group-hover:bg-[#0f172a] group-hover:text-white rounded-xl transition-colors">
-                          <Plus size={16} />
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
+                      ))
+                    )}
+                  </div>
+                </>
               ) : (
-                /* Selected Product Quantity & Price Config */
+                /* VIEW 2: SELECTED PRODUCT QUANTITY & NOTE CONFIG VIEW (Search bar is hidden as requested!) */
                 <div className="space-y-4 pt-2">
-                  <div className="p-4 bg-gray-50 rounded-2xl border border-gray-200 space-y-1">
-                    <h4 className="text-sm font-black text-[#0f172a] uppercase">{selectedProductForAdd.name}</h4>
-                    <p className="text-xs font-mono font-bold text-gray-500">ID: {selectedProductForAdd.productId}</p>
-                    <p className="text-sm font-black text-emerald-700">Selling Price: Rs.{selectedProductForAdd.sellPrice}</p>
+                  <div className="p-4 bg-gray-50/90 rounded-2xl border border-gray-200 space-y-1">
+                    <h4 className="text-base font-black text-[#0f172a] uppercase">{selectedProductForAdd.name}</h4>
+                    <div className="flex items-center justify-between text-xs font-bold">
+                      <span className="text-gray-500 font-mono">ID: {selectedProductForAdd.productId}</span>
+                      <span className="text-emerald-700 font-black text-sm">Rs.{selectedProductForAdd.sellPrice}</span>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-black text-gray-400 uppercase">Quantity</label>
+                    {/* Quantity Input (Auto-focused, Enter adds item, ArrowDown moves to note!) */}
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-black text-gray-500 uppercase">Quantity *</label>
                       <input
+                        ref={quantityInputRef}
                         type="number"
                         min="1"
                         value={addQuantity}
                         onChange={e => setAddQuantity(parseInt(e.target.value, 10) || 1)}
-                        className="w-full bg-gray-50 border border-gray-200 rounded-xl p-2.5 text-xs font-bold text-[#0f172a]"
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleConfirmAddProduct();
+                          } else if (e.key === 'ArrowDown') {
+                            e.preventDefault();
+                            noteInputRef.current?.focus();
+                            noteInputRef.current?.select();
+                          }
+                        }}
+                        className="w-full bg-gray-50 border border-gray-300 rounded-xl p-3 text-sm font-black text-[#0f172a] focus:outline-none focus:ring-2 focus:ring-[#0f172a]/20"
                       />
                     </div>
 
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-black text-gray-400 uppercase">Unit Price (Rs.)</label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={addPrice}
-                        onChange={e => setAddPrice(e.target.value)}
-                        className="w-full bg-gray-50 border border-gray-200 rounded-xl p-2.5 text-xs font-bold text-[#0f172a]"
-                      />
+                    {/* Price Display (Read-only, stylish, easy to use!) */}
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-black text-gray-500 uppercase">Unit Price</label>
+                      <div className="w-full bg-gray-100/90 border border-gray-200 rounded-xl p-3 text-sm font-black text-[#0f172a]">
+                        Rs. {selectedProductForAdd.sellPrice}
+                      </div>
                     </div>
                   </div>
 
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-black text-gray-400 uppercase">Item Note (Optional)</label>
+                  {/* Note Input (ArrowUp moves back to quantity, Enter adds item!) */}
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-black text-gray-500 uppercase">Item Note (Optional)</label>
                     <input
+                      ref={noteInputRef}
                       type="text"
                       value={addNote}
                       onChange={e => setAddNote(e.target.value)}
                       placeholder="e.g. Special size or packaging note..."
-                      className="w-full bg-gray-50 border border-gray-200 rounded-xl p-2.5 text-xs font-bold text-[#0f172a]"
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleConfirmAddProduct();
+                        } else if (e.key === 'ArrowUp') {
+                          e.preventDefault();
+                          quantityInputRef.current?.focus();
+                          quantityInputRef.current?.select();
+                        }
+                      }}
+                      className="w-full bg-gray-50 border border-gray-300 rounded-xl p-3 text-xs font-bold text-[#0f172a] focus:outline-none focus:ring-2 focus:ring-[#0f172a]/20"
                     />
                   </div>
 
-                  <div className="flex items-center gap-2 pt-2">
+                  <div className="flex items-center gap-2 pt-3">
                     <button
                       type="button"
                       onClick={() => setSelectedProductForAdd(null)}
-                      className="w-1/2 py-3 bg-gray-100 text-gray-700 font-black text-xs uppercase rounded-full hover:bg-gray-200 transition-all"
+                      className="w-1/2 py-3.5 bg-gray-100 text-gray-700 font-black text-xs uppercase rounded-full hover:bg-gray-200 transition-all cursor-pointer"
                     >
-                      BACK TO LIST
+                      BACK TO SEARCH
                     </button>
                     <button
                       type="button"
                       onClick={handleConfirmAddProduct}
-                      className="w-1/2 py-3 bg-[#0f172a] text-white font-black text-xs uppercase rounded-full hover:bg-[#1e293b] shadow-md transition-all"
+                      className="w-1/2 py-3.5 bg-[#0f172a] text-white font-black text-xs uppercase rounded-full hover:bg-[#1e293b] shadow-md transition-all cursor-pointer active:scale-95"
                     >
-                      ADD TO ORDER
+                      ADD TO ORDER (ENTER)
                     </button>
                   </div>
                 </div>
