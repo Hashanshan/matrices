@@ -16,6 +16,8 @@ import SmartImage from './smart-image';
 import { getCachedImageUrl, getCachedImageUrlSync } from '@/lib/offline/image-cache';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
+import BackButton from './back-button';
+import { useBackHandler } from '@/lib/utils/back-navigation';
 
 const MySwal = withReactContent(Swal);
 
@@ -67,6 +69,25 @@ export default function FullscreenProductViewer({
   const { isProductWishlisted, toggleProductWishlist } = useWishlist();
   const [menuOpen, setMenuOpen] = useState(false);
   const { cart } = useCart();
+
+  // Handle in-page viewer back events (closing search, modal, or menu)
+  useBackHandler(() => {
+    if (searchOpen) {
+      setSearchOpen(false);
+      setViewerSearchQuery('');
+      onSearch('');
+      return true;
+    }
+    if (isModalOpen) {
+      setIsModalOpen(false);
+      return true;
+    }
+    if (menuOpen) {
+      setMenuOpen(false);
+      return true;
+    }
+    return false;
+  }, searchOpen || isModalOpen || menuOpen);
 
   const hasSetInitialIndex = useRef(false);
   const [displayImg, setDisplayImg] = useState<string>('');
@@ -452,13 +473,16 @@ export default function FullscreenProductViewer({
           <ChevronRight size={24} className="sm:w-7 sm:h-7" />
         </motion.button>
 
-        {/* Product Counter - Dynamic API totalCount */}
+        {/* Top Left: Responsive Stylish Back Button & Counter */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="absolute top-6 left-6 sm:top-8 sm:left-8 bg-white/30 backdrop-blur-2xl text-[#0f172a] px-5 py-2.5 rounded-full shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] border border-white/60"
+          className="absolute top-6 left-6 sm:top-8 sm:left-8 flex items-center gap-3 z-20"
         >
-          <p className="text-sm font-bold tracking-wider">{String(currentIndex + 1).padStart(2, '0')} / {String(totalCount).padStart(2, '0')}</p>
+          <BackButton />
+          <div className="bg-white/30 backdrop-blur-2xl text-[#0f172a] px-5 py-2.5 rounded-full shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] border border-white/60">
+            <p className="text-sm font-bold tracking-wider">{String(currentIndex + 1).padStart(2, '0')} / {String(totalCount).padStart(2, '0')}</p>
+          </div>
         </motion.div>
 
         {/* Action Buttons - Top Right */}

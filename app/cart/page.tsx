@@ -11,6 +11,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import Header from '@/components/header';
 import { formatPrice } from '@/lib/currency';
+import BackButton from '@/components/back-button';
 
 export default function CartPage() {
   const router = useRouter();
@@ -67,12 +68,7 @@ export default function CartPage() {
       <main className="min-h-screen bg-[#f8f9fc]">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
           {/* Back Button */}
-          <Link href="/">
-            <Button variant="ghost" className="mb-6 gap-2">
-              <ArrowLeft size={18} />
-              Continue Shopping
-            </Button>
-          </Link>
+          <BackButton label="Continue Shopping" className="mb-6" />
 
           <h1 className="text-3xl font-black text-[#0f172a] mb-8 tracking-tight">Shopping Cart</h1>
 

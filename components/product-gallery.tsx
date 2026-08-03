@@ -15,6 +15,7 @@ import withReactContent from 'sweetalert2-react-content';
 import { useWishlist } from '@/lib/contexts/wishlist-context';
 import { useSearchParams } from 'next/navigation';
 import { saveGalleryFilters, loadGalleryFilters, clearGalleryFilters, DEFAULT_FILTERS } from '@/lib/utils/filter-storage';
+import { useBackHandler } from '@/lib/utils/back-navigation';
 
 const MySwal = withReactContent(Swal);
 
@@ -163,6 +164,19 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+
+  // Close sidebar or reset expanded categories on back press
+  useBackHandler(() => {
+    if (sidebarOpen) {
+      setSidebarOpen(false);
+      return true;
+    }
+    if (expandedCategories.length > 0) {
+      setExpandedCategories([]);
+      return true;
+    }
+    return false;
+  }, sidebarOpen || expandedCategories.length > 0);
 
   // Map frontend sortBy to backend sort param
   const backendSort = filters.sortBy === 'price-low' ? 'price-low'

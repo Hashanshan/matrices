@@ -8,6 +8,7 @@ import { motion } from 'framer-motion';
 import { FileText, ArrowLeft, Printer, Download, Lock, CheckCircle2, Clock, AlertCircle, XCircle, ShoppingBag, Store, Phone, MapPin } from 'lucide-react';
 import Link from 'next/link';
 import useSWR from 'swr';
+import BackButton from '@/components/back-button';
 import { formatPrice } from '@/lib/currency';
 
 interface Item {
@@ -259,12 +260,7 @@ export default function OrderPdfClient({ params }: { params?: Promise<{ orderId:
           ) : (
             <>
               <div className="flex items-center justify-between gap-4 mb-6 print:hidden no-print">
-                <Link
-                  href="/settings/orders"
-                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-white/60 hover:bg-white text-[#0f172a] font-black text-xs uppercase rounded-full border border-white/60 shadow-sm transition-all"
-                >
-                  <ArrowLeft size={16} /> BACK TO ORDERS
-                </Link>
+                <BackButton label="Orders" />
 
                 <div className="flex items-center gap-3">
                   <button

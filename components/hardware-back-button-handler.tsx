@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
+import { executeCustomBackHandler } from '@/lib/utils/back-navigation';
 
 // Global history stack persisted across re-renders
 const navHistory: string[] = [];
@@ -27,14 +28,19 @@ export default function HardwareBackButtonHandler() {
 
   useEffect(() => {
     const goBack = () => {
-      // 1. If SweetAlert or modal is open, trigger escape key to close it first
+      // 1. First run custom component back handlers (e.g. subcategory view -> category view)
+      if (executeCustomBackHandler()) {
+        return;
+      }
+
+      // 2. If SweetAlert or modal is open, trigger escape key to close it first
       const swalContainer = document.querySelector('.swal2-container');
       if (swalContainer) {
         window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
         return;
       }
 
-      // 2. Pop current page off stack
+      // 3. Pop current page off stack
       if (navHistory.length > 0 && navHistory[navHistory.length - 1] === pathname) {
         navHistory.pop();
       }

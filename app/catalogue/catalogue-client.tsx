@@ -9,6 +9,8 @@ import Link from 'next/link';
 import { useFilters } from '@/lib/hooks/use-products';
 import { useWishlist } from '@/lib/contexts/wishlist-context';
 import SmartImage from '@/components/smart-image';
+import BackButton from '@/components/back-button';
+import { useBackHandler, triggerBack } from '@/lib/utils/back-navigation';
 
 export default function CategoriesPage({ fallbackData }: { fallbackData?: any } = {}) {
   const router = useRouter();
@@ -17,6 +19,16 @@ export default function CategoriesPage({ fallbackData }: { fallbackData?: any } 
 
   // Fetch filters (categories, subcategories) from API with fallbackData
   const { categories, isLoading, isValidating } = useFilters({ fallbackData });
+
+  // Intercept back button when subcategories are selected to step back to category list first
+  useBackHandler(() => {
+    if (selectedCategory !== null) {
+      setSelectedCategory(null);
+      setSearchQuery('');
+      return true;
+    }
+    return false;
+  }, selectedCategory !== null);
 
   // Access wishlist state and toggles
   const {
@@ -118,18 +130,13 @@ export default function CategoriesPage({ fallbackData }: { fallbackData?: any } 
           {/* Page Title & Back Button */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
             <div className="flex items-center gap-4">
-              {selectedCategory && (
-                <button
-                  onClick={() => {
-                    setSelectedCategory(null);
-                    setSearchQuery('');
-                  }}
-                  className="p-3 bg-white/30 backdrop-blur-md rounded-full border border-white/60 hover:bg-white/60 text-[#0f172a] shadow-sm hover:shadow-md transition-all"
-                  aria-label="Back to Categories"
-                >
-                  <ArrowLeft size={20} />
-                </button>
-              )}
+              <BackButton
+                label={selectedCategory ? "Categories" : "Back"}
+                onClick={selectedCategory ? () => {
+                  setSelectedCategory(null);
+                  setSearchQuery('');
+                } : undefined}
+              />
               <div>
                 <h1 className="text-3xl sm:text-4xl font-black text-[#0f172a] uppercase tracking-wide">
                   {selectedCategory ? `${selectedCategory}` : 'CATEGORIES'}

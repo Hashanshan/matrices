@@ -16,6 +16,8 @@ import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 
 
+import BackButton from './back-button';
+
 interface HeaderProps {
   searchQuery?: string;
   onSearchChange?: (query: string) => void;
@@ -68,18 +70,21 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* ───── Main Bar ───── */}
         <div className="flex items-center justify-between h-20 gap-6">
-          {/* Logo */}
-          <Link href="/" className="flex-shrink-0 group">
-            <motion.div whileHover={{ scale: 1.05 }} className="relative h-14 w-40">
-              <Image
-                src="/matrices_logo.png"
-                alt="Matrices"
-                fill
-                className="object-contain hover:opacity-90 transition-opacity"
-                priority
-              />
-            </motion.div>
-          </Link>
+          {/* Top Left: Back Button & Logo */}
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <BackButton />
+            <Link href="/" className="flex-shrink-0 group">
+              <motion.div whileHover={{ scale: 1.05 }} className="relative h-14 w-40">
+                <Image
+                  src="/matrices_logo.png"
+                  alt="Matrices"
+                  fill
+                  className="object-contain hover:opacity-90 transition-opacity"
+                  priority
+                />
+              </motion.div>
+            </Link>
+          </div>
 
           {/* Desktop Navigation */}
           <nav className="hidden lg:flex gap-8 flex-1 justify-center">

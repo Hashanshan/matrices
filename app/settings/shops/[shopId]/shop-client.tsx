@@ -2,6 +2,7 @@
 
 import { useState, useEffect, use } from 'react';
 import Header from '@/components/header';
+import BackButton from '@/components/back-button';
 import { useAuth } from '@/lib/contexts/auth-context';
 import PinModal from '@/components/pin-modal';
 import Pagination from '@/components/pagination';
@@ -283,12 +284,7 @@ export default function ShopClient({ params }: { params?: Promise<{ shopId: stri
           ) : (
             <>
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
-                <Link
-                  href="/settings/shops"
-                  className="inline-flex items-center gap-2 px-4 py-2.5 bg-white/60 hover:bg-white text-[#0f172a] font-black text-xs uppercase rounded-full border border-white/60 shadow-sm transition-all shrink-0 w-fit"
-                >
-                  <ArrowLeft size={16} /> BACK TO SHOPS
-                </Link>
+                <BackButton label="Shops" />
 
                 <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none w-full sm:w-auto max-w-full shrink-0">
                   <Link
