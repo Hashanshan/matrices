@@ -56,13 +56,10 @@ export function triggerBack(): void {
     }
   }
 
-  // 3. Fallback to browser history back
+  // 3. Dispatch global app back event for HardwareBackButtonHandler
   if (typeof window !== 'undefined') {
-    if (window.history.length > 1) {
-      window.history.back();
-    } else {
-      window.location.href = '/catalogue';
-    }
+    const backEvent = new CustomEvent('app-trigger-back');
+    window.dispatchEvent(backEvent);
   }
 }
 

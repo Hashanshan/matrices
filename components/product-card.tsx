@@ -54,11 +54,7 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
     const currentFilters = loadGalleryFilters();
     const queryStr = buildFilterQueryParams(currentFilters, targetId);
     const targetUrl = `/view${queryStr}`;
-    if (typeof window !== 'undefined') {
-      window.location.href = targetUrl;
-    } else {
-      router.push(targetUrl);
-    }
+    router.push(targetUrl);
   };
 
   return (

@@ -29,8 +29,29 @@ function hashPin(pin: string): string {
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<UserProfile | null>(null);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [user, setUser] = useState<UserProfile | null>(() => {
+    if (typeof window !== 'undefined') {
+      const savedUser = localStorage.getItem('user');
+      if (savedUser) {
+        try {
+          return JSON.parse(savedUser);
+        } catch (error) {
+          console.error('Failed to parse user from localStorage:', error);
+        }
+      }
+    }
+    return null;
+  });
+
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const savedUser = localStorage.getItem('user');
+      const savedToken = localStorage.getItem('token');
+      return Boolean(savedUser || savedToken);
+    }
+    return false;
+  });
+
   const [isPinVerified, setIsPinVerified] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
       return sessionStorage.getItem('matrices_pin_verified') === 'true';
@@ -50,21 +71,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-    const savedUser = localStorage.getItem('user');
-    if (savedUser) {
-      try {
-        const parsedUser = JSON.parse(savedUser);
-        setUser(parsedUser);
-        setIsLoggedIn(true);
-      } catch (error) {
-        console.error('Failed to parse user from localStorage:', error);
-      }
-    }
-
     const handleAuthError = () => {
       const mode = typeof window !== 'undefined' ? localStorage.getItem('matrices_data_mode') : null;
       if (typeof navigator !== 'undefined' && !navigator.onLine) return;
       if (mode === 'offline') return;
+      // If user session exists locally, do not kill local session on transient network auth errors
+      const savedUser = localStorage.getItem('user');
+      if (savedUser) return;
       logout();
       window.location.href = '/';
     };

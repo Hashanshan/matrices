@@ -183,8 +183,12 @@ export async function searchOfflineProducts(
   const scored: Array<{ product: ProductItem; score: number }> = [];
 
   for (const product of allProducts) {
-    // Category filter
-    if (categoryName || categoryId) {
+    // Search score (matches get positive score, non-matches get 0 so all products remain available)
+    const rawScore = normalizedQuery ? scoreProduct(product, normalizedQuery, queryClean) : 0;
+    const score = rawScore < 0 ? 0 : rawScore;
+
+    // If query is provided, category/subcategory filter should not strictly exclude matches
+    if (!normalizedQuery && (categoryName || categoryId)) {
       const pCat = (
         product.categoryName ||
         product.categories ||
@@ -196,8 +200,7 @@ export async function searchOfflineProducts(
       if (categoryId && !pCat.includes(categoryId.toLowerCase()) && pCatId !== categoryId.toLowerCase()) continue;
     }
 
-    // Subcategory filter
-    if (subcategoryName || subcategoryId) {
+    if (!normalizedQuery && (subcategoryName || subcategoryId)) {
       const pSub = (
         product.subcategoryName ||
         product.subcategories ||
@@ -208,10 +211,6 @@ export async function searchOfflineProducts(
       if (subcategoryName && !pSub.includes(subcategoryName.toLowerCase())) continue;
       if (subcategoryId && !pSub.includes(subcategoryId.toLowerCase()) && pSubId !== subcategoryId.toLowerCase()) continue;
     }
-
-    // Search score
-    const score = normalizedQuery ? scoreProduct(product, normalizedQuery, queryClean) : 0;
-    if (normalizedQuery && score < 0) continue; // No match
 
     scored.push({ product, score });
   }
