@@ -384,27 +384,27 @@ export default function OrderPdfClient({ params }: { params?: Promise<{ orderId:
                     </div>
                   </div>
 
-                {order.payments && order.payments.length > 0 && (
-                  <div className="pt-4 border-t border-gray-200">
-                    <p className="text-[0.65rem] font-black text-gray-400 uppercase tracking-wider mb-2">PAYMENT HISTORY</p>
-                    <div className="space-y-2 text-xs font-semibold">
-                      {order.payments.map((p, idx) => (
-                        <div key={idx} className="flex justify-between p-3 bg-gray-50 rounded-xl uppercase">
-                          <span>{new Date(p.date).toLocaleDateString()} - METHOD: {p.paymentMethod}</span>
-                          <span className="font-black text-green-700">{formatPrice(p.amount)}</span>
-                        </div>
-                      ))}
+                  {order.payments && order.payments.length > 0 && (
+                    <div className="pt-4 border-t border-gray-200">
+                      <p className="text-[0.65rem] font-black text-gray-400 uppercase tracking-wider mb-2">PAYMENT HISTORY</p>
+                      <div className="space-y-2 text-xs font-semibold">
+                        {order.payments.map((p, idx) => (
+                          <div key={idx} className="flex justify-between p-3 bg-gray-50 rounded-xl uppercase">
+                            <span>{new Date(p.date).toLocaleDateString()} - METHOD: {p.paymentMethod}</span>
+                            <span className="font-black text-green-700">{formatPrice(p.amount)}</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
-                <div className="pt-8 text-center text-[0.65rem] text-gray-400 font-bold uppercase border-t border-gray-200">
-                  <p>THANK YOU FOR YOUR BUSINESS! FOR ENQUIRIES, CONTACT SUPPORT AT INFO@MATRICES.LK</p>
+                  <div className="pt-8 text-center text-[0.65rem] text-gray-400 font-bold uppercase border-t border-gray-200">
+                    <p>THANK YOU FOR YOUR BUSINESS! FOR ENQUIRIES, CONTACT SUPPORT AT matricespvtltd@gmail.com</p>
+                  </div>
                 </div>
-              </div>
-            </>
-          );
-        })()}
+              </>
+            );
+          })()}
 
         </div>
       </main>

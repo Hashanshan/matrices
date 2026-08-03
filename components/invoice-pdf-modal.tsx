@@ -96,64 +96,184 @@ export default function InvoicePdfModal({ order, onClose }: InvoicePdfModalProps
   };
 
   const handleDownloadPdf = async () => {
-    if (isDownloading) return;
+    if (!order || isDownloading) return;
     setIsDownloading(true);
     try {
-      // Dynamically load html2pdf script if not present
-      if (!(window as any).html2pdf) {
+      if (!(window as any).jspdf) {
         await new Promise((resolve, reject) => {
           const script = document.createElement('script');
-          script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+          script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+          script.onload = resolve;
+          script.onerror = reject;
+          document.body.appendChild(script);
+        });
+      }
+      if (!(window as any).jspdfAutoTable && !(window as any).autoTable) {
+        await new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js';
           script.onload = resolve;
           script.onerror = reject;
           document.body.appendChild(script);
         });
       }
 
-      const element = document.getElementById('printable-invoice');
-      if (!element) {
-        setIsDownloading(false);
-        return;
+      const { jsPDF } = (window as any).jspdf;
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.getWidth();
+
+      // === CENTERED HEADER ===
+      doc.setFontSize(20);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(15, 23, 42);
+      doc.text('MATRICES', pageWidth / 2, 18, { align: 'center' });
+
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(71, 85, 105);
+      doc.text('Tel: +94 77 685 8969   |   Email: matricespvtltd@gmail.com', pageWidth / 2, 24, { align: 'center' });
+
+      // Horizontal Divider
+      doc.setDrawColor(226, 232, 240);
+      doc.setLineWidth(0.5);
+      doc.line(14, 29, pageWidth - 14, 29);
+
+      let headerY = 36;
+
+      // === LEFT SIDE: INVOICED TO ===
+      let shopY = headerY;
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(148, 163, 184);
+      doc.text('INVOICED TO:', 14, shopY);
+
+      shopY += 5;
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(15, 23, 42);
+      doc.text(String(order.shop?.name || '-').toUpperCase(), 14, shopY);
+
+      shopY += 5;
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(71, 85, 105);
+      doc.text(`SHOP ID: ${order.shop?.shopId || '-'}`, 14, shopY);
+
+      if (order.shop?.address) {
+        shopY += 5;
+        doc.text(String(order.shop.address).toUpperCase(), 14, shopY);
+      }
+      if (order.shop?.phone) {
+        shopY += 5;
+        doc.text(`PHONE: ${order.shop.phone}`, 14, shopY);
       }
 
-      const opt = {
-        margin: [10, 10, 10, 10],
-        filename: `Invoice_${order.orderId}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: {
-          scale: 2,
-          useCORS: true,
-          logging: false,
-          onclone: (clonedDoc: Document) => {
-            const styleTags = clonedDoc.querySelectorAll('style');
-            styleTags.forEach((st) => {
-              if (st.textContent) {
-                st.textContent = st.textContent
-                  .replace(/lab\([^)]+\)/g, 'rgba(0,0,0,0.1)')
-                  .replace(/oklch\([^)]+\)/g, 'rgba(0,0,0,0.1)');
-              }
-            });
+      // === RIGHT SIDE: INVOICE DETAILS ===
+      const rightX = pageWidth - 75;
+      let infoY = headerY;
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(148, 163, 184);
+      doc.text('INVOICE DETAILS:', rightX, infoY);
 
-            const el = clonedDoc.getElementById('printable-invoice');
-            if (el) {
-              const allNodes = el.querySelectorAll('*');
-              [el, ...Array.from(allNodes)].forEach((node: any) => {
-                if (node.style) {
-                  node.style.boxShadow = 'none';
-                  node.style.backdropFilter = 'none';
-                  node.style.webkitBackdropFilter = 'none';
-                  node.style.filter = 'none';
-                }
-              });
-            }
-          }
-        },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      infoY += 5;
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(15, 23, 42);
+      doc.text(`Invoice No  :  ${order.orderId}`, rightX, infoY);
+
+      const invoiceDateStr = order.date ? new Date(order.date).toISOString().split('T')[0] : '';
+      infoY += 5;
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(71, 85, 105);
+      doc.text(`Date           :  ${invoiceDateStr}`, rightX, infoY);
+
+      const billedByName = formatDisplayName(order.salesrep || order.salesRep || order.createdBy) || 'Admin';
+      infoY += 5;
+      doc.text(`Billed By     :  ${billedByName}`, rightX, infoY);
+
+      const startTableY = Math.max(shopY, infoY) + 8;
+
+      // === ITEM TABLE ===
+      const tableData = (order.items || []).map(item => [
+        item.productID || '-',
+        item.name + (item.note ? ` (${item.note})` : ''),
+        item.quantity.toString(),
+        `Rs. ${Number(item.price || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
+        `Rs. ${(Number(item.quantity || 0) * Number(item.price || 0)).toLocaleString('en-US', { minimumFractionDigits: 2 })}`
+      ]);
+
+      const autoTableOptions = {
+        startY: startTableY,
+        head: [['PRODUCT ID', 'ITEM DESCRIPTION', 'QTY', 'UNIT PRICE', 'SUBTOTAL']],
+        body: tableData,
+        headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: 'bold', fontSize: 8 },
+        alternateRowStyles: { fillColor: [248, 250, 252] },
+        styles: { fontSize: 8, font: 'helvetica', cellPadding: 3 },
+        columnStyles: {
+          0: { fontStyle: 'bold', cellWidth: 32 },
+          2: { halign: 'center', cellWidth: 20 },
+          3: { halign: 'right', cellWidth: 35 },
+          4: { halign: 'right', fontStyle: 'bold', cellWidth: 40 }
+        }
       };
 
-      await (window as any).html2pdf().set(opt).from(element).save();
+      if (typeof (doc as any).autoTable === 'function') {
+        (doc as any).autoTable(autoTableOptions);
+      } else if (typeof (window as any).autoTable === 'function') {
+        (window as any).autoTable(doc, autoTableOptions);
+      }
+
+      // === TOTALS ===
+      let finalY = (doc as any).lastAutoTable.finalY + 8;
+      const subtotal = order.subtotal || (order.items || []).reduce((sum, it) => sum + (Number(it.price || 0) * Number(it.quantity || 0)), 0);
+      const discountAmount = order.discountAmount || (order.discount > 0 ? (subtotal * order.discount / 100) : 0);
+      const discountPercent = order.discount || (subtotal > 0 && discountAmount > 0 ? Math.round((discountAmount / subtotal) * 100) : 0);
+      const total = order.total || (subtotal - discountAmount);
+      const totalPaid = order.totalPaid || 0;
+      const remainingAmount = Math.max(0, total - totalPaid);
+
+      const labelX = pageWidth - 80;
+      const valX = pageWidth - 14;
+
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(71, 85, 105);
+      doc.text('SUBTOTAL:', labelX, finalY);
+      doc.text(`Rs. ${subtotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, valX, finalY, { align: 'right' });
+
+      if (discountAmount > 0 || discountPercent > 0) {
+        finalY += 6;
+        doc.setTextColor(225, 29, 72);
+        doc.text(`DISCOUNT (${discountPercent}%):`, labelX, finalY);
+        doc.text(`-Rs. ${discountAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, valX, finalY, { align: 'right' });
+      }
+
+      finalY += 7;
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(15, 23, 42);
+      doc.text('GRAND TOTAL:', labelX, finalY);
+      doc.text(`Rs. ${total.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, valX, finalY, { align: 'right' });
+
+      finalY += 6;
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(21, 128, 61);
+      doc.text('TOTAL PAID:', labelX, finalY);
+      doc.text(`Rs. ${totalPaid.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, valX, finalY, { align: 'right' });
+
+      finalY += 6;
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(190, 18, 60);
+      doc.text('BALANCE DUE:', labelX, finalY);
+      doc.text(`Rs. ${remainingAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, valX, finalY, { align: 'right' });
+
+      // Save PDF directly to device
+      doc.save(`Invoice_${order.orderId}.pdf`);
     } catch (err) {
-      console.error('Error downloading PDF file:', err);
+      console.error('Error generating PDF file:', err);
       alert('Could not download PDF to device. Please try again.');
     } finally {
       setIsDownloading(false);
@@ -271,39 +391,43 @@ export default function InvoicePdfModal({ order, onClose }: InvoicePdfModalProps
 
           {/* Printable Document Body */}
           <div id="printable-invoice" className="space-y-6 bg-white p-2">
-            {/* Header Logo & Order ID */}
-            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-6 border-b-2 border-gray-900">
-              <div>
-                <h1 className="text-3xl font-black text-[#0f172a] tracking-wider uppercase">MATRICES</h1>
-                <p className="text-xs text-gray-500 font-bold uppercase mt-1">COMMERCIAL & DISTRIBUTION SERVICES</p>
-                <p className="text-xs text-gray-600 font-semibold uppercase mt-0.5">COLOMBO, SRI LANKA</p>
-              </div>
-
-              <div className="sm:text-right">
-                <span className="inline-block px-4 py-1.5 bg-[#0f172a] text-white font-black text-sm uppercase rounded-lg mb-2 shadow-xs">
-                  INVOICE #{order.orderId}
-                </span>
-                <p className="text-xs text-gray-500 font-bold uppercase">
-                  DATE: {new Date(order.date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
-                </p>
-                <p className="text-xs text-gray-500 font-bold uppercase mt-0.5">
-                  STATUS: <span className="font-black text-[#0f172a] uppercase">{order.status}</span>
-                </p>
-                {(order.salesrep || order.salesRep || order.createdBy) && (
-                  <p className="text-xs text-gray-500 font-bold uppercase mt-0.5">
-                    BILLED BY: <span className="font-black text-[#0f172a] uppercase">{formatDisplayName(order.salesrep || order.salesRep || order.createdBy)}</span>
-                  </p>
-                )}
-              </div>
+            {/* Centered Header Logo & Info */}
+            <div className="text-center pb-5 border-b-2 border-gray-900">
+              <h1 className="text-3xl font-black text-[#0f172a] tracking-widest uppercase">MATRICES</h1>
+              <p className="text-xs font-bold text-slate-600 mt-1 uppercase tracking-wide">
+                Tel: +94 77 685 8969 &nbsp;|&nbsp; Email: matricespvtltd@gmail.com
+              </p>
             </div>
 
-            {/* Customer / Shop Information */}
-            <div className="p-4 bg-gray-50 rounded-2xl border border-gray-200">
-              <p className="text-[0.65rem] font-black text-gray-400 uppercase tracking-wider mb-1">INVOICED TO</p>
-              <h2 className="text-lg font-black text-[#0f172a] uppercase">{order.shop.name}</h2>
-              <p className="text-xs text-gray-600 font-semibold uppercase mt-0.5">SHOP ID: {order.shop.shopId}</p>
-              <p className="text-xs text-gray-600 font-semibold uppercase">{order.shop.address}</p>
-              <p className="text-xs text-gray-600 font-semibold uppercase">PHONE: {order.shop.phone}</p>
+            {/* Two Column Layout: INVOICED TO (Left) & INVOICE DETAILS (Right) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 p-5 bg-slate-50/80 rounded-2xl border border-slate-200">
+              {/* Left Side: INVOICED TO */}
+              <div>
+                <p className="text-[0.7rem] font-black text-slate-400 uppercase tracking-wider mb-1">INVOICED TO</p>
+                <h2 className="text-base font-black text-[#0f172a] uppercase">{order.shop.name}</h2>
+                <p className="text-xs text-slate-700 font-bold uppercase mt-1">SHOP ID: {order.shop.shopId}</p>
+                {order.shop.address && <p className="text-xs text-slate-600 font-semibold uppercase mt-0.5">{order.shop.address}</p>}
+                {order.shop.phone && <p className="text-xs text-slate-600 font-semibold uppercase mt-0.5">PHONE: {order.shop.phone}</p>}
+              </div>
+
+              {/* Right Side: INVOICE DETAILS */}
+              <div className="sm:text-right">
+                <p className="text-[0.7rem] font-black text-slate-400 uppercase tracking-wider mb-1 sm:text-right">INVOICE DETAILS</p>
+                <div className="inline-block text-left text-xs font-semibold text-slate-700 space-y-1">
+                  <div className="flex justify-between gap-4">
+                    <span className="font-bold text-slate-500">Invoice No :</span>
+                    <span className="font-black text-[#0f172a]">{order.orderId}</span>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <span className="font-bold text-slate-500">Date :</span>
+                    <span className="font-bold text-slate-800">{order.date ? new Date(order.date).toISOString().split('T')[0] : '-'}</span>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <span className="font-bold text-slate-500">Billed By :</span>
+                    <span className="font-black text-[#0f172a]">{formatDisplayName(order.salesrep || order.salesRep || order.createdBy) || 'Admin'}</span>
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* Itemized Table */}
@@ -320,7 +444,7 @@ export default function InvoicePdfModal({ order, onClose }: InvoicePdfModalProps
                 </thead>
                 <tbody className="divide-y divide-gray-200">
                   {order.items.map((item, idx) => (
-                    <tr key={idx} className="font-semibold text-gray-800 uppercase">
+                    <tr key={item.productID ? `item-${item.productID}-${idx}` : `item-row-${idx}`} className="font-semibold text-gray-800 uppercase">
                       <td className="p-3 font-black text-[#0f172a]">{item.productID}</td>
                       <td className="p-3">{item.name}</td>
                       <td className="p-3 text-center">{item.quantity}</td>
@@ -366,7 +490,7 @@ export default function InvoicePdfModal({ order, onClose }: InvoicePdfModalProps
                 <p className="text-[0.65rem] font-black text-gray-400 uppercase tracking-wider mb-2">PAYMENT HISTORY</p>
                 <div className="space-y-1.5 text-xs font-semibold">
                   {order.payments.map((p, idx) => (
-                    <div key={idx} className="flex justify-between p-2 bg-gray-50 rounded-lg uppercase">
+                    <div key={p.id ? `pmt-${p.id}-${idx}` : `pmt-row-${idx}`} className="flex justify-between p-2 bg-gray-50 rounded-lg uppercase">
                       <span>{new Date(p.date).toLocaleDateString()} - METHOD: {p.paymentMethod}</span>
                       <span className="font-black text-green-700">{formatPrice(p.amount)}</span>
                     </div>
@@ -377,7 +501,7 @@ export default function InvoicePdfModal({ order, onClose }: InvoicePdfModalProps
 
             {/* Footer Terms */}
             <div className="pt-8 text-center text-[0.65rem] text-gray-400 font-bold uppercase border-t border-gray-200">
-              <p>THANK YOU FOR YOUR BUSINESS! FOR ENQUIRIES, CONTACT SUPPORT AT INFO@MATRICES.LK</p>
+              <p>THANK YOU FOR YOUR BUSINESS! FOR ENQUIRIES, CONTACT SUPPORT AT matricespvtltd@gmail.com</p>
             </div>
           </div>
         </motion.div>
