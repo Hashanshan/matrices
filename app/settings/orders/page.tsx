@@ -152,11 +152,13 @@ export default function SettingsOrdersPage() {
 
   return (
     <div className="min-h-screen pb-16">
-      <Header />
+      <Header
+        showSearch={false}
+      />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
         <div className="bg-white/70 backdrop-blur-2xl border border-white/80 rounded-[2.5rem] p-6 sm:p-8 shadow-[0_20px_50px_rgba(0,0,0,0.08)]">
-          
+
           {/* Header Controls */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
             <div>
@@ -266,7 +268,7 @@ export default function SettingsOrdersPage() {
                   className="bg-white/80 backdrop-blur-xl border border-white/90 rounded-3xl p-5 shadow-sm hover:shadow-md transition-all group"
                 >
                   <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                    
+
                     {/* Left Details */}
                     <div className="space-y-2.5">
                       <div className="flex flex-wrap items-center gap-2.5">
