@@ -37,7 +37,8 @@ export default function CategoriesPage({ fallbackData }: { fallbackData?: any } 
   const filteredCategories = useMemo(() => {
     const wishlistedMap = new Map<string, number>();
     (wishlist.categories || []).forEach((c, idx) => {
-      wishlistedMap.set(c.name.toUpperCase(), c.order ?? idx);
+      const cName = typeof c === 'string' ? c : (c as any)?.name || (c as any)?.categoryName || '';
+      if (cName) wishlistedMap.set(cName.toUpperCase(), (c as any)?.order ?? idx);
     });
 
     const matching = categories.filter(c =>
@@ -65,9 +66,13 @@ export default function CategoriesPage({ fallbackData }: { fallbackData?: any } 
     const parentCatName = selectedCategoryObj.name.toUpperCase();
     const wishlistedMap = new Map<string, number>();
     (wishlist.subcategories || [])
-      .filter(s => s.category.toUpperCase() === parentCatName)
+      .filter(s => {
+        const sCat = typeof s === 'object' ? (s as any)?.category || (s as any)?.categoryName : '';
+        return sCat && String(sCat).toUpperCase() === parentCatName;
+      })
       .forEach((s, idx) => {
-        wishlistedMap.set(s.name.toUpperCase(), s.order ?? idx);
+        const sName = typeof s === 'string' ? s : (s as any)?.name || (s as any)?.subcategoryName || '';
+        if (sName) wishlistedMap.set(String(sName).toUpperCase(), (s as any)?.order ?? idx);
       });
 
     const matching = selectedCategoryObj.subcategories.filter(s =>

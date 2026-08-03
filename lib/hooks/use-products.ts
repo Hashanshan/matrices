@@ -415,22 +415,22 @@ const fetcher = async <T = any>(url: string): Promise<T> => {
   };
 
   const isProductsFilters = url.includes('/api/products/filters');
-  const isProducts = url.includes('/api/products');
+  const isProducts = url.includes('/api/products') && !isProductsFilters;
   const mode = getDataMode();
   const isOfflineNetwork = typeof navigator !== 'undefined' && !navigator.onLine;
 
   // ── LOCAL DB PRIORITY FIRST: Check local IndexedDB data ───────────────────
   if (isProducts || isProductsFilters) {
     try {
-      if (isProducts) {
-        const localData = await getOfflineProducts(parseOptions());
-        if (localData.data.length > 0) {
-          return localData as unknown as T;
-        }
-      } else if (isProductsFilters) {
+      if (isProductsFilters) {
         const localFilters = await getOfflineFilters();
         if (localFilters.categories.length > 0) {
           return localFilters as unknown as T;
+        }
+      } else if (isProducts) {
+        const localData = await getOfflineProducts(parseOptions());
+        if (localData.data.length > 0) {
+          return localData as unknown as T;
         }
       }
     } catch {
@@ -705,6 +705,7 @@ export function useFilters(options: { fallbackData?: FiltersResponse } = {}) {
     dedupingInterval: 2000,
     keepPreviousData: true,
   });
+  console.log("data", data);
 
   return {
     categories: data?.categories || [],
