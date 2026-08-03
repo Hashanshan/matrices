@@ -16,6 +16,7 @@ interface CartContextType {
   removeFromCart: (productId: string) => void;
   updateCartItem: (productId: string, item: Partial<CartItem>) => void;
   clearCart: () => void;
+  deselectShop: () => void;
   submitCartAsLocalOrder: (discount?: number, notes?: string) => Promise<boolean>;
   orders: Order[];
   placeOrder: (order: Order) => void;
@@ -146,32 +147,35 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     }
 
     setCart((prevCart) => {
-      const existingItem = prevCart.items.find(
-        (item) =>
-          item.productId === newItem.productId &&
-          item.selectedColor === newItem.selectedColor &&
-          item.selectedSize === newItem.selectedSize &&
-          (item.notes || '') === (newItem.notes || '')
-      );
+      const getComboKey = (it: any) => {
+        if (it.id && typeof it.id === 'string' && it.id.includes('_')) return it.id;
+        const pId = it.productId || it.id || '';
+        const color = it.selectedColor ? it.selectedColor.trim().toLowerCase() : '';
+        const size = it.selectedSize ? it.selectedSize.trim().toLowerCase() : '';
+        const note = it.notes ? it.notes.trim().toLowerCase() : '';
+        return `${pId}_${color}_${size}_${note}`;
+      };
+
+      const targetKey = getComboKey(newItem);
+      const itemWithId = { ...newItem, id: targetKey };
+
+      const existingIndex = prevCart.items.findIndex((item) => getComboKey(item) === targetKey);
 
       let updatedItems;
-      if (existingItem) {
-        updatedItems = prevCart.items.map((item) =>
-          item.productId === newItem.productId &&
-          item.selectedColor === newItem.selectedColor &&
-          item.selectedSize === newItem.selectedSize &&
-          (item.notes || '') === (newItem.notes || '')
+      if (existingIndex > -1) {
+        updatedItems = prevCart.items.map((item, idx) =>
+          idx === existingIndex
             ? { ...item, quantity: item.quantity + newItem.quantity }
             : item
         );
       } else {
-        updatedItems = [...prevCart.items, newItem];
+        updatedItems = [...prevCart.items, itemWithId];
       }
 
       const newCart = {
         items: updatedItems,
         total: calculateTotal(updatedItems),
-        itemCount: updatedItems.reduce((sum, item) => sum + item.quantity, 0),
+        itemCount: updatedItems.length,
       };
 
       localStorage.setItem('matrices_cart', JSON.stringify(newCart));
@@ -182,13 +186,24 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     return true;
   };
 
-  const removeFromCart = (productId: string) => {
+  const removeFromCart = (cartItemId: string) => {
     setCart((prevCart) => {
-      const updatedItems = prevCart.items.filter((item) => (item.id || item.productId) !== productId);
+      const getComboKey = (it: any) => {
+        if (it.id && typeof it.id === 'string' && it.id.includes('_')) return it.id;
+        const pId = it.productId || it.id || '';
+        const color = it.selectedColor ? it.selectedColor.trim().toLowerCase() : '';
+        const size = it.selectedSize ? it.selectedSize.trim().toLowerCase() : '';
+        const note = it.notes ? it.notes.trim().toLowerCase() : '';
+        return `${pId}_${color}_${size}_${note}`;
+      };
+
+      const updatedItems = prevCart.items.filter(
+        (item) => item.id !== cartItemId && getComboKey(item) !== cartItemId && (item.productId || item.id) !== cartItemId
+      );
       const newCart = {
         items: updatedItems,
         total: calculateTotal(updatedItems),
-        itemCount: updatedItems.reduce((sum, item) => sum + item.quantity, 0),
+        itemCount: updatedItems.length,
       };
       localStorage.setItem('matrices_cart', JSON.stringify(newCart));
       localStorage.setItem('cart', JSON.stringify(newCart));
@@ -196,15 +211,25 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
-  const updateCartItem = (productId: string, updates: Partial<CartItem>) => {
+  const updateCartItem = (cartItemId: string, updates: Partial<CartItem>) => {
     setCart((prevCart) => {
-      const updatedItems = prevCart.items.map((item) =>
-        (item.id || item.productId) === productId ? { ...item, ...updates } : item
-      );
+      const getComboKey = (it: any) => {
+        if (it.id && typeof it.id === 'string' && it.id.includes('_')) return it.id;
+        const pId = it.productId || it.id || '';
+        const color = it.selectedColor ? it.selectedColor.trim().toLowerCase() : '';
+        const size = it.selectedSize ? it.selectedSize.trim().toLowerCase() : '';
+        const note = it.notes ? it.notes.trim().toLowerCase() : '';
+        return `${pId}_${color}_${size}_${note}`;
+      };
+
+      const updatedItems = prevCart.items.map((item) => {
+        const matches = item.id === cartItemId || getComboKey(item) === cartItemId;
+        return matches ? { ...item, ...updates } : item;
+      });
       const newCart = {
         items: updatedItems,
         total: calculateTotal(updatedItems),
-        itemCount: updatedItems.reduce((sum, item) => sum + item.quantity, 0),
+        itemCount: updatedItems.length,
       };
       localStorage.setItem('matrices_cart', JSON.stringify(newCart));
       localStorage.setItem('cart', JSON.stringify(newCart));
@@ -217,6 +242,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     setCart(newCart);
     localStorage.removeItem('matrices_cart');
     localStorage.removeItem('cart');
+  };
+
+  const deselectShop = () => {
+    clearCart();
+    setSelectedShopState(null);
+    localStorage.removeItem('matrices_cart_shop');
   };
 
   // Submit active Cart directly to Local IndexedDB Orders & SyncQueue
@@ -329,6 +360,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         removeFromCart,
         updateCartItem,
         clearCart,
+        deselectShop,
         submitCartAsLocalOrder,
         orders,
         placeOrder,
