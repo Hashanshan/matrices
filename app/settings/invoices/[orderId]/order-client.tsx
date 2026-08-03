@@ -147,7 +147,34 @@ export default function OrderPdfClient({ params }: { params?: Promise<{ orderId:
         margin: [10, 10, 10, 10],
         filename: `Invoice_${order.orderId}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, logging: false },
+        html2canvas: {
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          onclone: (clonedDoc: Document) => {
+            const styleTags = clonedDoc.querySelectorAll('style');
+            styleTags.forEach((st) => {
+              if (st.textContent) {
+                st.textContent = st.textContent
+                  .replace(/lab\([^)]+\)/g, 'rgba(0,0,0,0.1)')
+                  .replace(/oklch\([^)]+\)/g, 'rgba(0,0,0,0.1)');
+              }
+            });
+
+            const el = clonedDoc.getElementById('printable-invoice-content');
+            if (el) {
+              const allNodes = el.querySelectorAll('*');
+              [el, ...Array.from(allNodes)].forEach((node: any) => {
+                if (node.style) {
+                  node.style.boxShadow = 'none';
+                  node.style.backdropFilter = 'none';
+                  node.style.webkitBackdropFilter = 'none';
+                  node.style.filter = 'none';
+                }
+              });
+            }
+          }
+        },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
       };
 

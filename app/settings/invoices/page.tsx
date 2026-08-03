@@ -369,7 +369,7 @@ export default function SettingsInvoicesPage() {
               ) : (
                 <>
                   <div className="space-y-4 mb-8">
-                    {orders.map((order) => {
+                    {orders.map((order, idx) => {
                       const items = order.items || [];
                       const subtotal = order.subtotal || items.reduce((sum, it) => sum + (Number(it.price || 0) * Number(it.quantity || 0)), 0);
                       const discountAmount = order.discountAmount || (order.discount > 0 ? (subtotal * order.discount / 100) : 0);
@@ -380,7 +380,7 @@ export default function SettingsInvoicesPage() {
 
                       return (
                         <motion.div
-                          key={order.orderId}
+                          key={order.orderId || `invoice-key-${idx}`}
                           layout
                           initial={{ opacity: 0, y: 15 }}
                           animate={{ opacity: 1, y: 0 }}
