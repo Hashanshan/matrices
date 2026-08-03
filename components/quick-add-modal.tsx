@@ -10,10 +10,6 @@ import { Button } from '@/components/ui/button';
 import { formatPrice } from '@/lib/currency';
 import SmartImage from './smart-image';
 import { getCachedImageUrl } from '@/lib/offline/image-cache';
-import Swal from 'sweetalert2';
-import withReactContent from 'sweetalert2-react-content';
-
-const MySwal = withReactContent(Swal);
 
 interface QuickAddModalProps {
   isOpen: boolean;
@@ -27,15 +23,24 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
   const [selectedSize, setSelectedSize] = useState(product.variants?.sizes?.[0]?.name || '');
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false);
   const [isZoomed, setIsZoomed] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [displayImg, setDisplayImg] = useState<string>(product?.image || product?.imageUrl || '');
-  const { addToCart } = useCart();
+
+  const { addToCart, getAddToCartButtonLabel } = useCart();
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Listen for global close event when PIN shop modal opens
+  useEffect(() => {
+    const handleCloseAll = () => {
+      onClose();
+    };
+    window.addEventListener('matrices-close-all-modals', handleCloseAll);
+    return () => window.removeEventListener('matrices-close-all-modals', handleCloseAll);
+  }, [onClose]);
 
   useEffect(() => {
     const raw = product?.image || product?.imageUrl || '';
@@ -54,31 +59,32 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
     const cartItem = {
       id: `${product.id}-${Date.now()}`,
       ...product,
-      quantity,
+      quantity: Math.max(1, quantity),
       selectedColor,
       selectedSize,
       notes,
     };
 
-    addToCart(cartItem);
-    
-    MySwal.fire({
-      title: 'Success!',
-      text: 'Added to cart successfully!',
-      icon: 'success',
-      timer: 1500,
-      showConfirmButton: false,
-    });
-
-    setQuantity(1);
-    setSelectedColor(product.variants?.colors?.[0]?.name || '');
-    setSelectedSize(product.variants?.sizes?.[0]?.name || '');
-    setNotes('');
+    // Returns false if no shop selected -> triggers PIN shop modal & closes this modal!
+    const success = addToCart(cartItem);
     setIsSubmitting(false);
-    onClose();
+
+    if (success) {
+      // SILENT ADD (No success popup alert as requested!)
+      setQuantity(1);
+      setSelectedColor(product.variants?.colors?.[0]?.name || '');
+      setSelectedSize(product.variants?.sizes?.[0]?.name || '');
+      setNotes('');
+      onClose();
+    } else {
+      // Shop selection required -> close modal so PIN modal is alone
+      onClose();
+    }
   };
 
   if (!mounted || !product) return null;
+
+  const addToCartBtnText = getAddToCartButtonLabel('ADD TO CART');
 
   return createPortal(
     <AnimatePresence>
@@ -102,7 +108,7 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
             className="fixed inset-4 md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 w-auto md:w-full md:max-w-4xl z-50 flex items-center justify-center pointer-events-none"
           >
             <div className="bg-card w-full max-h-full rounded-2xl md:rounded-3xl border border-border shadow-2xl flex flex-col md:flex-row pointer-events-auto overflow-y-auto md:overflow-hidden relative">
-              {/* Close Button for Mobile (when stacked) */}
+              {/* Close Button for Mobile */}
               <motion.button
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.95 }}
@@ -112,7 +118,7 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
                 <X size={20} className="text-gray-800" />
               </motion.button>
 
-              {/* Left Side: Large Image */}
+              {/* Left Side: Image */}
               <div className="w-full md:w-1/2 bg-[#f8f9fc] relative p-8 flex items-center justify-center h-[40vh] min-h-[300px] md:h-auto md:min-h-[500px] cursor-zoom-in group shrink-0" onClick={() => setIsZoomed(true)}>
                 <SmartImage
                   src={product?.image || product?.imageUrl || ''}
@@ -212,17 +218,25 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
                     <label className="block text-xs font-bold text-gray-400 mb-3 uppercase tracking-widest">
                       Quantity
                     </label>
-                    <div className="flex items-center gap-4 bg-gray-50 border border-gray-100 rounded-xl p-2 w-fit">
+                    <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-xl p-2 w-fit">
                       <button
+                        type="button"
                         onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                        className="p-2.5 hover:bg-white hover:shadow-sm rounded-lg transition-all text-gray-500 hover:text-[#0f172a]"
+                        className="p-2.5 hover:bg-white hover:shadow-sm rounded-lg transition-all text-gray-500 hover:text-[#0f172a] cursor-pointer"
                       >
                         <Minus size={18} />
                       </button>
-                      <span className="text-lg font-bold text-[#0f172a] w-8 text-center">{quantity}</span>
+                      <input
+                        type="number"
+                        min="1"
+                        value={quantity}
+                        onChange={(e) => setQuantity(parseInt(e.target.value, 10) || 1)}
+                        className="w-14 text-center font-black text-lg text-[#0f172a] bg-transparent focus:outline-none"
+                      />
                       <button
+                        type="button"
                         onClick={() => setQuantity(quantity + 1)}
-                        className="p-2.5 hover:bg-white hover:shadow-sm rounded-lg transition-all text-gray-500 hover:text-[#0f172a]"
+                        className="p-2.5 hover:bg-white hover:shadow-sm rounded-lg transition-all text-gray-500 hover:text-[#0f172a] cursor-pointer"
                       >
                         <Plus size={18} />
                       </button>
@@ -249,21 +263,23 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
                     <button
                       onClick={onClose}
                       disabled={isSubmitting}
-                      className="px-6 py-4 rounded-xl border-2 border-gray-200 text-gray-600 font-bold hover:border-gray-300 hover:bg-gray-50 transition-all text-center"
+                      className="px-6 py-4 rounded-xl border-2 border-gray-200 text-gray-600 font-bold hover:border-gray-300 hover:bg-gray-50 transition-all text-center cursor-pointer"
                     >
                       Cancel
                     </button>
                     <button
                       onClick={handleAddToCart}
                       disabled={isSubmitting}
-                      className="flex-1 bg-[#0f172a] hover:bg-[#1e293b] text-white font-bold py-4 px-6 rounded-xl flex items-center justify-center gap-3 transition-all hover:shadow-lg disabled:opacity-50"
+                      className="flex-1 bg-[#0f172a] hover:bg-[#1e293b] text-white font-bold py-4 px-6 rounded-xl flex items-center justify-center gap-2 transition-all hover:shadow-lg disabled:opacity-50 overflow-hidden cursor-pointer"
                     >
                       {isSubmitting ? (
                         <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity }} className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full" />
                       ) : (
                         <>
-                          <ShoppingCart size={20} />
-                          Add to Cart
+                          <ShoppingCart size={18} className="shrink-0" />
+                          <span className="truncate whitespace-nowrap inline-block max-w-full text-xs sm:text-sm uppercase font-black">
+                            {addToCartBtnText}
+                          </span>
                         </>
                       )}
                     </button>

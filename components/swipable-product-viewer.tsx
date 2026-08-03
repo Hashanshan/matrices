@@ -35,7 +35,13 @@ export default function SwipableProductViewer({
   const [direction, setDirection] = useState<'left' | 'right'>('right');
   const touchStartX = useRef(0);
   const [imageZoom, setImageZoom] = useState(false);
-  const { addToCart } = useCart();
+  const { addToCart, getAddToCartButtonLabel } = useCart();
+
+  useEffect(() => {
+    const handleCloseAll = () => onClose?.();
+    window.addEventListener('matrices-close-all-modals', handleCloseAll);
+    return () => window.removeEventListener('matrices-close-all-modals', handleCloseAll);
+  }, [onClose]);
 
   const currentProduct = MOCK_PRODUCTS[currentIndex];
 
@@ -75,7 +81,7 @@ export default function SwipableProductViewer({
       return;
     }
 
-    addToCart({
+    const success = addToCart({
       ...currentProduct,
       quantity,
       selectedColor: selectedColor || undefined,
@@ -83,11 +89,14 @@ export default function SwipableProductViewer({
       notes: notes || undefined,
     });
 
-    setQuantity(1);
-    setSelectedColor(null);
-    setSelectedSize(null);
-    setNotes('');
-    alert('Added to cart successfully!');
+    if (success) {
+      setQuantity(1);
+      setSelectedColor(null);
+      setSelectedSize(null);
+      setNotes('');
+    } else {
+      onClose?.();
+    }
   };
 
   const slideVariants = {
@@ -339,19 +348,27 @@ export default function SwipableProductViewer({
               <label className="block text-sm font-semibold text-foreground mb-3">
                 Quantity
               </label>
-              <div className="flex items-center gap-4 bg-card p-3 rounded-lg w-fit">
+              <div className="flex items-center gap-3 bg-card border border-border p-2 rounded-lg w-fit">
                 <button
+                  type="button"
                   onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                  className="p-2 hover:bg-background rounded-lg transition-colors"
+                  className="p-2 hover:bg-background rounded-lg transition-colors cursor-pointer"
                 >
-                  <Minus size={20} />
+                  <Minus size={18} />
                 </button>
-                <span className="text-lg font-semibold w-8 text-center">{quantity}</span>
+                <input
+                  type="number"
+                  min="1"
+                  value={quantity}
+                  onChange={(e) => setQuantity(parseInt(e.target.value, 10) || 1)}
+                  className="w-12 text-center text-lg font-bold text-foreground bg-transparent focus:outline-none"
+                />
                 <button
+                  type="button"
                   onClick={() => setQuantity(quantity + 1)}
-                  className="p-2 hover:bg-background rounded-lg transition-colors"
+                  className="p-2 hover:bg-background rounded-lg transition-colors cursor-pointer"
                 >
-                  <Plus size={20} />
+                  <Plus size={18} />
                 </button>
               </div>
             </div>
@@ -363,10 +380,12 @@ export default function SwipableProductViewer({
                 whileTap={{ scale: 0.98 }}
                 onClick={handleAddToCart}
                 disabled={!currentProduct.inStock}
-                className="flex-1 bg-accent text-accent-foreground px-6 py-4 rounded-lg font-semibold flex items-center justify-center gap-2 hover:bg-accent/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                className="flex-1 bg-accent text-accent-foreground px-6 py-4 rounded-lg font-semibold flex items-center justify-center gap-2 hover:bg-accent/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all overflow-hidden cursor-pointer"
               >
-                <ShoppingCart size={20} />
-                Add to Cart
+                <ShoppingCart size={20} className="shrink-0" />
+                <span className="truncate whitespace-nowrap inline-block max-w-full text-xs sm:text-sm font-bold uppercase">
+                  {getAddToCartButtonLabel('Add to Cart')}
+                </span>
               </motion.button>
 
               <motion.button

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, Suspense } from 'react';
 import Header from '@/components/header';
 import { useAuth } from '@/lib/contexts/auth-context';
+import PinModal from '@/components/pin-modal';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ShoppingBag, Plus, Minus, Trash2, Search, X, Store, Calendar,
@@ -102,7 +103,18 @@ function CreateOrderContent() {
   const searchParams = useSearchParams();
   const editId = searchParams.get('editId');
 
-  const { user } = useAuth();
+  const { user, isPinVerified, resetPinVerification } = useAuth();
+  const [showPinModal, setShowPinModal] = useState(true);
+
+  // Require Security PIN on every visit to /settings/orders/create
+  useEffect(() => {
+    resetPinVerification();
+  }, []);
+
+  // Show PIN modal if not yet verified
+  useEffect(() => {
+    setShowPinModal(!isPinVerified);
+  }, [isPinVerified]);
 
   // State
   const [selectedShop, setSelectedShop] = useState<ShopOption | null>(null);
@@ -432,11 +444,41 @@ function CreateOrderContent() {
   };
 
   return (
-    <div className="min-h-screen pb-16">
+    <div className="min-h-screen pb-16 bg-[url(/bg.png)] bg-cover bg-center bg-no-repeat bg-fixed">
       <Header showSearch={false} />
 
+      {/* Security PIN Gate Modal */}
+      <PinModal
+        isOpen={showPinModal}
+        onClose={() => {
+          if (!isPinVerified) {
+            window.location.href = '/catalogue';
+          } else {
+            setShowPinModal(false);
+          }
+        }}
+        onSuccess={() => setShowPinModal(false)}
+      />
+
       <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
-        <div className="bg-white/80 backdrop-blur-2xl border border-white/90 rounded-[2.5rem] p-6 sm:p-8 shadow-[0_20px_50px_rgba(0,0,0,0.08)]">
+        {!isPinVerified ? (
+          <div className="flex flex-col items-center justify-center py-24 sm:py-32 text-center px-4 bg-white/70 backdrop-blur-2xl rounded-[2.5rem]">
+            <div className="w-16 h-16 sm:w-20 sm:h-20 bg-[#0f172a] text-white rounded-full flex items-center justify-center mb-4 shadow-xl border border-white/20">
+              <ShoppingBag size={32} />
+            </div>
+            <h2 className="text-xl sm:text-2xl font-black text-[#0f172a] uppercase mb-2">ORDER CREATION IS LOCKED</h2>
+            <p className="text-gray-500 font-bold max-w-sm mb-6 uppercase text-xs">
+              PLEASE ENTER YOUR 4-DIGIT SECURITY PIN TO CREATE OR EDIT ORDERS.
+            </p>
+            <button
+              onClick={() => setShowPinModal(true)}
+              className="bg-[#0f172a] text-white px-6 sm:px-8 py-3.5 sm:py-4 rounded-full font-black text-xs sm:text-sm uppercase tracking-wider hover:bg-[#1e293b] shadow-xl transition-all cursor-pointer"
+            >
+              ENTER SECURITY PIN
+            </button>
+          </div>
+        ) : (
+          <div className="bg-white/80 backdrop-blur-2xl border border-white/90 rounded-[2.5rem] p-6 sm:p-8 shadow-[0_20px_50px_rgba(0,0,0,0.08)]">
           
           {/* Header */}
           <div className="flex items-center justify-between gap-4 mb-6 pb-6 border-b border-gray-100">
@@ -766,6 +808,7 @@ function CreateOrderContent() {
           </form>
 
         </div>
+        )}
       </main>
 
       {/* ───── ADD PRODUCT POPUP MODAL (WITH CLICK OUTSIDE TO CLOSE!) ───── */}

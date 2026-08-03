@@ -26,7 +26,7 @@ interface HeaderProps {
 
 export default function Header({ searchQuery = '', onSearchChange, showSearch = true }: HeaderProps) {
   const { user, logout } = useAuth();
-  const { cart } = useCart();
+  const { cart, selectedShop } = useCart();
   const { triggerSync } = useSync();
   const { dataMode, toggleDataMode, hasSyncedData } = useDataMode();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -137,8 +137,13 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
             {/* Cart */}
             <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }}>
               <Link href="/cart">
-                <div className="relative p-2.5 hover:bg-secondary rounded-2xl transition-colors cursor-pointer group" title="Shopping Cart">
+                <div className="relative p-2.5 hover:bg-secondary rounded-2xl transition-colors cursor-pointer group flex items-center gap-1.5" title={selectedShop ? `Active Cart Shop: ${selectedShop.name}` : 'Shopping Cart'}>
                   <CartIcon size={24} className="text-foreground group-hover:text-accent transition-colors" />
+                  {selectedShop && (
+                    <span className="hidden sm:inline-block text-[10px] font-black uppercase text-blue-900 bg-blue-100 border border-blue-300 px-2 py-0.5 rounded-full truncate max-w-[90px]">
+                      {selectedShop.name}
+                    </span>
+                  )}
                   {cart.itemCount > 0 && (
                     <motion.span
                       initial={{ scale: 0, rotate: -180 }}
