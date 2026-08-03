@@ -463,6 +463,12 @@ export default function ShopsSettingsPage() {
                       <RefreshCw size={14} className="text-emerald-600" /> SYNC
                     </Link>
                     <Link
+                      href="/settings/orders"
+                      className="text-xs font-black text-[#0f172a] uppercase bg-white/60 hover:bg-white border border-white/60 px-3.5 py-2.5 rounded-full shadow-xs transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0"
+                    >
+                      <FileText size={14} /> ORDERS
+                    </Link>
+                    <Link
                       href="/settings/invoices"
                       className="text-xs font-black text-[#0f172a] uppercase bg-white/60 hover:bg-white border border-white/60 px-3.5 py-2.5 rounded-full shadow-xs transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0"
                     >

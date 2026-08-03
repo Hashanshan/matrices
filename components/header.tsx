@@ -8,7 +8,7 @@ import { useDataMode } from '@/lib/contexts/data-mode-context';
 import { Input } from '@/components/ui/input';
 import {
   Menu, X, ShoppingCart as CartIcon, LogOut,
-  Heart, ShieldCheck, Store, FileText, RefreshCw,
+  Heart, ShieldCheck, Store, FileText, RefreshCw, ShoppingBag,
   Home, BookOpen, Grid, Database, Wifi, WifiOff
 } from 'lucide-react';
 import Link from 'next/link';
@@ -74,6 +74,7 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
   ];
 
   const profileLinks = [
+    { href: '/settings/orders', label: 'My Orders', icon: ShoppingBag, iconClass: 'text-amber-500' },
     { href: '/settings/wishlist', label: 'My Wishlist', icon: Heart, iconClass: 'text-red-500 fill-red-500' },
     { href: '/settings/shops', label: 'My Shops', icon: Store, iconClass: '' },
     { href: '/settings/invoices', label: 'My Invoices', icon: FileText, iconClass: '' },

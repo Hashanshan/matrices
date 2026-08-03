@@ -218,14 +218,10 @@ export async function processSyncQueueSequential(
         body: item.payload ? JSON.stringify(item.payload) : undefined,
       });
 
+      const resJson = await res.json().catch(() => ({}));
+
       if (!res.ok) {
-        let serverError = '';
-        try {
-          const errJson = await res.json();
-          serverError = errJson.message || errJson.error || errJson.reason || JSON.stringify(errJson);
-        } catch {
-          serverError = await res.text().catch(() => `HTTP ${res.status}`);
-        }
+        let serverError = resJson.message || resJson.error || resJson.reason || (typeof resJson === 'string' ? resJson : '');
         
         // Clean error message
         if (!serverError || serverError.includes('<!DOCTYPE')) {
@@ -233,6 +229,20 @@ export async function processSyncQueueSequential(
         }
 
         throw new Error(serverError);
+      }
+
+      // Handle shop temp ID mapping replacement if a shop was created
+      const isShopCreate = item.endpoint.includes('/shops/create') || item.entity === 'Customer' || item.entity === 'Shop';
+      const realShopId = resJson.shop?.shopId || resJson.shopId;
+      const oldTempShopId = item.entityId || item.payload?.shopId;
+      if (isShopCreate && realShopId && oldTempShopId && oldTempShopId.startsWith('TMP_')) {
+        await resolveShopIdMapping(oldTempShopId, realShopId);
+      }
+
+      // Handle order sync status update if an order was created
+      const isOrderCreate = item.endpoint.includes('/orders/create') || item.entity === 'Order';
+      if (isOrderCreate) {
+        await markOrderSyncedSuccess(item.entityId, resJson.order);
       }
 
       // Success! Mark item as SUCCESS
@@ -456,3 +466,64 @@ export function downloadFailureReportPDF(userName: string, queue: SyncQueueItem[
   printWindow.document.write(html);
   printWindow.document.close();
 }
+
+/**
+ * Resolves temporary shop ID (TMP_xxxx) to real live shop ID (e.g. SHOP0042)
+ * across sync queue and local IndexedDB stores.
+ */
+async function resolveShopIdMapping(oldTempId: string, realShopId: string) {
+  if (!oldTempId || !realShopId || oldTempId === realShopId) return;
+
+  try {
+    // 1. Update remaining items in IndexedDB sync_queue
+    const queue = await offlineDB.getAll<SyncQueueItem>('sync_queue');
+    for (const item of queue) {
+      if (item.payload && item.payload.shop && item.payload.shop.shopId === oldTempId) {
+        item.payload.shop.shopId = realShopId;
+        await updateSyncQueueItem(item);
+      }
+    }
+
+    // 2. Update local orders in IndexedDB orders store
+    const localOrders = await offlineDB.getAll<any>('orders');
+    for (const ord of localOrders) {
+      if (ord.shop && ord.shop.shopId === oldTempId) {
+        ord.shop.shopId = realShopId;
+        await offlineDB.upsert('orders', ord);
+      }
+    }
+
+    // 3. Update local shop in IndexedDB shops store
+    const localShops = await offlineDB.getAll<any>('shops');
+    const tempShop = localShops.find((s: any) => String(s.shopId || s.id) === String(oldTempId));
+    if (tempShop) {
+      await offlineDB.deleteById('shops', oldTempId);
+      const updatedShop = { ...tempShop, id: realShopId, shopId: realShopId };
+      await offlineDB.upsert('shops', updatedShop);
+    }
+  } catch (err) {
+    console.warn('Error resolving temp shop ID mapping during sync:', err);
+  }
+}
+
+/**
+ * Marks an order in local IndexedDB as synced with server returned live order ID.
+ */
+async function markOrderSyncedSuccess(localOrderId: string, serverOrder: any) {
+  try {
+    const localOrders = await offlineDB.getAll<any>('orders');
+    const target = localOrders.find((o: any) => String(o.id) === String(localOrderId) || String(o.orderId) === String(localOrderId));
+    if (target) {
+      target.isSynced = true;
+      target.status = 'synced';
+      if (serverOrder && serverOrder.orderId) {
+        target.liveOrderId = serverOrder.orderId;
+        target.orderId = serverOrder.orderId;
+      }
+      await offlineDB.upsert('orders', target);
+    }
+  } catch (err) {
+    console.warn('Error marking order synced in local DB:', err);
+  }
+}
+
