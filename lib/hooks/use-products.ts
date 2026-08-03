@@ -705,7 +705,7 @@ export function useFilters(options: { fallbackData?: FiltersResponse } = {}) {
     dedupingInterval: 2000,
     keepPreviousData: true,
   });
-  console.log("data", data);
+  // console.log("data", data);
 
   return {
     categories: data?.categories || [],
