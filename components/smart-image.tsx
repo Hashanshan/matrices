@@ -69,9 +69,16 @@ export default function SmartImage({
       return;
     }
 
-    // Already local — no async lookup needed
+    // Already local or matched synchronously — no async lookup needed
     if (isLocalUri(raw)) {
-      setImgSrc(raw);
+      if (imgSrc !== raw) setImgSrc(raw);
+      setFailed(false);
+      return;
+    }
+
+    const synced = getCachedImageUrlSync(raw);
+    if (synced && synced !== imgSrc) {
+      setImgSrc(synced);
       setFailed(false);
       return;
     }
@@ -80,13 +87,13 @@ export default function SmartImage({
     let cancelled = false;
     getCachedImageUrl(raw)
       .then((resolved) => {
-        if (!cancelled && mountedRef.current) {
-          setImgSrc(resolved || raw);
+        if (!cancelled && mountedRef.current && resolved && resolved !== imgSrc) {
+          setImgSrc(resolved);
           setFailed(false);
         }
       })
       .catch(() => {
-        if (!cancelled && mountedRef.current) {
+        if (!cancelled && mountedRef.current && imgSrc !== raw) {
           setImgSrc(raw);
         }
       });
@@ -94,10 +101,14 @@ export default function SmartImage({
     return () => { cancelled = true; };
   }, [src, fallbackSrc]);
 
-  // When src changes reset failed state
+  // When src changes reset failed state and set initial src
   useEffect(() => {
     setFailed(false);
     setLoading(true);
+    const initial = getInitialSrc();
+    if (initial !== imgSrc) {
+      setImgSrc(initial);
+    }
   }, [src]);
 
   const handleError = () => {

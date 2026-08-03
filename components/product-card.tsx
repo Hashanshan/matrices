@@ -80,6 +80,7 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
                 src={rawImg}
                 alt={product.name}
                 fill
+                priority={index < 6 || isFavorite}
                 className="object-contain w-full h-full p-4 group-hover:scale-105 transition-transform duration-700 ease-out mix-blend-multiply drop-shadow-xl"
                 sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
               />

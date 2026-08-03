@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Header from '@/components/header';
 import { Search, ChevronRight, ArrowLeft, Heart, ShoppingCart } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -11,11 +11,16 @@ import { useWishlist } from '@/lib/contexts/wishlist-context';
 import SmartImage from '@/components/smart-image';
 import BackButton from '@/components/back-button';
 import { useBackHandler, triggerBack } from '@/lib/utils/back-navigation';
+import { prewarmImageCache } from '@/lib/offline/image-cache';
 
 export default function CategoriesPage({ fallbackData }: { fallbackData?: any } = {}) {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+
+  useEffect(() => {
+    prewarmImageCache().catch(() => {});
+  }, []);
 
   // Fetch filters (categories, subcategories) from API with fallbackData
   const { categories, isLoading, isValidating } = useFilters({ fallbackData });
@@ -204,6 +209,7 @@ export default function CategoriesPage({ fallbackData }: { fallbackData?: any } 
                                 src={cat.image}
                                 alt={cat.name}
                                 fill
+                                priority={index < 6 || isWishlisted}
                                 className="object-contain p-4 group-hover:scale-105 transition-transform duration-700 ease-out mix-blend-multiply drop-shadow-xl"
                               />
                             ) : (
@@ -278,6 +284,7 @@ export default function CategoriesPage({ fallbackData }: { fallbackData?: any } 
                                 src={sub.image}
                                 alt={sub.name}
                                 fill
+                                priority={index < 6 || isWishlisted}
                                 className="object-contain p-4 group-hover:scale-105 transition-transform duration-700 ease-out mix-blend-multiply drop-shadow-xl"
                               />
                             ) : (

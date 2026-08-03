@@ -43,6 +43,11 @@ async function ensureImageMemoryMap(): Promise<Map<string, string>> {
   return imageMemoryMap;
 }
 
+// Auto-warm in-memory image map immediately on module load in browser
+if (typeof window !== 'undefined') {
+  ensureImageMemoryMap().catch(() => {});
+}
+
 /** Invalidate the in-memory map so it gets rebuilt on next access */
 export function invalidateImageMemoryMap(): void {
   imageMemoryMap = null;

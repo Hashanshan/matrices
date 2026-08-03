@@ -6,6 +6,7 @@ import { CatalogueProduct } from '../hooks/use-products';
 import { resolveApiUrl, getAuthToken } from '../utils';
 import { offlineDB } from '../offline/indexed-db';
 import { addToSyncQueue } from '../offline/pending-sync';
+import { prewarmImageCache } from '../offline/image-cache';
 
 export interface WishlistCategory {
   name: string;
@@ -125,6 +126,10 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
     products: [],
     fullProducts: [],
   };
+
+  React.useEffect(() => {
+    prewarmImageCache().catch(() => {});
+  }, [data]);
 
   const isCategoryWishlisted = useCallback(
     (name: string) => {

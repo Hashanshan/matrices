@@ -142,16 +142,22 @@ async function getOfflineProducts(options: {
     }
   }
 
+  // Pre-warm image cache when offline products are fetched
+  prewarmImageCache().catch(() => {});
+
+  const isSingleProductView = Boolean(options.productId || (search && prioritizedProd));
+
   // 2. Base category/subcategory/search filtering
   let filtered = raw.filter((p: any) => {
-    if (catFilter && catFilter.length > 0 && catFilter[0]) {
+    // In single product view (e.g. /view?productId=...&category=...), do NOT exclude other categories/subcategories so user can swipe through target -> subcategory -> category -> other products
+    if (!isSingleProductView && catFilter && catFilter.length > 0 && catFilter[0]) {
       const pCat = (p.categoryName || p.categories || p.category || (typeof p.category === 'object' ? p.category?.name : '') || '').toLowerCase().trim();
       const pCatId = String(p.categoryId || (typeof p.category === 'object' ? p.category?._id : '') || '').trim().toLowerCase();
       const matchesCat = catFilter.some(c => pCat === c || pCat.includes(c) || c.includes(pCat) || (pCatId && pCatId === c));
       if (!matchesCat) return false;
     }
 
-    if (subFilter && subFilter.length > 0 && subFilter[0]) {
+    if (!isSingleProductView && subFilter && subFilter.length > 0 && subFilter[0]) {
       const pSub = (p.subcategoryName || p.subcategories || p.subcategory || (typeof p.subcategory === 'object' ? p.subcategory?.name : '') || '').toLowerCase().trim();
       const pSubId = String(p.subcategoryId || (typeof p.subcategory === 'object' ? p.subcategory?._id : '') || '').trim().toLowerCase();
       const matchesSub = subFilter.some(s => pSub === s || pSub.includes(s) || s.includes(pSub) || (pSubId && pSubId === s));
@@ -241,7 +247,7 @@ async function getOfflineProducts(options: {
   const sortFn = getSortComparator(options.sort || '');
 
   // 3. Re-order if prioritizedProd or category/subcategory grouping active:
-  // Target Product -> Subcategory (sorted) -> Category (sorted) -> Remaining (sorted)
+  // Target Product -> Subcategory (sorted) -> Category (sorted) -> Remaining (Category A-Z -> Subcategory A-Z -> sorted)
   const targetCatStr = options.category
     ? (Array.isArray(options.category) ? options.category[0] : options.category).toLowerCase().trim()
     : (prioritizedProd ? (prioritizedProd.categoryName || prioritizedProd.categories || prioritizedProd.category || '').toLowerCase().trim() : '');
@@ -275,7 +281,20 @@ async function getOfflineProducts(options: {
 
     subMatches.sort(sortFn);
     catMatches.sort(sortFn);
-    others.sort(sortFn);
+    others.sort((a: any, b: any) => {
+      const catA = (a.categoryName || a.categories || a.category || '').toLowerCase().trim();
+      const catB = (b.categoryName || b.categories || b.category || '').toLowerCase().trim();
+      if (catA !== catB) return catA.localeCompare(catB);
+
+      const subA = (a.subcategoryName || a.subcategories || a.subcategory || '').toLowerCase().trim();
+      const subB = (b.subcategoryName || b.subcategories || b.subcategory || '').toLowerCase().trim();
+      if (subA !== subB) return subA.localeCompare(subB);
+
+      const customSortResult = sortFn(a, b);
+      if (customSortResult !== 0) return customSortResult;
+
+      return String(a.name || '').localeCompare(String(b.name || ''));
+    });
 
     filtered = [
       ...(prioritizedProd ? [prioritizedProd] : []),

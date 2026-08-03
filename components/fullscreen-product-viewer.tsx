@@ -171,7 +171,20 @@ export default function FullscreenProductViewer({
     const sortFn = getSortComparator(activeSortBy);
     subMatches.sort(sortFn);
     catMatches.sort(sortFn);
-    others.sort(sortFn);
+    others.sort((a: Product, b: Product) => {
+      const catA = String(a.categories || a.category || '').trim().toLowerCase();
+      const catB = String(b.categories || b.category || '').trim().toLowerCase();
+      if (catA !== catB) return catA.localeCompare(catB);
+
+      const subA = String(a.subcategories || a.subcategory || '').trim().toLowerCase();
+      const subB = String(b.subcategories || b.subcategory || '').trim().toLowerCase();
+      if (subA !== subB) return subA.localeCompare(subB);
+
+      const customSortResult = sortFn(a, b);
+      if (customSortResult !== 0) return customSortResult;
+
+      return String(a.name || '').localeCompare(String(b.name || ''));
+    });
 
     return [targetProd, ...subMatches, ...catMatches, ...others].filter(Boolean) as Product[];
   }, [products, initialProductId, viewerSearchQuery, activeSortBy]);
@@ -195,17 +208,15 @@ export default function FullscreenProductViewer({
     const synced = getCachedImageUrlSync(rawUrl);
     if (synced) {
       setDisplayImg(synced);
-      return;
+    } else {
+      setDisplayImg(rawUrl);
     }
-
-    // Set raw URL immediately so image starts loading
-    setDisplayImg(rawUrl);
 
     // Then async-resolve in background (updates if a cached version exists)
     let cancelled = false;
     getCachedImageUrl(rawUrl)
       .then((resolved) => {
-        if (!cancelled && resolved !== rawUrl) {
+        if (!cancelled && resolved && resolved !== rawUrl) {
           setDisplayImg(resolved);
         }
       })
@@ -213,6 +224,17 @@ export default function FullscreenProductViewer({
 
     return () => { cancelled = true; };
   }, [currentProduct?.image, currentProduct?.id]);
+
+  // Pre-resolve images for adjacent products for instant swiping
+  useEffect(() => {
+    const indicesToWarm = [currentIndex - 1, currentIndex + 1, currentIndex + 2];
+    indicesToWarm.forEach((idx) => {
+      if (idx >= 0 && idx < validProducts.length) {
+        const url = validProducts[idx]?.image;
+        if (url) getCachedImageUrl(url).catch(() => {});
+      }
+    });
+  }, [currentIndex, validProducts]);
 
   // Load more when approaching the end — pre-fetch 5 slides before the boundary
   useEffect(() => {
