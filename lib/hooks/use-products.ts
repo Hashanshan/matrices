@@ -468,7 +468,7 @@ const fetcher = async <T = any>(url: string): Promise<T> => {
 
     // Pre-warm image cache in the background after a successful products fetch
     if (isProducts && data?.data?.length > 0) {
-      prewarmImageCache().catch(() => {});
+      prewarmImageCache().catch(() => { });
     }
 
     // Reorder: if a search/productId was provided, bring the best match to front

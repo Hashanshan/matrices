@@ -114,7 +114,7 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
     searchQuery,
     categories: initialCategory ? [initialCategory] : [],
     subcategories: initialSubcategory ? [initialSubcategory] : [],
-    priceRange: [0, 40000],
+    priceRange: [0, 6200],
     sortBy: 'newest',
     gridSize: 4,
   });
