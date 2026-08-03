@@ -140,12 +140,16 @@ export default function PinModal({
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md cursor-pointer"
+        onClick={onClose}
+      >
         <motion.div
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          className="relative w-full max-w-md max-h-[99%] bg-white/40 backdrop-blur-2xl rounded-[2.5rem] p-4 m:p-8 border border-white/60 shadow-[0_25px_70px_rgba(0,0,0,0.25)] overflow-y-auto scrollbar-hide"
+          onClick={(e) => e.stopPropagation()}
+          className="relative w-full max-w-md max-h-[99%] bg-white/40 backdrop-blur-2xl rounded-[2.5rem] p-4 m:p-8 border border-white/60 shadow-[0_25px_70px_rgba(0,0,0,0.25)] overflow-y-auto scrollbar-hide cursor-default"
         >
           {/* Close Button - iPad Style Pill */}
           <button

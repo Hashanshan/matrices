@@ -674,12 +674,16 @@ export default function ShopsSettingsPage() {
 
       {/* Responsive Add / Edit Shop Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-md overflow-y-auto">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-md overflow-y-auto cursor-pointer"
+          onClick={handleCloseModal}
+        >
           <motion.div
             initial={{ opacity: 0, scale: 0.95, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            className="w-full max-w-lg bg-white rounded-3xl p-5 sm:p-7 shadow-2xl border border-gray-100 max-h-[90vh] overflow-y-auto my-auto"
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-lg bg-white rounded-3xl p-5 sm:p-7 shadow-2xl border border-gray-100 max-h-[90vh] overflow-y-auto my-auto cursor-default"
           >
             {/* Modal Header */}
             <div className="flex items-center justify-between pb-4 mb-5 border-b border-gray-100">
@@ -886,8 +890,14 @@ export default function ShopsSettingsPage() {
 
       {/* WebCam Live Camera Viewfinder Modal */}
       {showCameraModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-          <div className="w-full max-w-md bg-white rounded-3xl p-5 shadow-2xl border border-gray-800 text-center">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md cursor-pointer"
+          onClick={closeCamera}
+        >
+          <div
+            className="w-full max-w-md bg-white rounded-3xl p-5 shadow-2xl border border-gray-800 text-center cursor-default"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between pb-3 mb-3 border-b border-gray-100">
               <span className="text-xs font-black text-[#0f172a] uppercase flex items-center gap-2">
                 <Camera size={16} /> LIVE CAMERA VIEWFINDER

@@ -34,12 +34,16 @@ export default function PermissionModal({ isOpen, onClose }: PermissionModalProp
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md cursor-pointer"
+        onClick={onClose}
+      >
         <motion.div
           initial={{ scale: 0.9, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.9, opacity: 0 }}
-          className="bg-card text-card-foreground border border-border/60 rounded-[2.5rem] p-6 max-w-md w-full shadow-2xl relative overflow-hidden"
+          onClick={(e) => e.stopPropagation()}
+          className="bg-card text-card-foreground border border-border/60 rounded-[2.5rem] p-6 max-w-md w-full shadow-2xl relative overflow-hidden cursor-default"
         >
           {/* Header */}
           <div className="flex items-center justify-between border-b border-border/40 pb-4 mb-5">

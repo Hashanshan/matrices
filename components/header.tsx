@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/lib/contexts/auth-context';
 import { useCart } from '@/lib/contexts/cart-context';
 import { useSync } from '@/lib/contexts/sync-context';
@@ -31,6 +31,22 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
   const { dataMode, toggleDataMode, hasSyncedData } = useDataMode();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close profile menu when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) {
+        setShowProfileMenu(false);
+      }
+    }
+    if (showProfileMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showProfileMenu]);
 
   const handleDataModeToggle = async () => {
     if (dataMode === 'online' && !hasSyncedData) {
@@ -73,7 +89,7 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
           {/* Top Left: Back Button & Logo */}
           <div className="flex items-center gap-3 flex-shrink-0">
             <BackButton />
-            <Link href="/" className="flex-shrink-0 group">
+            <Link href="/catalogue" className="flex-shrink-0 group">
               <motion.div whileHover={{ scale: 1.05 }} className="relative h-14 w-40">
                 <Image
                   src="/matrices_logo.png"
@@ -137,7 +153,7 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
 
             {/* Profile Avatar + Dropdown */}
             {user && (
-              <div className="relative hidden lg:block">
+              <div className="relative hidden lg:block" ref={profileMenuRef}>
                 <motion.button
                   whileHover={{ scale: 1.1 }}
                   whileTap={{ scale: 0.95 }}
@@ -184,11 +200,10 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
                       {/* Data Mode Switch Button */}
                       <button
                         onClick={handleDataModeToggle}
-                        className={`w-full flex items-center justify-between px-5 py-3.5 font-black text-xs uppercase tracking-wider rounded-full transition-all border shadow-xs cursor-pointer ${
-                          dataMode === 'offline'
+                        className={`w-full flex items-center justify-between px-5 py-3.5 font-black text-xs uppercase tracking-wider rounded-full transition-all border shadow-xs cursor-pointer ${dataMode === 'offline'
                             ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
                             : 'bg-blue-50 text-blue-900 border-blue-200 hover:bg-blue-100'
-                        }`}
+                          }`}
                       >
                         <div className="flex items-center gap-2.5">
                           {dataMode === 'offline' ? (
@@ -331,11 +346,10 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
                           {/* Data Mode Switch Button in Hamburger */}
                           <button
                             onClick={() => { closeAll(); handleDataModeToggle(); }}
-                            className={`w-full flex items-center justify-between px-5 py-3.5 font-black text-xs uppercase tracking-wider rounded-full transition-all border shadow-xs cursor-pointer ${
-                              dataMode === 'offline'
+                            className={`w-full flex items-center justify-between px-5 py-3.5 font-black text-xs uppercase tracking-wider rounded-full transition-all border shadow-xs cursor-pointer ${dataMode === 'offline'
                                 ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
                                 : 'bg-blue-50 text-blue-900 border-blue-200'
-                            }`}
+                              }`}
                           >
                             <div className="flex items-center gap-2.5">
                               {dataMode === 'offline' ? (
