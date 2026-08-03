@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Store, Search, X, Check, Lock, MapPin, Phone, Loader2 } from 'lucide-react';
+import { Store, Search, X, Check, Lock, MapPin, Phone, ShieldCheck, Delete, ArrowRight } from 'lucide-react';
 import { offlineDB } from '@/lib/offline/indexed-db';
 import { resolveApiUrl, getAuthToken } from '@/lib/utils';
 import { useAuth } from '@/lib/contexts/auth-context';
@@ -70,7 +70,7 @@ export default function GlobalShopModal({
     shopsFetcher
   );
 
-  // ALWAYS require PIN verification every time the modal opens (No bypass!)
+  // ALWAYS require PIN verification every time the modal opens
   useEffect(() => {
     if (isOpen) {
       setPin('');
@@ -80,6 +80,44 @@ export default function GlobalShopModal({
       setSearchQuery('');
     }
   }, [isOpen]);
+
+  // Physical keyboard listener for PIN entry
+  useEffect(() => {
+    if (!isOpen || pinVerified) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        document.activeElement?.tagName === 'INPUT' ||
+        document.activeElement?.tagName === 'TEXTAREA'
+      ) {
+        return;
+      }
+
+      if (!isVerifying) {
+        if (/^[0-9]$/.test(e.key)) {
+          e.preventDefault();
+          handleDigit(e.key);
+        } else if (e.key === 'Backspace') {
+          e.preventDefault();
+          handleBackspace();
+        } else if (e.key === 'Delete') {
+          e.preventDefault();
+          handleClear();
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          onClose();
+        } else if (e.key === 'Enter') {
+          e.preventDefault();
+          if (pin.length === 4) {
+            submitPin(pin);
+          }
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, pinVerified, pin, isVerifying, onClose]);
 
   useEffect(() => {
     async function mergeShops() {
@@ -128,32 +166,48 @@ export default function GlobalShopModal({
     );
   });
 
-  // Verify PIN with Live API (with offline fallback in AuthContext)
-  const handlePinSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleDigit = (digit: string) => {
+    if (pin.length < 4) {
+      const nextPin = pin + digit;
+      setPin(nextPin);
+      setPinError('');
 
-    const cleanPin = pin.trim();
-    if (!cleanPin) {
-      setPinError('Please enter your PIN');
-      return;
+      if (nextPin.length === 4) {
+        submitPin(nextPin);
+      }
     }
+  };
+
+  const handleBackspace = () => {
+    setPin(prev => prev.slice(0, -1));
+    setPinError('');
+  };
+
+  const handleClear = () => {
+    setPin('');
+    setPinError('');
+  };
+
+  const submitPin = async (submittedPin: string) => {
+    if (!submittedPin || submittedPin.length < 4) return;
 
     setIsVerifying(true);
     setPinError('');
 
     try {
-      // 1. Call verifyPin from auth-context (checks live backend API & offline hash fallback!)
-      const result = await verifyPin({ pin: cleanPin });
+      const result = await verifyPin({ pin: submittedPin });
 
       if (result.success) {
         setPinVerified(true);
         setPinError('');
       } else {
-        setPinError(result.msg || 'Invalid Security PIN. Please try again.');
+        setPinError(result.msg || 'Incorrect Security PIN');
+        setPin('');
       }
     } catch (err) {
       console.error('PIN verification error:', err);
       setPinError('Failed to verify PIN. Please try again.');
+      setPin('');
     } finally {
       setIsVerifying(false);
     }
@@ -169,86 +223,141 @@ export default function GlobalShopModal({
   return (
     <AnimatePresence>
       <div
-        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm cursor-pointer"
+        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md cursor-pointer"
         onClick={onClose}
       >
         <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 15 }}
+          initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 15 }}
+          exit={{ opacity: 0, scale: 0.95, y: 20 }}
           onClick={(e) => e.stopPropagation()}
-          className="bg-white rounded-[2rem] max-w-lg w-full p-6 sm:p-8 shadow-2xl space-y-5 max-h-[90vh] flex flex-col overflow-hidden border border-slate-200 cursor-default"
+          className="relative w-full max-w-md max-h-[95vh] bg-white/90 backdrop-blur-2xl rounded-[2.5rem] p-6 sm:p-8 border border-white/80 shadow-[0_25px_70px_rgba(0,0,0,0.25)] flex flex-col overflow-hidden cursor-default"
         >
-          {/* Header */}
-          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 bg-[#0f172a] text-white rounded-xl">
-                <Store size={20} />
-              </div>
-              <div>
-                <h3 className="text-lg font-black text-[#0f172a] uppercase tracking-tight">
-                  SELECT CUSTOMER SHOP
-                </h3>
-                <p className="text-xs font-bold text-gray-400">
-                  Verify PIN to select or change customer shop
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="p-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-slate-100 transition-colors cursor-pointer"
-            >
-              <X size={20} />
-            </button>
-          </div>
+          {/* Close Button - iPad Style Pill */}
+          <button
+            type="button"
+            onClick={onClose}
+            className="absolute top-5 right-5 p-2.5 text-gray-600 hover:text-[#0f172a] hover:bg-white/80 rounded-full transition-all shadow-xs border border-gray-200 cursor-pointer z-10"
+          >
+            <X size={18} />
+          </button>
 
-          {/* VIEW 1: MANDATORY SECURITY PIN VERIFICATION (Asked every time!) */}
+          {/* STEP 1: iPad-STYLE NUMERIC KEYPAD PIN VERIFICATION (Exact Same Design as Settings PinModal!) */}
           {!pinVerified ? (
-            <form onSubmit={handlePinSubmit} className="space-y-4 py-4">
-              <div className="text-center space-y-2">
-                <div className="w-12 h-12 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center mx-auto mb-2">
-                  <Lock size={24} />
+            <div className="space-y-4 py-2 my-auto">
+              <div className="text-center mb-4">
+                <div className="w-16 h-16 bg-[#0f172a] text-white rounded-full flex items-center justify-center mx-auto mb-3 shadow-xl border border-white/20">
+                  <ShieldCheck size={32} />
                 </div>
-                <h4 className="text-base font-black text-[#0f172a] uppercase">VERIFY SECURITY PIN</h4>
-                <p className="text-xs font-bold text-gray-500 max-w-xs mx-auto">
-                  Enter your Sales Representative PIN to proceed with shop selection. Verified via Live API.
+                <h2 className="text-xl sm:text-2xl font-black text-[#0f172a] uppercase tracking-wide">
+                  SECURITY PIN REQUIRED
+                </h2>
+                <p className="text-xs text-gray-600 font-bold tracking-wider uppercase mt-1">
+                  ENTER YOUR 4-DIGIT PIN TO SELECT CUSTOMER SHOP
                 </p>
               </div>
 
-              <div className="space-y-2 max-w-xs mx-auto">
-                <input
-                  type="password"
-                  maxLength={6}
-                  value={pin}
-                  onChange={(e) => setPin(e.target.value)}
-                  placeholder="Enter Security PIN"
-                  disabled={isVerifying}
-                  className="w-full bg-slate-50 border-2 border-slate-300 rounded-2xl p-3.5 text-center text-lg font-black tracking-widest text-[#0f172a] focus:outline-none focus:border-[#0f172a] disabled:opacity-50"
-                  autoFocus
-                />
-                {pinError && <p className="text-xs font-bold text-red-500 text-center">{pinError}</p>}
+              {/* Error Message */}
+              {pinError && (
+                <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center text-xs font-black text-red-500 uppercase">
+                  {pinError}
+                </motion.p>
+              )}
+
+              {/* 4 Circular Digit Indicators */}
+              <div className="flex justify-center items-center gap-4 mb-4">
+                {[0, 1, 2, 3].map((index) => {
+                  const isFilled = index < pin.length;
+                  return (
+                    <motion.div
+                      key={index}
+                      animate={{ scale: isFilled ? 1.15 : 1 }}
+                      className={`w-12 h-12 rounded-full flex items-center justify-center border-2 transition-all shadow-xs ${
+                        pinError
+                          ? 'border-red-500 bg-red-50 text-red-500'
+                          : isFilled
+                          ? 'border-[#0f172a] bg-[#0f172a] text-white shadow-md'
+                          : 'border-gray-300 bg-white/80'
+                      }`}
+                    >
+                      {isFilled ? <Lock size={16} /> : null}
+                    </motion.div>
+                  );
+                })}
               </div>
 
-              <div className="flex justify-center pt-2">
+              {/* iPad Circular Numeric Keypad Grid */}
+              <div className="grid grid-cols-3 gap-3.5 max-w-[260px] mx-auto mb-4">
+                {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((num) => (
+                  <button
+                    key={num}
+                    type="button"
+                    onClick={() => handleDigit(num)}
+                    disabled={isVerifying}
+                    className="w-16 h-16 rounded-full bg-white hover:bg-slate-100 text-[#0f172a] font-extrabold text-2xl border border-gray-200 shadow-md active:scale-90 transition-all disabled:opacity-50 flex items-center justify-center mx-auto cursor-pointer"
+                  >
+                    {num}
+                  </button>
+                ))}
                 <button
-                  type="submit"
-                  disabled={isVerifying}
-                  className="w-full max-w-xs bg-[#0f172a] hover:bg-[#1e293b] text-white font-black text-xs uppercase tracking-wider py-3.5 rounded-full shadow-md transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+                  type="button"
+                  onClick={handleClear}
+                  disabled={isVerifying || pin.length === 0}
+                  className="w-16 h-16 rounded-full bg-slate-100 hover:bg-slate-200 text-gray-700 font-bold text-xs uppercase border border-gray-200 disabled:opacity-30 transition-all flex items-center justify-center mx-auto shadow-xs cursor-pointer"
                 >
-                  {isVerifying ? (
-                    <>
-                      <Loader2 size={16} className="animate-spin" /> VERIFYING LIVE PIN...
-                    </>
-                  ) : (
-                    'VERIFY & SELECT SHOP'
-                  )}
+                  CLEAR
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDigit('0')}
+                  disabled={isVerifying}
+                  className="w-16 h-16 rounded-full bg-white hover:bg-slate-100 text-[#0f172a] font-extrabold text-2xl border border-gray-200 shadow-md active:scale-90 transition-all disabled:opacity-50 flex items-center justify-center mx-auto cursor-pointer"
+                >
+                  0
+                </button>
+                <button
+                  type="button"
+                  onClick={handleBackspace}
+                  disabled={isVerifying || pin.length === 0}
+                  className="w-16 h-16 rounded-full bg-slate-100 hover:bg-slate-200 text-[#0f172a] flex items-center justify-center border border-gray-200 disabled:opacity-30 transition-all mx-auto shadow-xs cursor-pointer"
+                >
+                  <Delete size={20} />
                 </button>
               </div>
-            </form>
+
+              {/* Submit Verify Button */}
+              <button
+                type="button"
+                onClick={() => submitPin(pin)}
+                disabled={pin.length < 4 || isVerifying}
+                className="w-full bg-[#0f172a] text-white py-4 rounded-full font-black text-xs uppercase tracking-wider hover:bg-[#1e293b] disabled:opacity-40 transition-all shadow-xl flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+              >
+                {isVerifying ? (
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                ) : (
+                  <>
+                    VERIFY PIN & CHOOSE SHOP <ArrowRight size={16} />
+                  </>
+                )}
+              </button>
+            </div>
           ) : (
-            /* VIEW 2: SHOP SELECTION LIST */
-            <div className="space-y-4 flex-1 flex flex-col min-h-0">
+            /* STEP 2: CUSTOMER SHOP SELECTION LIST */
+            <div className="space-y-4 flex-1 flex flex-col min-h-0 pt-2">
+              <div className="flex items-center gap-3 pb-2 border-b border-slate-100">
+                <div className="p-2 bg-[#0f172a] text-white rounded-xl">
+                  <Store size={18} />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-[#0f172a] uppercase tracking-tight">
+                    SELECT CUSTOMER SHOP
+                  </h3>
+                  <p className="text-[11px] font-bold text-gray-400">
+                    PIN Verified. Choose shop for cart session.
+                  </p>
+                </div>
+              </div>
+
               {/* Search Bar */}
               <div className="relative">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
@@ -263,7 +372,7 @@ export default function GlobalShopModal({
               </div>
 
               {/* Shops Cards Container */}
-              <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 max-h-[380px]">
+              <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 max-h-[360px]">
                 {isLoading ? (
                   <div className="py-12 text-center text-xs font-bold text-gray-400 uppercase animate-pulse">
                     Loading assigned shops...
