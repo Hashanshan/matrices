@@ -78,10 +78,13 @@ const fetcher = async (url: string) => {
     if (status && status !== 'all') {
       filtered = filtered.filter((o: any) => (o.status || '').toLowerCase() === status);
     }
-    return { success: true, orders: filtered, totalRecords: filtered.length, totalPages: 1 };
+    return { rawCount: rawOrders.length, response: { success: true, orders: filtered, totalRecords: filtered.length, totalPages: 1 } };
   };
 
-  if (mode === 'offline' || isOffline) return getOfflineOrders();
+  if (mode === 'offline' || isOffline) {
+    const { rawCount, response } = await getOfflineOrders();
+    if (rawCount > 0 || isOffline) return response;
+  }
 
   const token = getAuthToken();
   const targetUrl = resolveApiUrl(url);
@@ -92,7 +95,8 @@ const fetcher = async (url: string) => {
     if (!res.ok) throw new Error('Failed to fetch invoices');
     return res.json();
   } catch {
-    return getOfflineOrders();
+    const { response } = await getOfflineOrders();
+    return response;
   }
 };
 

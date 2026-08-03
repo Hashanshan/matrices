@@ -48,7 +48,7 @@ const fetcher = async (url: string) => {
     }
   };
 
-  if (mode === 'offline' || isOffline) {
+  const getOfflineShops = async () => {
     const rawShops = await offlineDB.getAll<any>('shops').catch(() => []);
     const search = parseQuery();
     const filtered = search
@@ -60,11 +60,21 @@ const fetcher = async (url: string) => {
       : rawShops;
 
     return {
-      success: true,
-      shops: filtered,
-      totalRecords: filtered.length,
-      totalPages: 1,
+      rawCount: rawShops.length,
+      response: {
+        success: true,
+        shops: filtered,
+        totalRecords: filtered.length,
+        totalPages: 1,
+      },
     };
+  };
+
+  if (mode === 'offline' || isOffline) {
+    const { rawCount, response } = await getOfflineShops();
+    if (rawCount > 0 || isOffline) {
+      return response;
+    }
   }
 
   const token = getAuthToken();
@@ -76,21 +86,8 @@ const fetcher = async (url: string) => {
     if (!res.ok) throw new Error('Failed to fetch shops');
     return res.json();
   } catch {
-    const rawShops = await offlineDB.getAll<any>('shops').catch(() => []);
-    const search = parseQuery();
-    const filtered = search
-      ? rawShops.filter((s: any) =>
-          (s.name || '').toLowerCase().includes(search) ||
-          (s.shopId || '').toLowerCase().includes(search) ||
-          (s.phone || '').toLowerCase().includes(search)
-        )
-      : rawShops;
-    return {
-      success: true,
-      shops: filtered,
-      totalRecords: filtered.length,
-      totalPages: 1,
-    };
+    const { response } = await getOfflineShops();
+    return response;
   }
 };
 

@@ -539,7 +539,7 @@ const fetcher = async <T = any>(url: string): Promise<T> => {
       /* Fallback to live API if local read fails */
     }
 
-    if (mode === 'offline' || isOfflineNetwork) {
+    if (isOfflineNetwork) {
       if (isProductsFilters) return getOfflineFilters() as unknown as T;
       if (isProducts) return getOfflineProducts(parseOptions()) as unknown as T;
     }

@@ -88,10 +88,13 @@ const fetcher = async (url: string) => {
     const shopOrders = rawOrders.filter((o: any) =>
       String(o.shop?.shopId) === id || String(o.shopId) === id
     );
-    return { success: true, shop: shop || null, orders: shopOrders, totalOrders: shopOrders.length, totalPages: 1 };
+    return { hasShop: !!shop, response: { success: true, shop: shop || null, orders: shopOrders, totalOrders: shopOrders.length, totalPages: 1 } };
   };
 
-  if (mode === 'offline' || isOffline) return getOfflineShop();
+  if (mode === 'offline' || isOffline) {
+    const { hasShop, response } = await getOfflineShop();
+    if (hasShop || isOffline) return response;
+  }
 
   const token = getAuthToken();
   const targetUrl = resolveApiUrl(url);
@@ -102,7 +105,8 @@ const fetcher = async (url: string) => {
     if (!res.ok) throw new Error('Failed to fetch shop');
     return res.json();
   } catch {
-    return getOfflineShop();
+    const { response } = await getOfflineShop();
+    return response;
   }
 };
 

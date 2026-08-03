@@ -32,14 +32,15 @@ export function DataModeProvider({ children }: { children: React.ReactNode }) {
 
       // Read saved mode
       const saved = localStorage.getItem(STORAGE_KEY) as DataMode | null;
+      let targetMode: DataMode = 'online';
       if (saved === 'offline' || saved === 'online') {
-        // If saved mode is offline but no synced data, fall back to online
-        setDataModeState(saved === 'offline' && !synced ? 'online' : saved);
+        targetMode = (saved === 'offline' && !synced) ? 'online' : saved;
       } else if (synced) {
-        // First time with synced data → default to offline to save mobile data
-        setDataModeState('offline');
-        localStorage.setItem(STORAGE_KEY, 'offline');
+        targetMode = 'offline';
       }
+
+      setDataModeState(targetMode);
+      localStorage.setItem(STORAGE_KEY, targetMode);
 
       setIsReady(true);
       // Pre-warm offline image memory map for instant zero-latency image renders

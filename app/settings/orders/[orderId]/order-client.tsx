@@ -54,7 +54,6 @@ const fetcher = async (url: string) => {
   const mode = typeof window !== 'undefined' ? (localStorage.getItem('matrices_data_mode') as string) : 'online';
   const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
 
-  // Extract orderId from URL like /api/orders/ORD123
   const extractId = () => {
     const parts = url.split('/');
     return parts[parts.length - 1]?.split('?')[0] || '';
@@ -66,10 +65,13 @@ const fetcher = async (url: string) => {
     const found = rawOrders.find((o: any) =>
       String(o.orderId) === id || String(o.id) === id || String(o._id) === id
     );
-    return found ? { success: true, order: found } : { success: false, order: null };
+    return { hasOrder: !!found, response: found ? { success: true, order: found } : { success: false, order: null } };
   };
 
-  if (mode === 'offline' || isOffline) return getOfflineOrder();
+  if (mode === 'offline' || isOffline) {
+    const { hasOrder, response } = await getOfflineOrder();
+    if (hasOrder || isOffline) return response;
+  }
 
   const token = getAuthToken();
   const targetUrl = resolveApiUrl(url);
@@ -80,7 +82,8 @@ const fetcher = async (url: string) => {
     if (!res.ok) throw new Error('Failed to fetch order');
     return res.json();
   } catch {
-    return getOfflineOrder();
+    const { response } = await getOfflineOrder();
+    return response;
   }
 };
 

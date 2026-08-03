@@ -319,10 +319,8 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       setLastSyncedAt(null);
       await refreshQueue();
 
-      // Global SWR cache invalidation
-      mutate(() => true, undefined, { revalidate: true });
-
       if (typeof window !== 'undefined') {
+        localStorage.setItem('matrices_data_mode', 'online');
         window.dispatchEvent(new Event('matrices-data-mode-change'));
       }
 
