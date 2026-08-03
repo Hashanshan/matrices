@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useCallback } from 'react';
-import useSWR from 'swr';
+import useSWR, { mutate as globalMutate } from 'swr';
 import { CatalogueProduct } from '../hooks/use-products';
 import { resolveApiUrl, getAuthToken } from '../utils';
 import { offlineDB } from '../offline/indexed-db';
@@ -157,6 +157,11 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
     [wishlistData.products]
   );
 
+  const notifyWishlistChanged = (newWishlistData: WishlistData) => {
+    mutate({ success: true, wishlist: newWishlistData }, { revalidate: false });
+    globalMutate((key) => typeof key === 'string' && key.startsWith('/api/products'));
+  };
+
   const toggleCategoryWishlist = async (name: string) => {
     const mode = getDataMode();
     const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
@@ -180,7 +185,7 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
         payload: { type: 'category', item: { name } },
         title: `${exists ? 'Removed' : 'Added'} Category Wishlist (${name})`,
       });
-      mutate({ success: true, wishlist: current }, { revalidate: false });
+      notifyWishlistChanged(current);
       return;
     }
 
@@ -192,7 +197,7 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
       : [...(wishlistData.categories || []), { name, order: (wishlistData.categories?.length || 0) + 1 }];
 
     const optimistic: WishlistData = { ...wishlistData, categories: updatedCategories };
-    mutate({ success: true, wishlist: optimistic }, { revalidate: false });
+    notifyWishlistChanged(optimistic);
 
     try {
       const targetUrl = resolveApiUrl('/api/wishlist/toggle');
@@ -207,7 +212,7 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
       const updated = await res.json();
       if (updated?.success && updated?.wishlist) {
         await offlineDB.saveBatch('wishlist', [{ id: 'user_wishlist', ...updated.wishlist }]);
-        mutate(updated, { revalidate: false });
+        notifyWishlistChanged(updated.wishlist);
       }
     } catch (err) {
       console.error('Failed to toggle category wishlist', err);
@@ -241,7 +246,7 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
         payload: { type: 'subcategory', item: { category, name } },
         title: `${exists ? 'Removed' : 'Added'} Subcategory Wishlist (${name})`,
       });
-      mutate({ success: true, wishlist: current }, { revalidate: false });
+      notifyWishlistChanged(current);
       return;
     }
 
@@ -256,7 +261,7 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
       : [...(wishlistData.subcategories || []), { category, name, order: (wishlistData.subcategories?.length || 0) + 1 }];
 
     const optimistic: WishlistData = { ...wishlistData, subcategories: updatedSubcategories };
-    mutate({ success: true, wishlist: optimistic }, { revalidate: false });
+    notifyWishlistChanged(optimistic);
 
     try {
       const targetUrl = resolveApiUrl('/api/wishlist/toggle');
@@ -271,7 +276,7 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
       const updated = await res.json();
       if (updated?.success && updated?.wishlist) {
         await offlineDB.saveBatch('wishlist', [{ id: 'user_wishlist', ...updated.wishlist }]);
-        mutate(updated, { revalidate: false });
+        notifyWishlistChanged(updated.wishlist);
       }
     } catch (err) {
       console.error('Failed to toggle subcategory wishlist', err);
@@ -328,7 +333,7 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
         payload: { type: 'product', item: { productId } },
         title: `${exists ? 'Removed' : 'Added'} Product Wishlist (${strId})`,
       });
-      mutate({ success: true, wishlist: current }, { revalidate: false });
+      notifyWishlistChanged(current);
       return;
     }
 
@@ -349,7 +354,7 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
       fullProducts: updatedFullProducts,
     };
 
-    mutate({ success: true, wishlist: optimistic }, { revalidate: false });
+    notifyWishlistChanged(optimistic);
 
     try {
       const targetUrl = resolveApiUrl('/api/wishlist/toggle');
@@ -364,7 +369,7 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
       const updated = await res.json();
       if (updated?.success && updated?.wishlist) {
         await offlineDB.saveBatch('wishlist', [{ id: 'user_wishlist', ...updated.wishlist }]);
-        mutate(updated, { revalidate: false });
+        notifyWishlistChanged(updated.wishlist);
       }
     } catch (err) {
       console.error('Failed to toggle product wishlist', err);
@@ -398,7 +403,7 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
 
     // ── Always write to IDB & update SWR optimistically (zero-latency UI) ────
     await offlineDB.saveBatch('wishlist', [{ id: 'user_wishlist', ...reordered }]);
-    mutate({ success: true, wishlist: reordered }, { revalidate: false });
+    notifyWishlistChanged(reordered);
 
     // ── Offline / no-network: queue for sync and return ───────────────────────
     if (mode === 'offline' || isOffline) {

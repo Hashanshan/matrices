@@ -42,7 +42,52 @@ async function getOfflineProducts(options: {
   page?: number;
   limit?: number;
 }): Promise<ProductsResponse> {
-  const raw = await offlineDB.getAll<any>('products').catch(() => []);
+  const [raw, dbWishlist] = await Promise.all([
+    offlineDB.getAll<any>('products').catch(() => []),
+    offlineDB.getAll<any>('wishlist').catch(() => []),
+  ]);
+
+  const userWishlist = (dbWishlist || []).find((w: any) => w.id === 'user_wishlist') || (dbWishlist || [])[0] || {};
+
+  const wishlistedProdMap = new Map<string, number>();
+  (userWishlist.products || []).forEach((p: any, idx: number) => {
+    const pId = String(p.productId || p.id || '').trim();
+    if (pId) wishlistedProdMap.set(pId, p.order ?? idx);
+  });
+
+  const wishlistedSubMap = new Map<string, number>();
+  (userWishlist.subcategories || []).forEach((s: any, idx: number) => {
+    if (s?.category && s?.name) {
+      wishlistedSubMap.set(`${String(s.category).toUpperCase()}>${String(s.name).toUpperCase()}`, s.order ?? idx);
+    }
+  });
+
+  const wishlistedCatMap = new Map<string, number>();
+  (userWishlist.categories || []).forEach((c: any, idx: number) => {
+    if (c?.name) wishlistedCatMap.set(String(c.name).toUpperCase(), c.order ?? idx);
+  });
+
+  const getWishlistScore = (p: any): number => {
+    const pId = String(p.productId || p.id || p._id || '').trim();
+    const pCode = String(p.code || p.productCode || '').trim();
+    if (pId && wishlistedProdMap.has(pId)) return wishlistedProdMap.get(pId)!;
+    if (pCode && wishlistedProdMap.has(pCode)) return wishlistedProdMap.get(pCode)!;
+
+    const pCat = (p.categoryName || p.categories || p.category || (typeof p.category === 'object' ? p.category?.name : '') || '').trim().toUpperCase();
+    const pSub = (p.subcategoryName || p.subcategories || p.subcategory || (typeof p.subcategory === 'object' ? p.subcategory?.name : '') || '').trim().toUpperCase();
+
+    if (pCat && pSub) {
+      const subKey = `${pCat}>${pSub}`;
+      if (wishlistedSubMap.has(subKey)) return 1000 + wishlistedSubMap.get(subKey)!;
+    }
+
+    if (pCat && wishlistedCatMap.has(pCat)) {
+      return 10000 + wishlistedCatMap.get(pCat)!;
+    }
+
+    return 999999;
+  };
+
   const targetCategory = options.category || options.prioritizeCategory;
   const catFilter = targetCategory
     ? (Array.isArray(targetCategory) ? targetCategory : [targetCategory]).map(c => c.toLowerCase().trim())
@@ -133,25 +178,48 @@ async function getOfflineProducts(options: {
     return true;
   });
 
-  // Apply sorting
-  if (options.sort) {
-    const s = options.sort.toLowerCase();
-    if (s === 'price_asc' || s === 'price-low' || s === 'low-to-high') {
-      filtered.sort((a: any, b: any) => (a.sellPrice || a.price || 0) - (b.sellPrice || b.price || 0));
-    } else if (s === 'price_desc' || s === 'price-high' || s === 'high-to-low') {
-      filtered.sort((a: any, b: any) => (b.sellPrice || b.price || 0) - (a.sellPrice || a.price || 0));
-    } else if (s === 'name_asc' || s === 'a-z') {
-      filtered.sort((a: any, b: any) => String(a.name || '').localeCompare(String(b.name || '')));
-    } else if (s === 'name_desc' || s === 'z-a') {
-      filtered.sort((a: any, b: any) => String(b.name || '').localeCompare(String(a.name || '')));
-    } else if (s === 'view') {
-      filtered.sort((a: any, b: any) => {
+  const hasWishlist = wishlistedProdMap.size > 0 || wishlistedSubMap.size > 0 || wishlistedCatMap.size > 0;
+
+  // Apply sorting (Wishlist score primary, options.sort / category priority secondary)
+  if (hasWishlist || options.sort || options.prioritizeCategory) {
+    const s = (options.sort || '').toLowerCase();
+    const prioCat = options.prioritizeCategory ? options.prioritizeCategory.trim().toUpperCase() : null;
+
+    filtered.sort((a: any, b: any) => {
+      // 1. Target prioritized category if requested
+      if (prioCat) {
+        const catA = (a.categoryName || a.categories || a.category || '').trim().toUpperCase();
+        const catB = (b.categoryName || b.categories || b.category || '').trim().toUpperCase();
+        const aPrio = catA === prioCat ? 0 : 1;
+        const bPrio = catB === prioCat ? 0 : 1;
+        if (aPrio !== bPrio) return aPrio - bPrio;
+      }
+
+      // 2. Primary sort: Wishlist score (matches backend productController.js MongoDB aggregation)
+      if (hasWishlist && !prioritizedProd) {
+        const scoreA = getWishlistScore(a);
+        const scoreB = getWishlistScore(b);
+        if (scoreA !== scoreB) return scoreA - scoreB;
+      }
+
+      // 3. Secondary sort: Explicit sort option
+      if (s === 'price_asc' || s === 'price-low' || s === 'low-to-high') {
+        return (a.sellPrice || a.price || 0) - (b.sellPrice || b.price || 0);
+      } else if (s === 'price_desc' || s === 'price-high' || s === 'high-to-low') {
+        return (b.sellPrice || b.price || 0) - (a.sellPrice || a.price || 0);
+      } else if (s === 'name_asc' || s === 'a-z') {
+        return String(a.name || '').localeCompare(String(b.name || ''));
+      } else if (s === 'name_desc' || s === 'z-a') {
+        return String(b.name || '').localeCompare(String(a.name || ''));
+      } else if (s === 'view') {
         const subA = String(a.subcategoryName || a.subcategories || '');
         const subB = String(b.subcategoryName || b.subcategories || '');
         if (subA !== subB) return subA.localeCompare(subB);
         return String(a.name || '').localeCompare(String(b.name || ''));
-      });
-    }
+      }
+
+      return 0;
+    });
   }
 
   // 3. Re-order if prioritizedProd is present: Target Product -> Subcategory -> Category -> Remaining
