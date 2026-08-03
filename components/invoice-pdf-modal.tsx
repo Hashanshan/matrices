@@ -124,14 +124,30 @@ export default function InvoicePdfModal({ order, onClose }: InvoicePdfModalProps
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
       };
 
-      await (window as any).html2pdf().set(opt).from(element).save();
+      const worker = (window as any).html2pdf().set(opt).from(element);
+      const pdfBlob = await worker.output('blob');
+      const blobUrl = URL.createObjectURL(pdfBlob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = `Invoice_${order.orderId}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
     } catch (err) {
       console.error('Error downloading PDF file:', err);
-      window.print();
+      alert('Could not download PDF to device. Please try again.');
     } finally {
       setIsDownloading(false);
     }
   };
+
+  const subtotal = order.subtotal || (order.items || []).reduce((sum, item) => sum + (Number(item.price || 0) * Number(item.quantity || 0)), 0);
+  const discountAmount = order.discountAmount || (order.discount > 0 ? (subtotal * order.discount / 100) : 0);
+  const discountPercent = order.discount || (subtotal > 0 && discountAmount > 0 ? Math.round((discountAmount / subtotal) * 100) : 0);
+  const total = order.total || (subtotal - discountAmount);
+  const totalPaid = order.totalPaid || 0;
+  const remainingAmount = Math.max(0, total - totalPaid);
 
   return (
     <AnimatePresence>
@@ -214,8 +230,8 @@ export default function InvoicePdfModal({ order, onClose }: InvoicePdfModalProps
               <button
                 onClick={handleDownloadPdf}
                 disabled={isDownloading}
-                className="px-4 py-2.5 bg-[#0f172a] hover:bg-[#1e293b] text-white font-black text-xs uppercase rounded-full shadow-md flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50"
-                title="Download PDF file"
+                className="px-5 py-2.5 bg-[#0f172a] hover:bg-[#1e293b] text-white font-black text-xs uppercase rounded-full shadow-md flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+                title="Download PDF file directly to device"
               >
                 {isDownloading ? (
                   <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-white" />
@@ -223,14 +239,6 @@ export default function InvoicePdfModal({ order, onClose }: InvoicePdfModalProps
                   <Download size={14} />
                 )}
                 DOWNLOAD PDF
-              </button>
-
-              <button
-                onClick={handlePrint}
-                className="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-[#0f172a] font-black text-xs uppercase rounded-full border border-gray-300 shadow-xs flex items-center gap-2 transition-all cursor-pointer"
-                title="Print Document"
-              >
-                <Printer size={14} /> PRINT
               </button>
 
               <button
@@ -311,25 +319,25 @@ export default function InvoicePdfModal({ order, onClose }: InvoicePdfModalProps
               <div className="w-full max-w-xs space-y-2 text-xs font-bold border-t-2 border-gray-900 pt-4">
                 <div className="flex justify-between text-gray-600 uppercase">
                   <span>SUBTOTAL:</span>
-                  <span className="font-black text-[#0f172a]">{formatPrice(order.subtotal)}</span>
+                  <span className="font-black text-[#0f172a]">{formatPrice(subtotal)}</span>
                 </div>
-                {order.discount > 0 && (
+                {(discountAmount > 0 || discountPercent > 0) && (
                   <div className="flex justify-between text-gray-600 uppercase">
-                    <span>DISCOUNT ({order.discount}%):</span>
-                    <span className="font-black text-rose-600">-{formatPrice(order.discountAmount)}</span>
+                    <span>DISCOUNT ({discountPercent}%):</span>
+                    <span className="font-black text-rose-600">-{formatPrice(discountAmount)}</span>
                   </div>
                 )}
                 <div className="flex justify-between text-sm font-black text-[#0f172a] uppercase border-t pt-2">
                   <span>GRAND TOTAL:</span>
-                  <span>{formatPrice(order.total)}</span>
+                  <span>{formatPrice(total)}</span>
                 </div>
                 <div className="flex justify-between text-xs font-bold text-green-700 uppercase">
                   <span>TOTAL PAID:</span>
-                  <span>{formatPrice(order.totalPaid)}</span>
+                  <span>{formatPrice(totalPaid)}</span>
                 </div>
                 <div className="flex justify-between text-xs font-black text-rose-700 uppercase border-t border-dashed pt-2">
                   <span>BALANCE DUE:</span>
-                  <span>{formatPrice(order.remainingAmount)}</span>
+                  <span>{formatPrice(remainingAmount)}</span>
                 </div>
               </div>
             </div>

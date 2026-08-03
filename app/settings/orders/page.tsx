@@ -7,7 +7,7 @@ import PinModal from '@/components/pin-modal';
 import Pagination from '@/components/pagination';
 import InvoicePdfModal from '@/components/invoice-pdf-modal';
 import { motion } from 'framer-motion';
-import { FileText, Search, Lock, Calendar, CheckCircle2, Clock, AlertCircle, XCircle, ShoppingBag, Store, Heart, ShieldCheck, RefreshCw, Eye } from 'lucide-react';
+import { FileText, Search, Lock, Calendar, CheckCircle2, Clock, AlertCircle, XCircle, ShoppingBag, Store, Heart, ShieldCheck, RefreshCw, Eye, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
 import useSWR from 'swr';
 import { formatPrice } from '@/lib/currency';
@@ -115,8 +115,8 @@ export default function SettingsOrdersPage() {
   if (toDate) queryParams.set('toDate', toDate);
   queryParams.set('page', String(page));
   queryParams.set('limit', '10');
-  queryParams.set('sortField', 'updatedAt');
-  queryParams.set('sortOrder', '-1'); // Default: recently updated orders on top
+  queryParams.set('sortField', 'orderId');
+  queryParams.set('sortOrder', '-1'); // Default: largest order ID on top
 
   const swrKey = `/api/orders?${queryParams.toString()}`;
   const { data, error, isLoading } = useSWR(swrKey, fetcher, {
@@ -226,9 +226,9 @@ export default function SettingsOrdersPage() {
               <div className="w-16 h-16 sm:w-20 sm:h-20 bg-[#0f172a] text-white rounded-full flex items-center justify-center mb-4 shadow-xl border border-white/20">
                 <Lock size={32} />
               </div>
-              <h2 className="text-xl sm:text-2xl font-black text-[#0f172a] uppercase mb-2">ORDERS PAGE IS LOCKED</h2>
+              <h2 className="text-xl sm:text-2xl font-black text-[#0f172a] uppercase mb-2">INVOICES PAGE IS LOCKED</h2>
               <p className="text-gray-500 font-bold max-w-sm mb-6 uppercase text-xs">
-                PLEASE ENTER YOUR 4-DIGIT SECURITY PIN TO ACCESS YOUR ASSIGNED ORDERS & INVOICES.
+                PLEASE ENTER YOUR 4-DIGIT SECURITY PIN TO ACCESS YOUR ASSIGNED INVOICES.
               </p>
               <button
                 onClick={() => setShowPinModal(true)}
@@ -247,10 +247,10 @@ export default function SettingsOrdersPage() {
                   </div>
                   <div>
                     <h1 className="text-2xl sm:text-4xl font-black text-[#0f172a] uppercase tracking-wide">
-                      SHOP INVOICES & ORDERS
+                      SHOP INVOICES
                     </h1>
                     <p className="text-[0.7rem] sm:text-xs text-gray-500 font-bold tracking-wide mt-0.5 uppercase">
-                      VIEW ALL ORDERS AND INVOICES ACROSS YOUR ASSIGNED SHOPS
+                      VIEW ALL INVOICES ACROSS YOUR ASSIGNED SHOPS
                     </p>
                   </div>
                 </div>
@@ -277,7 +277,7 @@ export default function SettingsOrdersPage() {
                     <ShieldCheck size={14} /> SECURITY
                   </Link>
                   <span className="text-xs font-black text-white bg-[#0f172a] px-4 py-2.5 rounded-full shadow-xs uppercase whitespace-nowrap shrink-0">
-                    {totalOrders} {totalOrders === 1 ? 'ORDER' : 'ORDERS'}
+                    {totalOrders} {totalOrders === 1 ? 'INVOICE' : 'INVOICES'}
                   </span>
                 </div>
               </div>
@@ -291,7 +291,7 @@ export default function SettingsOrdersPage() {
                       type="text"
                       value={searchQuery}
                       onChange={e => handleSearchChange(e.target.value)}
-                      placeholder="SEARCH ORDER ID OR ITEM..."
+                      placeholder="SEARCH INVOICE ID OR SHOP..."
                       className="w-full pl-10 pr-4 py-3 bg-white/70 border border-white/80 rounded-full text-xs font-bold text-[#0f172a] placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0f172a]/30 uppercase shadow-xs"
                     />
                   </div>
@@ -353,7 +353,7 @@ export default function SettingsOrdersPage() {
                 </div>
               </div>
 
-              {/* Invoices / Orders List */}
+              {/* Invoices List - Minimum Data Display */}
               {isLoading ? (
                 <div className="flex justify-center items-center py-20">
                   <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#0f172a]"></div>
@@ -361,7 +361,7 @@ export default function SettingsOrdersPage() {
               ) : orders.length === 0 ? (
                 <div className="text-center py-16 bg-white/20 backdrop-blur-2xl rounded-[2rem] border border-white/60 shadow-md px-4">
                   <FileText size={36} className="text-gray-400 mx-auto mb-3" />
-                  <h3 className="text-lg font-black text-[#0f172a] uppercase mb-1">NO MATCHING ORDERS FOUND</h3>
+                  <h3 className="text-lg font-black text-[#0f172a] uppercase mb-1">NO MATCHING INVOICES FOUND</h3>
                   <p className="text-xs text-gray-500 font-bold uppercase max-w-md mx-auto">
                     NO INVOICES MATCHING YOUR SEARCH QUERY, DATE RANGE, OR SELECTED STATUS TAB.
                   </p>
@@ -369,87 +369,90 @@ export default function SettingsOrdersPage() {
               ) : (
                 <>
                   <div className="space-y-4 mb-8">
-                    {orders.map((order) => (
-                      <motion.div
-                        key={order.orderId}
-                        layout
-                        initial={{ opacity: 0, y: 15 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="bg-white/40 backdrop-blur-2xl border border-white/60 rounded-[1.5rem] sm:rounded-[2rem] p-4 sm:p-6 shadow-[0_10px_35px_rgba(0,0,0,0.04)] hover:border-white/90 transition-all max-w-full overflow-hidden"
-                      >
-                        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-gray-200/60">
-                          <div>
-                            <div className="flex items-center gap-2 mb-1 flex-wrap">
-                              <span className="text-xs sm:text-sm font-black text-[#0f172a] uppercase bg-white/80 border border-white/80 px-3 py-1 rounded-full shadow-xs">
-                                {order.orderId}
-                              </span>
-                              {getStatusBadge(order.status)}
+                    {orders.map((order) => {
+                      const items = order.items || [];
+                      const subtotal = order.subtotal || items.reduce((sum, it) => sum + (Number(it.price || 0) * Number(it.quantity || 0)), 0);
+                      const discountAmount = order.discountAmount || (order.discount > 0 ? (subtotal * order.discount / 100) : 0);
+                      const discountPercent = order.discount || (subtotal > 0 && discountAmount > 0 ? Math.round((discountAmount / subtotal) * 100) : 0);
+                      const total = order.total || (subtotal - discountAmount);
+                      const totalPaid = order.totalPaid || 0;
+                      const remainingAmount = Math.max(0, total - totalPaid);
+
+                      return (
+                        <motion.div
+                          key={order.orderId}
+                          layout
+                          initial={{ opacity: 0, y: 15 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="bg-white/40 backdrop-blur-2xl border border-white/60 rounded-[1.5rem] sm:rounded-[2rem] p-4 sm:p-6 shadow-[0_10px_35px_rgba(0,0,0,0.04)] hover:border-white/90 transition-all max-w-full overflow-hidden"
+                        >
+                          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                            <div>
+                              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                <span className="text-xs sm:text-sm font-black text-[#0f172a] uppercase bg-white/80 border border-white/80 px-3 py-1 rounded-full shadow-xs">
+                                  {order.orderId}
+                                </span>
+                                {getStatusBadge(order.status)}
+                                <span className="px-3 py-1 bg-slate-100/90 text-slate-700 border border-slate-200/80 rounded-full text-[0.65rem] font-black uppercase shadow-xs shrink-0">
+                                  {items.length} {items.length === 1 ? 'ITEM' : 'ITEMS'}
+                                </span>
+                              </div>
+
+                              <p className="text-xs text-[#0f172a] font-black uppercase mt-1.5">
+                                SHOP: {order.shop?.name} ({order.shop?.shopId})
+                              </p>
+
+                              <p className="text-[0.7rem] text-gray-500 font-bold uppercase mt-0.5">
+                                DATE: {new Date(order.date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                              </p>
                             </div>
 
-                            <p className="text-xs text-[#0f172a] font-black uppercase mt-1">
-                              SHOP: {order.shop.name} ({order.shop.shopId})
-                            </p>
+                            <div className="flex flex-wrap items-center justify-between lg:justify-end gap-3 sm:gap-5 text-xs font-bold pt-3 lg:pt-0 border-t lg:border-t-0 border-gray-200/60">
+                              <div className="flex flex-wrap items-center gap-3 sm:gap-4">
+                                <div>
+                                  <span className="text-gray-500 uppercase block text-[0.65rem]">SUBTOTAL</span>
+                                  <span className="text-[#0f172a] font-black">{formatPrice(subtotal)}</span>
+                                </div>
+                                {(discountAmount > 0 || discountPercent > 0) && (
+                                  <div>
+                                    <span className="text-gray-500 uppercase block text-[0.65rem]">DISCOUNT ({discountPercent}%)</span>
+                                    <span className="text-rose-600 font-black">-{formatPrice(discountAmount)}</span>
+                                  </div>
+                                )}
+                                <div>
+                                  <span className="text-gray-500 uppercase block text-[0.65rem]">TOTAL</span>
+                                  <span className="text-[#0f172a] font-black text-sm">{formatPrice(total)}</span>
+                                </div>
+                                <div>
+                                  <span className="text-gray-500 uppercase block text-[0.65rem]">PAID</span>
+                                  <span className="text-green-700 font-black">{formatPrice(totalPaid)}</span>
+                                </div>
+                                <div>
+                                  <span className="text-gray-500 uppercase block text-[0.65rem]">REMAINING</span>
+                                  <span className="text-rose-700 font-black">{formatPrice(remainingAmount)}</span>
+                                </div>
+                              </div>
 
-                            <p className="text-[0.7rem] text-gray-500 font-bold uppercase mt-0.5">
-                              DATE: {new Date(order.date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                            </p>
+                              {/* Action Buttons: View Details & Preview PDF */}
+                              <div className="flex items-center gap-2 w-full sm:w-auto mt-2 lg:mt-0 shrink-0">
+                                <Link
+                                  href={`/settings/orders/default?orderId=${order.orderId}`}
+                                  className="px-4 py-2.5 bg-[#0f172a] hover:bg-[#1e293b] text-white font-black text-xs uppercase tracking-wider rounded-full shadow-md transition-all flex items-center justify-center gap-1.5 flex-1 sm:flex-initial"
+                                >
+                                  <ExternalLink size={14} /> VIEW DETAILS
+                                </Link>
+                                <button
+                                  onClick={() => setSelectedInvoice(order)}
+                                  className="px-4 py-2.5 bg-white hover:bg-gray-100 text-[#0f172a] font-black text-xs uppercase tracking-wider rounded-full border border-gray-300 shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer flex-1 sm:flex-initial"
+                                >
+                                  <Eye size={14} /> PREVIEW PDF
+                                </button>
+                              </div>
+                            </div>
                           </div>
-
-                          <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs font-bold">
-                            <div>
-                              <span className="text-gray-500 uppercase block text-[0.65rem]">SUBTOTAL</span>
-                              <span className="text-[#0f172a] font-black">{formatPrice(order.subtotal)}</span>
-                            </div>
-                            <div>
-                              <span className="text-gray-500 uppercase block text-[0.65rem]">TOTAL</span>
-                              <span className="text-[#0f172a] font-black text-sm">{formatPrice(order.total)}</span>
-                            </div>
-                            <div>
-                              <span className="text-gray-500 uppercase block text-[0.65rem]">PAID</span>
-                              <span className="text-green-700 font-black">{formatPrice(order.totalPaid)}</span>
-                            </div>
-                            <div>
-                              <span className="text-gray-500 uppercase block text-[0.65rem]">REMAINING</span>
-                              <span className="text-rose-700 font-black">{formatPrice(order.remainingAmount)}</span>
-                            </div>
-
-                            {/* View Clear PDF Popup Modal Button */}
-                            <button
-                              onClick={() => setSelectedInvoice(order)}
-                              className="px-4 sm:px-5 py-2.5 sm:py-3 bg-[#0f172a] hover:bg-[#1e293b] text-white font-black text-xs uppercase tracking-wider rounded-full shadow-md transition-all flex items-center gap-2 w-full sm:w-auto justify-center cursor-pointer mt-2 sm:mt-0"
-                            >
-                              <Eye size={14} /> VIEW CLEAR PDF
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Items Preview Table with Horizontal Scroll */}
-                        <div className="mt-4 overflow-x-auto w-full">
-                          <table className="w-full text-left text-xs font-bold min-w-[500px]">
-                            <thead>
-                              <tr className="text-[0.65rem] text-gray-500 uppercase border-b border-gray-200/40 pb-2">
-                                <th className="pb-2">PRODUCT ID</th>
-                                <th className="pb-2">ITEM NAME</th>
-                                <th className="pb-2 text-center">QTY</th>
-                                <th className="pb-2 text-right">UNIT PRICE</th>
-                                <th className="pb-2 text-right">SUBTOTAL</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100/50">
-                              {order.items.map((item, idx) => (
-                                <tr key={idx} className="text-[#0f172a] uppercase">
-                                  <td className="py-2.5 font-black">{item.productID}</td>
-                                  <td className="py-2.5">{item.name}</td>
-                                  <td className="py-2.5 text-center">{item.quantity}</td>
-                                  <td className="py-2.5 text-right">{formatPrice(item.price)}</td>
-                                  <td className="py-2.5 text-right font-black">{formatPrice(item.quantity * item.price)}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </motion.div>
-                    ))}
+                        </motion.div>
+                      );
+                    })}
                   </div>
 
                   {/* API Pagination Component */}

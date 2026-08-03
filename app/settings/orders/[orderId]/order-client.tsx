@@ -155,10 +155,19 @@ export default function OrderPdfClient({ params }: { params?: Promise<{ orderId:
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
       };
 
-      await (window as any).html2pdf().set(opt).from(element).save();
+      const worker = (window as any).html2pdf().set(opt).from(element);
+      const pdfBlob = await worker.output('blob');
+      const blobUrl = URL.createObjectURL(pdfBlob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = `Invoice_${order.orderId}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
     } catch (err) {
       console.error('Error downloading PDF file:', err);
-      window.print();
+      alert('Could not download PDF to device. Please try again.');
     } finally {
       setIsDownloading(false);
     }
@@ -254,120 +263,126 @@ export default function OrderPdfClient({ params }: { params?: Promise<{ orderId:
                 href="/settings/orders"
                 className="bg-[#0f172a] text-white px-8 py-4 rounded-full font-black text-xs uppercase tracking-wider shadow-lg"
               >
-                BACK TO ORDERS
+                BACK TO INVOICES
               </Link>
             </div>
-          ) : (
-            <>
-              <div className="flex items-center justify-between gap-4 mb-6 print:hidden no-print">
-                {/* <BackButton label="Orders" /> */}
+          ) : (() => {
+            const subtotal = order.subtotal || (order.items || []).reduce((sum, item) => sum + (Number(item.price || 0) * Number(item.quantity || 0)), 0);
+            const discountAmount = order.discountAmount || (order.discount > 0 ? (subtotal * order.discount / 100) : 0);
+            const discountPercent = order.discount || (subtotal > 0 && discountAmount > 0 ? Math.round((discountAmount / subtotal) * 100) : 0);
+            const total = order.total || (subtotal - discountAmount);
+            const totalPaid = order.totalPaid || 0;
+            const remainingAmount = Math.max(0, total - totalPaid);
 
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={handleDownloadPdf}
-                    disabled={isDownloading}
-                    className="px-6 py-3 bg-[#0f172a] hover:bg-[#1e293b] text-white font-black text-xs uppercase rounded-full shadow-lg flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+            return (
+              <>
+                <div className="flex items-center justify-between gap-4 mb-6 print:hidden no-print">
+                  <Link
+                    href="/settings/orders"
+                    className="text-xs font-black text-[#0f172a] uppercase bg-white/80 hover:bg-white border border-white/80 px-4 py-2.5 rounded-full shadow-xs transition-all flex items-center gap-1.5"
                   >
-                    {isDownloading ? (
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                    ) : (
-                      <Download size={16} />
-                    )}
-                    DOWNLOAD PDF
-                  </button>
+                    <ArrowLeft size={14} /> BACK TO INVOICES
+                  </Link>
 
-                  <button
-                    onClick={handlePrint}
-                    className="px-5 py-3 bg-white hover:bg-gray-100 text-[#0f172a] font-black text-xs uppercase rounded-full border border-gray-300 shadow-sm flex items-center gap-2 transition-all cursor-pointer"
-                  >
-                    <Printer size={16} /> PRINT
-                  </button>
-                </div>
-              </div>
-
-              <div
-                id="printable-invoice-content"
-                className="bg-white rounded-[2.5rem] p-6 sm:p-12 text-gray-900 shadow-2xl border border-gray-100 space-y-8"
-              >
-                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-6 pb-6 border-b-2 border-gray-900">
-                  <div>
-                    <h1 className="text-3xl sm:text-4xl font-black text-[#0f172a] tracking-wider uppercase">MATRICES</h1>
-                    <p className="text-xs text-gray-500 font-bold uppercase mt-1">COMMERCIAL & DISTRIBUTION SERVICES</p>
-                    <p className="text-xs text-gray-600 font-semibold uppercase mt-0.5">COLOMBO, SRI LANKA</p>
-                  </div>
-
-                  <div className="sm:text-right">
-                    <span className="inline-block px-5 py-2 bg-[#0f172a] text-white font-black text-sm uppercase rounded-xl mb-2 shadow-xs">
-                      INVOICE #{order.orderId}
-                    </span>
-                    <p className="text-xs text-gray-500 font-bold uppercase">
-                      DATE: {new Date(order.date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
-                    </p>
-                    <p className="text-xs text-gray-500 font-bold uppercase mt-0.5">
-                      STATUS: <span className="font-black text-[#0f172a] uppercase">{order.status}</span>
-                    </p>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={handleDownloadPdf}
+                      disabled={isDownloading}
+                      className="px-6 py-3 bg-[#0f172a] hover:bg-[#1e293b] text-white font-black text-xs uppercase rounded-full shadow-lg flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+                    >
+                      {isDownloading ? (
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                      ) : (
+                        <Download size={16} />
+                      )}
+                      DOWNLOAD PDF
+                    </button>
                   </div>
                 </div>
 
-                <div className="p-5 bg-gray-50 rounded-2xl border border-gray-200">
-                  <p className="text-[0.65rem] font-black text-gray-400 uppercase tracking-wider mb-1">INVOICED TO</p>
-                  <h2 className="text-xl font-black text-[#0f172a] uppercase">{order.shop.name}</h2>
-                  <p className="text-xs text-gray-600 font-semibold uppercase mt-0.5">SHOP ID: {order.shop.shopId}</p>
-                  <p className="text-xs text-gray-600 font-semibold uppercase">{order.shop.address}</p>
-                  <p className="text-xs text-gray-600 font-semibold uppercase">PHONE: {order.shop.phone}</p>
-                </div>
+                <div
+                  id="printable-invoice-content"
+                  className="bg-white rounded-[2.5rem] p-6 sm:p-12 text-gray-900 shadow-2xl border border-gray-100 space-y-8"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-6 pb-6 border-b-2 border-gray-900">
+                    <div>
+                      <h1 className="text-3xl sm:text-4xl font-black text-[#0f172a] tracking-wider uppercase">MATRICES</h1>
+                      <p className="text-xs text-gray-500 font-bold uppercase mt-1">COMMERCIAL & DISTRIBUTION SERVICES</p>
+                      <p className="text-xs text-gray-600 font-semibold uppercase mt-0.5">COLOMBO, SRI LANKA</p>
+                    </div>
 
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead>
-                      <tr className="bg-[#0f172a] text-white uppercase font-black">
-                        <th className="p-3.5 rounded-l-xl">PRODUCT ID</th>
-                        <th className="p-3.5">ITEM DESCRIPTION</th>
-                        <th className="p-3.5 text-center">QTY</th>
-                        <th className="p-3.5 text-right">UNIT PRICE</th>
-                        <th className="p-3.5 text-right rounded-r-xl">TOTAL</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {order.items.map((item, idx) => (
-                        <tr key={idx} className="font-semibold text-gray-800 uppercase">
-                          <td className="p-3.5 font-black text-[#0f172a]">{item.productID}</td>
-                          <td className="p-3.5">{item.name}</td>
-                          <td className="p-3.5 text-center">{item.quantity}</td>
-                          <td className="p-3.5 text-right">{formatPrice(item.price)}</td>
-                          <td className="p-3.5 text-right font-black text-[#0f172a]">{formatPrice(item.quantity * item.price)}</td>
+                    <div className="sm:text-right">
+                      <span className="inline-block px-5 py-2 bg-[#0f172a] text-white font-black text-sm uppercase rounded-xl mb-2 shadow-xs">
+                        INVOICE #{order.orderId}
+                      </span>
+                      <p className="text-xs text-gray-500 font-bold uppercase">
+                        DATE: {new Date(order.date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+                      </p>
+                      <p className="text-xs text-gray-500 font-bold uppercase mt-0.5">
+                        STATUS: <span className="font-black text-[#0f172a] uppercase">{order.status}</span>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="p-5 bg-gray-50 rounded-2xl border border-gray-200">
+                    <p className="text-[0.65rem] font-black text-gray-400 uppercase tracking-wider mb-1">INVOICED TO</p>
+                    <h2 className="text-xl font-black text-[#0f172a] uppercase">{order.shop.name}</h2>
+                    <p className="text-xs text-gray-600 font-semibold uppercase mt-0.5">SHOP ID: {order.shop.shopId}</p>
+                    <p className="text-xs text-gray-600 font-semibold uppercase">{order.shop.address}</p>
+                    <p className="text-xs text-gray-600 font-semibold uppercase">PHONE: {order.shop.phone}</p>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead>
+                        <tr className="bg-[#0f172a] text-white uppercase font-black">
+                          <th className="p-3.5 rounded-l-xl">PRODUCT ID</th>
+                          <th className="p-3.5">ITEM DESCRIPTION</th>
+                          <th className="p-3.5 text-center">QTY</th>
+                          <th className="p-3.5 text-right">UNIT PRICE</th>
+                          <th className="p-3.5 text-right rounded-r-xl">TOTAL</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200">
+                        {order.items.map((item, idx) => (
+                          <tr key={idx} className="font-semibold text-gray-800 uppercase">
+                            <td className="p-3.5 font-black text-[#0f172a]">{item.productID}</td>
+                            <td className="p-3.5">{item.name}</td>
+                            <td className="p-3.5 text-center">{item.quantity}</td>
+                            <td className="p-3.5 text-right">{formatPrice(item.price)}</td>
+                            <td className="p-3.5 text-right font-black text-[#0f172a]">{formatPrice(item.quantity * item.price)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
 
-                <div className="flex justify-end pt-4">
-                  <div className="w-full max-w-xs space-y-2.5 text-xs font-bold border-t-2 border-gray-900 pt-4">
-                    <div className="flex justify-between text-gray-600 uppercase">
-                      <span>SUBTOTAL:</span>
-                      <span className="font-black text-[#0f172a]">{formatPrice(order.subtotal)}</span>
-                    </div>
-                    {order.discount > 0 && (
+                  <div className="flex justify-end pt-4">
+                    <div className="w-full max-w-xs space-y-2.5 text-xs font-bold border-t-2 border-gray-900 pt-4">
                       <div className="flex justify-between text-gray-600 uppercase">
-                        <span>DISCOUNT ({order.discount}%):</span>
-                        <span className="font-black text-rose-600">-{formatPrice(order.discountAmount)}</span>
+                        <span>SUBTOTAL:</span>
+                        <span className="font-black text-[#0f172a]">{formatPrice(subtotal)}</span>
                       </div>
-                    )}
-                    <div className="flex justify-between text-sm font-black text-[#0f172a] uppercase border-t pt-2.5">
-                      <span>GRAND TOTAL:</span>
-                      <span>{formatPrice(order.total)}</span>
-                    </div>
-                    <div className="flex justify-between text-xs font-bold text-green-700 uppercase">
-                      <span>TOTAL PAID:</span>
-                      <span>{formatPrice(order.totalPaid)}</span>
-                    </div>
-                    <div className="flex justify-between text-xs font-black text-rose-700 uppercase border-t border-dashed pt-2.5">
-                      <span>BALANCE DUE:</span>
-                      <span>{formatPrice(order.remainingAmount)}</span>
+                      {(discountAmount > 0 || discountPercent > 0) && (
+                        <div className="flex justify-between text-gray-600 uppercase">
+                          <span>DISCOUNT ({discountPercent}%):</span>
+                          <span className="font-black text-rose-600">-{formatPrice(discountAmount)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between text-sm font-black text-[#0f172a] uppercase border-t pt-2.5">
+                        <span>GRAND TOTAL:</span>
+                        <span>{formatPrice(total)}</span>
+                      </div>
+                      <div className="flex justify-between text-xs font-bold text-green-700 uppercase">
+                        <span>TOTAL PAID:</span>
+                        <span>{formatPrice(totalPaid)}</span>
+                      </div>
+                      <div className="flex justify-between text-xs font-black text-rose-700 uppercase border-t border-dashed pt-2.5">
+                        <span>BALANCE DUE:</span>
+                        <span>{formatPrice(remainingAmount)}</span>
+                      </div>
                     </div>
                   </div>
-                </div>
 
                 {order.payments && order.payments.length > 0 && (
                   <div className="pt-4 border-t border-gray-200">
@@ -388,7 +403,8 @@ export default function OrderPdfClient({ params }: { params?: Promise<{ orderId:
                 </div>
               </div>
             </>
-          )}
+          );
+        })()}
 
         </div>
       </main>

@@ -470,80 +470,84 @@ export default function ShopClient({ params }: { params?: Promise<{ shopId: stri
               ) : (
                 <>
                   <div className="space-y-4 mb-8">
-                    {orders.map((order) => (
-                      <motion.div
-                        key={order.orderId}
-                        layout
-                        initial={{ opacity: 0, y: 15 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="bg-white/40 backdrop-blur-2xl border border-white/60 rounded-[1.5rem] sm:rounded-[2rem] p-4 sm:p-6 shadow-[0_10px_35px_rgba(0,0,0,0.04)] hover:border-white/90 transition-all max-w-full overflow-hidden"
-                      >
-                        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-gray-200/60">
-                          <div>
-                            <div className="flex items-center gap-2 mb-1 flex-wrap">
-                              <span className="text-xs sm:text-sm font-black text-[#0f172a] uppercase bg-white/80 border border-white/80 px-3 py-1 rounded-full shadow-xs">
-                                {order.orderId}
-                              </span>
-                              {getStatusBadge(order.status)}
+                    {orders.map((order) => {
+                      const items = order.items || [];
+                      const subtotal = order.subtotal || items.reduce((sum, it) => sum + (Number(it.price || 0) * Number(it.quantity || 0)), 0);
+                      const discountAmount = order.discountAmount || (order.discount > 0 ? (subtotal * order.discount / 100) : 0);
+                      const discountPercent = order.discount || (subtotal > 0 && discountAmount > 0 ? Math.round((discountAmount / subtotal) * 100) : 0);
+                      const total = order.total || (subtotal - discountAmount);
+                      const totalPaid = order.totalPaid || 0;
+                      const remainingAmount = Math.max(0, total - totalPaid);
+
+                      return (
+                        <motion.div
+                          key={order.orderId}
+                          layout
+                          initial={{ opacity: 0, y: 15 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="bg-white/40 backdrop-blur-2xl border border-white/60 rounded-[1.5rem] sm:rounded-[2rem] p-4 sm:p-6 shadow-[0_10px_35px_rgba(0,0,0,0.04)] hover:border-white/90 transition-all max-w-full overflow-hidden"
+                        >
+                          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                            <div>
+                              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                <span className="text-xs sm:text-sm font-black text-[#0f172a] uppercase bg-white/80 border border-white/80 px-3 py-1 rounded-full shadow-xs">
+                                  {order.orderId}
+                                </span>
+                                {getStatusBadge(order.status)}
+                                <span className="px-3 py-1 bg-slate-100/90 text-slate-700 border border-slate-200/80 rounded-full text-[0.65rem] font-black uppercase shadow-xs shrink-0">
+                                  {items.length} {items.length === 1 ? 'ITEM' : 'ITEMS'}
+                                </span>
+                              </div>
+                              <p className="text-[0.7rem] text-gray-500 font-bold uppercase mt-1">
+                                DATE: {new Date(order.date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                              </p>
                             </div>
-                            <p className="text-[0.7rem] text-gray-500 font-bold uppercase mt-1">
-                              DATE: {new Date(order.date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                            </p>
+
+                            <div className="flex flex-wrap items-center justify-between lg:justify-end gap-3 sm:gap-5 text-xs font-bold pt-3 lg:pt-0 border-t lg:border-t-0 border-gray-200/60">
+                              <div className="flex flex-wrap items-center gap-3 sm:gap-4">
+                                <div>
+                                  <span className="text-gray-500 uppercase block text-[0.65rem]">SUBTOTAL</span>
+                                  <span className="text-[#0f172a] font-black">{formatPrice(subtotal)}</span>
+                                </div>
+                                {(discountAmount > 0 || discountPercent > 0) && (
+                                  <div>
+                                    <span className="text-gray-500 uppercase block text-[0.65rem]">DISCOUNT ({discountPercent}%)</span>
+                                    <span className="text-rose-600 font-black">-{formatPrice(discountAmount)}</span>
+                                  </div>
+                                )}
+                                <div>
+                                  <span className="text-gray-500 uppercase block text-[0.65rem]">TOTAL</span>
+                                  <span className="text-[#0f172a] font-black text-sm">{formatPrice(total)}</span>
+                                </div>
+                                <div>
+                                  <span className="text-gray-500 uppercase block text-[0.65rem]">PAID</span>
+                                  <span className="text-green-700 font-black">{formatPrice(totalPaid)}</span>
+                                </div>
+                                <div>
+                                  <span className="text-gray-500 uppercase block text-[0.65rem]">REMAINING</span>
+                                  <span className="text-rose-700 font-black">{formatPrice(remainingAmount)}</span>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2 w-full sm:w-auto mt-2 lg:mt-0 shrink-0">
+                                <Link
+                                  href={`/settings/orders/default?orderId=${order.orderId}`}
+                                  className="px-4 py-2.5 bg-[#0f172a] hover:bg-[#1e293b] text-white font-black text-xs uppercase tracking-wider rounded-full shadow-md transition-all flex items-center justify-center gap-1.5 flex-1 sm:flex-initial"
+                                >
+                                  <ExternalLink size={14} /> VIEW DETAILS
+                                </Link>
+                                <button
+                                  onClick={() => setSelectedInvoice(order)}
+                                  className="px-4 py-2.5 bg-white hover:bg-gray-100 text-[#0f172a] font-black text-xs uppercase tracking-wider rounded-full border border-gray-300 shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer flex-1 sm:flex-initial"
+                                >
+                                  <Eye size={14} /> PREVIEW PDF
+                                </button>
+                              </div>
+                            </div>
                           </div>
-
-                          <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs font-bold">
-                            <div>
-                              <span className="text-gray-500 uppercase block text-[0.65rem]">SUBTOTAL</span>
-                              <span className="text-[#0f172a] font-black">{formatPrice(order.subtotal)}</span>
-                            </div>
-                            <div>
-                              <span className="text-gray-500 uppercase block text-[0.65rem]">TOTAL</span>
-                              <span className="text-[#0f172a] font-black text-sm">{formatPrice(order.total)}</span>
-                            </div>
-                            <div>
-                              <span className="text-gray-500 uppercase block text-[0.65rem]">PAID</span>
-                              <span className="text-green-700 font-black">{formatPrice(order.totalPaid)}</span>
-                            </div>
-                            <div>
-                              <span className="text-gray-500 uppercase block text-[0.65rem]">REMAINING</span>
-                              <span className="text-rose-700 font-black">{formatPrice(order.remainingAmount)}</span>
-                            </div>
-
-                            <button
-                              onClick={() => setSelectedInvoice(order)}
-                              className="px-4 sm:px-5 py-2.5 sm:py-3 bg-[#0f172a] hover:bg-[#1e293b] text-white font-black text-xs uppercase tracking-wider rounded-full shadow-md transition-all flex items-center gap-2 w-full sm:w-auto justify-center cursor-pointer mt-2 sm:mt-0"
-                            >
-                              <Eye size={14} /> VIEW CLEAR PDF
-                            </button>
-                          </div>
-                        </div>
-
-                        <div className="mt-4 overflow-x-auto w-full">
-                          <table className="w-full text-left text-xs font-bold min-w-[500px]">
-                            <thead>
-                              <tr className="text-[0.65rem] text-gray-500 uppercase border-b border-gray-200/40 pb-2">
-                                <th className="pb-2">PRODUCT ID</th>
-                                <th className="pb-2">ITEM NAME</th>
-                                <th className="pb-2 text-center">QTY</th>
-                                <th className="pb-2 text-right">UNIT PRICE</th>
-                                <th className="pb-2 text-right">SUBTOTAL</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100/50">
-                              {order.items.map((item, idx) => (
-                                <tr key={idx} className="text-[#0f172a] uppercase">
-                                  <td className="py-2.5 font-black">{item.productID}</td>
-                                  <td className="py-2.5">{item.name}</td>
-                                  <td className="py-2.5 text-center">{item.quantity}</td>
-                                  <td className="py-2.5 text-right">{formatPrice(item.price)}</td>
-                                  <td className="py-2.5 text-right font-black">{formatPrice(item.quantity * item.price)}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </motion.div>
-                    ))}
+                        </motion.div>
+                      );
+                    })}
                   </div>
 
                   <Pagination
