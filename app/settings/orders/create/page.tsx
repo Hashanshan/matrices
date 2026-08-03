@@ -6,7 +6,7 @@ import { useAuth } from '@/lib/contexts/auth-context';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ShoppingBag, Plus, Minus, Trash2, Search, X, Store, Calendar,
-  ArrowLeft, User, Percent, Save, Clock
+  ArrowLeft, User, Percent, Save, Clock, ChevronDown, Check, MapPin, Phone
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -106,6 +106,10 @@ function CreateOrderContent() {
 
   // State
   const [selectedShop, setSelectedShop] = useState<ShopOption | null>(null);
+  const [isShopDropdownOpen, setIsShopDropdownOpen] = useState(false);
+  const [shopFilterQuery, setShopFilterQuery] = useState('');
+  const shopDropdownRef = useRef<HTMLDivElement>(null);
+
   const [orderDate, setOrderDate] = useState<string>(
     new Date().toISOString().split('T')[0]
   );
@@ -124,6 +128,17 @@ function CreateOrderContent() {
   const modalSearchInputRef = useRef<HTMLInputElement>(null);
   const quantityInputRef = useRef<HTMLInputElement>(null);
   const noteInputRef = useRef<HTMLInputElement>(null);
+
+  // Close shop dropdown on outside click
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (shopDropdownRef.current && !shopDropdownRef.current.contains(event.target as Node)) {
+        setIsShopDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Fetch assigned shops (includes offline shops)
   const { data: shopsData, isLoading: loadingShops } = useSWR(
@@ -167,6 +182,17 @@ function CreateOrderContent() {
 
     mergeShops();
   }, [shopsData]);
+
+  // Filtered shops list for custom dropdown
+  const filteredShopsList = allShops.filter(s => {
+    if (!shopFilterQuery.trim()) return true;
+    const q = shopFilterQuery.toLowerCase().trim();
+    return (
+      (s.name || '').toLowerCase().includes(q) ||
+      (s.shopId || '').toLowerCase().includes(q) ||
+      (s.address || '').toLowerCase().includes(q)
+    );
+  });
 
   // Fetch MTX- Products ONLY
   const productQuery = new URLSearchParams();
@@ -407,13 +433,11 @@ function CreateOrderContent() {
 
   return (
     <div className="min-h-screen pb-16">
-      <Header
-        showSearch={false}
-      />
+      <Header showSearch={false} />
 
       <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
-        <div className="bg-white/70 backdrop-blur-2xl border border-white/80 rounded-[2.5rem] p-6 sm:p-8 shadow-[0_20px_50px_rgba(0,0,0,0.08)]">
-
+        <div className="bg-white/80 backdrop-blur-2xl border border-white/90 rounded-[2.5rem] p-6 sm:p-8 shadow-[0_20px_50px_rgba(0,0,0,0.08)]">
+          
           {/* Header */}
           <div className="flex items-center justify-between gap-4 mb-6 pb-6 border-b border-gray-100">
             <div className="flex items-center gap-3">
@@ -441,16 +465,16 @@ function CreateOrderContent() {
           </div>
 
           <form onSubmit={handleSaveOrder} className="space-y-6">
-
+            
             {/* Salesrep & Order Date Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-
+              
               {/* Auto-Assigned Salesrep Card */}
-              <div className="bg-white/80 border border-white/90 rounded-3xl p-5 shadow-xs space-y-2">
+              <div className="bg-white border border-slate-200/80 rounded-3xl p-5 shadow-xs space-y-2">
                 <label className="text-xs font-black text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
                   <User size={14} className="text-blue-600" /> Sales Representative (Auto-Assigned)
                 </label>
-                <div className="flex items-center justify-between bg-gray-50/80 border border-gray-200 rounded-2xl p-3.5">
+                <div className="flex items-center justify-between bg-slate-50/80 border border-slate-200/70 rounded-2xl p-3.5">
                   <div>
                     <p className="text-sm font-black text-[#0f172a] uppercase">{user?.name || 'Logged-in Salesrep'}</p>
                     <p className="text-xs font-bold text-gray-400">{user?.email || 'salesrep@matrices.com'}</p>
@@ -461,8 +485,8 @@ function CreateOrderContent() {
                 </div>
               </div>
 
-              {/* Order Date */}
-              <div className="bg-white/80 border border-white/90 rounded-3xl p-5 shadow-xs space-y-2">
+              {/* Order Date Input (Custom rounded style) */}
+              <div className="bg-white border border-slate-200/80 rounded-3xl p-5 shadow-xs space-y-2">
                 <label className="text-xs font-black text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
                   <Calendar size={14} className="text-blue-600" /> Order Date
                 </label>
@@ -470,48 +494,103 @@ function CreateOrderContent() {
                   type="date"
                   value={orderDate}
                   onChange={e => setOrderDate(e.target.value)}
-                  className="w-full bg-gray-50/80 border border-gray-200 rounded-2xl p-3.5 text-sm font-bold text-[#0f172a] focus:outline-none focus:ring-2 focus:ring-[#0f172a]/20"
+                  className="w-full bg-slate-50/80 border border-slate-200/80 rounded-2xl p-3.5 text-sm font-bold text-[#0f172a] focus:outline-none focus:ring-2 focus:ring-[#0f172a]/20 focus:border-[#0f172a] transition-all"
                 />
               </div>
 
             </div>
 
-            {/* Shop Selection Field (Styling matching user screenshot 1!) */}
-            <div className="bg-white/80 border border-white/90 rounded-3xl p-5 shadow-xs space-y-3">
+            {/* Custom Interactive Shop Selection Dropdown (GORGEOUS ROUNDED BORDERS!) */}
+            <div className="bg-white border border-slate-200/80 rounded-3xl p-5 shadow-xs space-y-3 relative" ref={shopDropdownRef}>
               <label className="text-xs font-black text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
                 <Store size={14} className="text-blue-600" /> SELECT CUSTOMER SHOP *
               </label>
 
-              {loadingShops ? (
-                <div className="p-3 text-xs font-bold text-gray-400 uppercase animate-pulse">Loading shops...</div>
-              ) : (
-                <select
-                  value={selectedShop?.shopId || ''}
-                  onChange={e => {
-                    const found = allShops.find(s => s.shopId === e.target.value);
-                    setSelectedShop(found || null);
-                  }}
-                  className="w-full bg-gray-50/80 border border-gray-300 rounded-2xl p-4 text-sm font-black text-[#0f172a] focus:outline-none focus:ring-2 focus:ring-[#0f172a]/20 uppercase shadow-xs cursor-pointer"
-                >
-                  <option value="">-- SELECT SHOP ASSIGNED TO YOU --</option>
-                  {allShops.map(s => (
-                    <option key={s.shopId} value={s.shopId}>
-                      {s.name} ({s.shopId}) {s.address ? `- ${s.address}` : ''}
-                    </option>
-                  ))}
-                </select>
-              )}
+              {/* Custom Trigger Button */}
+              <button
+                type="button"
+                onClick={() => setIsShopDropdownOpen(!isShopDropdownOpen)}
+                className="w-full flex items-center justify-between bg-slate-50/80 hover:bg-slate-100/80 border-2 border-slate-200/90 rounded-2xl p-4 text-left transition-all shadow-xs focus:outline-none focus:ring-2 focus:ring-[#0f172a]/20 focus:border-[#0f172a] cursor-pointer"
+              >
+                {selectedShop ? (
+                  <div className="space-y-0.5 truncate">
+                    <p className="text-sm font-black text-[#0f172a] uppercase">{selectedShop.name}</p>
+                    <p className="text-xs font-bold text-gray-400 font-mono">
+                      ID: {selectedShop.shopId} {selectedShop.address ? `• ${selectedShop.address}` : ''}
+                    </p>
+                  </div>
+                ) : (
+                  <span className="text-sm font-black text-gray-500 uppercase">
+                    -- SELECT SHOP ASSIGNED TO YOU --
+                  </span>
+                )}
+                <ChevronDown size={18} className={`text-gray-400 transition-transform ${isShopDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
 
-              {selectedShop && (
-                <div className="p-3.5 bg-blue-50/70 border border-blue-200 rounded-2xl flex items-center justify-between text-xs text-blue-900 font-bold">
-                  <span>Selected Shop: <strong className="uppercase font-black">{selectedShop.name}</strong> ({selectedShop.shopId})</span>
-                  {selectedShop.phone && <span>Phone: {selectedShop.phone}</span>}
-                </div>
-              )}
+              {/* Custom Animated Options Dropdown Panel */}
+              <AnimatePresence>
+                {isShopDropdownOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -8, scale: 0.98 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -8, scale: 0.98 }}
+                    className="absolute left-5 right-5 top-[95px] z-40 bg-white border-2 border-slate-200 rounded-2xl shadow-2xl overflow-hidden p-2 space-y-2"
+                  >
+                    {/* Search inside shop dropdown if > 3 shops */}
+                    {allShops.length > 3 && (
+                      <div className="relative p-1">
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                        <input
+                          type="text"
+                          value={shopFilterQuery}
+                          onChange={e => setShopFilterQuery(e.target.value)}
+                          placeholder="Filter shops..."
+                          className="w-full pl-10 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-[#0f172a] focus:outline-none focus:ring-2 focus:ring-[#0f172a]/20"
+                        />
+                      </div>
+                    )}
+
+                    <div className="max-h-60 overflow-y-auto space-y-1 pr-1">
+                      {filteredShopsList.length === 0 ? (
+                        <div className="p-4 text-center text-xs font-bold text-gray-400 uppercase">
+                          No assigned shops found
+                        </div>
+                      ) : (
+                        filteredShopsList.map(s => (
+                          <div
+                            key={s.shopId}
+                            onClick={() => {
+                              setSelectedShop(s);
+                              setIsShopDropdownOpen(false);
+                            }}
+                            className={`p-3.5 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${
+                              selectedShop?.shopId === s.shopId
+                                ? 'bg-[#0f172a] text-white border-[#0f172a]'
+                                : 'border-transparent hover:bg-slate-100 text-[#0f172a]'
+                            }`}
+                          >
+                            <div className="space-y-0.5">
+                              <p className="text-xs font-black uppercase">{s.name}</p>
+                              <div className="flex items-center gap-2 text-[11px] opacity-75 font-bold">
+                                <span className="font-mono">ID: {s.shopId}</span>
+                                {s.address && <span>• {s.address}</span>}
+                              </div>
+                            </div>
+                            {selectedShop?.shopId === s.shopId && (
+                              <Check size={16} className="text-emerald-400" />
+                            )}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
             </div>
 
             {/* Order Items Table Section */}
-            <div className="bg-white/80 border border-white/90 rounded-3xl p-5 shadow-xs space-y-4">
+            <div className="bg-white border border-slate-200/80 rounded-3xl p-5 shadow-xs space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-black text-[#0f172a] uppercase tracking-wider flex items-center gap-2">
                   <ShoppingBag size={16} /> ORDER ITEMS ({orderItems.length})
@@ -531,7 +610,7 @@ function CreateOrderContent() {
               </div>
 
               {orderItems.length === 0 ? (
-                <div className="py-12 text-center border-2 border-dashed border-gray-200 rounded-2xl">
+                <div className="py-12 text-center border-2 border-dashed border-slate-200 rounded-2xl">
                   <ShoppingBag size={36} className="mx-auto text-gray-300 mb-2" />
                   <p className="text-xs font-black text-gray-400 uppercase">No products added to order yet</p>
                   <button
@@ -561,7 +640,7 @@ function CreateOrderContent() {
                     </thead>
                     <tbody className="divide-y divide-gray-100 font-bold text-[#0f172a]">
                       {orderItems.map((item, index) => (
-                        <tr key={index} className="hover:bg-gray-50/50">
+                        <tr key={index} className="hover:bg-slate-50/60">
                           <td className="py-3 px-3">
                             <p className="font-black uppercase">{item.name}</p>
                             {item.note && <p className="text-[10px] text-blue-600 font-bold mt-0.5">Note: {item.note}</p>}
@@ -575,7 +654,7 @@ function CreateOrderContent() {
                               <button
                                 type="button"
                                 onClick={() => handleUpdateItemQuantity(index, -1)}
-                                className="w-6 h-6 bg-gray-100 hover:bg-gray-200 rounded-full flex items-center justify-center text-gray-700 font-black cursor-pointer"
+                                className="w-6 h-6 bg-slate-100 hover:bg-slate-200 rounded-full flex items-center justify-center text-slate-700 font-black cursor-pointer"
                               >
                                 <Minus size={12} />
                               </button>
@@ -583,7 +662,7 @@ function CreateOrderContent() {
                               <button
                                 type="button"
                                 onClick={() => handleUpdateItemQuantity(index, 1)}
-                                className="w-6 h-6 bg-gray-100 hover:bg-gray-200 rounded-full flex items-center justify-center text-gray-700 font-black cursor-pointer"
+                                className="w-6 h-6 bg-slate-100 hover:bg-slate-200 rounded-full flex items-center justify-center text-slate-700 font-black cursor-pointer"
                               >
                                 <Plus size={12} />
                               </button>
@@ -610,13 +689,13 @@ function CreateOrderContent() {
             </div>
 
             {/* Pricing Summary & Discount Card */}
-            <div className="bg-white/80 border border-white/90 rounded-3xl p-5 shadow-xs space-y-4">
+            <div className="bg-white border border-slate-200/80 rounded-3xl p-5 shadow-xs space-y-4">
               <h3 className="text-sm font-black text-[#0f172a] uppercase tracking-wider flex items-center gap-2">
                 <Percent size={16} /> ORDER SUMMARY
               </h3>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-
+                
                 {/* Notes Input */}
                 <div className="space-y-2">
                   <label className="text-xs font-black text-gray-400 uppercase tracking-wider">
@@ -627,12 +706,12 @@ function CreateOrderContent() {
                     value={notes}
                     onChange={e => setNotes(e.target.value)}
                     placeholder="Enter order notes or special instructions..."
-                    className="w-full bg-gray-50/80 border border-gray-200 rounded-2xl p-3 text-xs font-bold text-[#0f172a] focus:outline-none focus:ring-2 focus:ring-[#0f172a]/20"
+                    className="w-full bg-slate-50/80 border border-slate-200 rounded-2xl p-3.5 text-xs font-bold text-[#0f172a] focus:outline-none focus:ring-2 focus:ring-[#0f172a]/20"
                   />
                 </div>
 
                 {/* Totals Breakdown */}
-                <div className="bg-gray-50/80 border border-gray-200 rounded-2xl p-4 space-y-3">
+                <div className="bg-slate-50/80 border border-slate-200 rounded-2xl p-4 space-y-3">
                   <div className="flex justify-between text-xs font-bold text-gray-600 uppercase">
                     <span>Subtotal ({orderItems.reduce((acc, i) => acc + i.quantity, 0)} units):</span>
                     <span className="font-black text-[#0f172a]">{formatPrice(calculateSubtotal())}</span>
@@ -646,7 +725,7 @@ function CreateOrderContent() {
                       max="100"
                       value={discount}
                       onChange={e => setDiscount(Math.min(100, Math.max(0, parseFloat(e.target.value) || 0)))}
-                      className="w-20 bg-white border border-gray-300 rounded-xl px-2.5 py-1 text-right font-black text-[#0f172a]"
+                      className="w-20 bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 text-right font-black text-[#0f172a]"
                     />
                   </div>
 
@@ -657,7 +736,7 @@ function CreateOrderContent() {
                     </div>
                   )}
 
-                  <div className="pt-2 border-t border-gray-200 flex justify-between text-base font-black text-[#0f172a] uppercase">
+                  <div className="pt-2 border-t border-slate-200 flex justify-between text-base font-black text-[#0f172a] uppercase">
                     <span>Grand Total:</span>
                     <span className="text-lg text-emerald-700">{formatPrice(calculateTotal())}</span>
                   </div>
@@ -670,7 +749,7 @@ function CreateOrderContent() {
             <div className="flex items-center justify-end gap-3 pt-2">
               <Link
                 href="/settings/orders"
-                className="px-6 py-3.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-black text-xs uppercase rounded-full transition-all"
+                className="px-6 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs uppercase rounded-full transition-all"
               >
                 CANCEL
               </Link>
@@ -689,18 +768,25 @@ function CreateOrderContent() {
         </div>
       </main>
 
-      {/* ───── ADD PRODUCT MODAL (Matching User Screenshot 2 & Project Fast-Add Workflow!) ───── */}
+      {/* ───── ADD PRODUCT POPUP MODAL (WITH CLICK OUTSIDE TO CLOSE!) ───── */}
       <AnimatePresence>
         {isProductModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm cursor-pointer"
+            onClick={() => {
+              setIsProductModalOpen(false);
+              setSelectedProductForAdd(null);
+            }}
+          >
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 15 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 15 }}
-              className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] flex flex-col overflow-hidden border border-gray-200"
+              onClick={(e) => e.stopPropagation()} // Prevent click inside modal from closing it!
+              className="bg-white rounded-[2.5rem] max-w-lg w-full p-6 sm:p-8 shadow-2xl space-y-4 max-h-[90vh] flex flex-col overflow-hidden border border-slate-200 cursor-default"
             >
               {/* Modal Header */}
-              <div className="flex items-center justify-between pb-2 border-b border-gray-100">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                 <div>
                   <h2 className="text-lg font-black text-[#0f172a] uppercase tracking-tight">ADD PRODUCT</h2>
                   <p className="text-xs font-bold text-gray-400">Search and select an MTX product</p>
@@ -708,7 +794,7 @@ function CreateOrderContent() {
                 <button
                   type="button"
                   onClick={() => { setIsProductModalOpen(false); setSelectedProductForAdd(null); }}
-                  className="p-1.5 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors"
+                  className="p-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-slate-100 transition-colors cursor-pointer"
                 >
                   <X size={20} />
                 </button>
@@ -734,7 +820,7 @@ function CreateOrderContent() {
                         }
                       }}
                       placeholder="Search products..."
-                      className="w-full pl-11 pr-4 py-3.5 bg-gray-50/80 border border-gray-300 rounded-2xl text-xs font-bold text-[#0f172a] focus:outline-none focus:ring-2 focus:ring-[#0f172a]/20 shadow-xs"
+                      className="w-full pl-11 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold text-[#0f172a] focus:outline-none focus:ring-2 focus:ring-[#0f172a]/20 shadow-xs"
                     />
                   </div>
 
@@ -751,7 +837,7 @@ function CreateOrderContent() {
                         <div
                           key={product.id}
                           onClick={() => handleSelectProduct(product)}
-                          className="p-4 border border-gray-200 rounded-2xl hover:border-[#0f172a] hover:bg-gray-50/80 transition-all cursor-pointer group flex items-center justify-between bg-white"
+                          className="p-4 border border-slate-200 rounded-2xl hover:border-[#0f172a] hover:bg-slate-50/80 transition-all cursor-pointer group flex items-center justify-between bg-white shadow-xs"
                         >
                           <div className="space-y-1">
                             <h4 className="text-sm font-black text-[#0f172a] uppercase tracking-wide">
@@ -766,7 +852,7 @@ function CreateOrderContent() {
                             </p>
                           </div>
 
-                          <div className="w-9 h-9 bg-gray-100 group-hover:bg-[#0f172a] group-hover:text-white text-gray-700 rounded-xl flex items-center justify-center transition-colors">
+                          <div className="w-9 h-9 bg-slate-100 group-hover:bg-[#0f172a] group-hover:text-white text-gray-700 rounded-xl flex items-center justify-center transition-colors">
                             <Plus size={18} />
                           </div>
                         </div>
@@ -777,7 +863,7 @@ function CreateOrderContent() {
               ) : (
                 /* VIEW 2: SELECTED PRODUCT QUANTITY & NOTE CONFIG VIEW (Search bar is hidden as requested!) */
                 <div className="space-y-4 pt-2">
-                  <div className="p-4 bg-gray-50/90 rounded-2xl border border-gray-200 space-y-1">
+                  <div className="p-4 bg-slate-50/90 rounded-2xl border border-slate-200 space-y-1">
                     <h4 className="text-base font-black text-[#0f172a] uppercase">{selectedProductForAdd.name}</h4>
                     <div className="flex items-center justify-between text-xs font-bold">
                       <span className="text-gray-500 font-mono">ID: {selectedProductForAdd.productId}</span>
@@ -805,14 +891,14 @@ function CreateOrderContent() {
                             noteInputRef.current?.select();
                           }
                         }}
-                        className="w-full bg-gray-50 border border-gray-300 rounded-xl p-3 text-sm font-black text-[#0f172a] focus:outline-none focus:ring-2 focus:ring-[#0f172a]/20"
+                        className="w-full bg-slate-50 border border-slate-300 rounded-2xl p-3.5 text-sm font-black text-[#0f172a] focus:outline-none focus:ring-2 focus:ring-[#0f172a]/20"
                       />
                     </div>
 
                     {/* Price Display (Read-only, stylish, easy to use!) */}
                     <div className="space-y-1.5">
                       <label className="text-[11px] font-black text-gray-500 uppercase">Unit Price</label>
-                      <div className="w-full bg-gray-100/90 border border-gray-200 rounded-xl p-3 text-sm font-black text-[#0f172a]">
+                      <div className="w-full bg-slate-100 border border-slate-200 rounded-2xl p-3.5 text-sm font-black text-[#0f172a]">
                         Rs. {selectedProductForAdd.sellPrice}
                       </div>
                     </div>
@@ -837,7 +923,7 @@ function CreateOrderContent() {
                           quantityInputRef.current?.select();
                         }
                       }}
-                      className="w-full bg-gray-50 border border-gray-300 rounded-xl p-3 text-xs font-bold text-[#0f172a] focus:outline-none focus:ring-2 focus:ring-[#0f172a]/20"
+                      className="w-full bg-slate-50 border border-slate-300 rounded-2xl p-3.5 text-xs font-bold text-[#0f172a] focus:outline-none focus:ring-2 focus:ring-[#0f172a]/20"
                     />
                   </div>
 
@@ -845,7 +931,7 @@ function CreateOrderContent() {
                     <button
                       type="button"
                       onClick={() => setSelectedProductForAdd(null)}
-                      className="w-1/2 py-3.5 bg-gray-100 text-gray-700 font-black text-xs uppercase rounded-full hover:bg-gray-200 transition-all cursor-pointer"
+                      className="w-1/2 py-3.5 bg-slate-100 text-slate-700 font-black text-xs uppercase rounded-full hover:bg-slate-200 transition-all cursor-pointer"
                     >
                       BACK TO SEARCH
                     </button>
