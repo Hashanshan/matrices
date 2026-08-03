@@ -578,12 +578,15 @@ export default function FullscreenProductViewer({
                   />
                 </motion.button>
 
-                {onClearFilters && (activeCategory || activeSubcategory || activeSortBy || viewerSearchQuery) && (
+                {onClearFilters && Boolean(activeCategory || activeSubcategory || (activeSortBy && activeSortBy !== 'newest' && activeSortBy !== 'view') || (viewerSearchQuery && viewerSearchQuery.trim() !== '')) && (
                   <motion.button
-                    onClick={onClearFilters}
+                    onClick={() => {
+                      onClearFilters();
+                      setViewerSearchQuery('');
+                    }}
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-full bg-red-50 text-red-600 font-bold text-xs border border-red-200 shadow-sm"
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-full bg-red-50 text-red-600 font-bold text-xs border border-red-200 shadow-sm cursor-pointer"
                   >
                     <X size={14} />
                     Clear Filters

@@ -153,11 +153,29 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
     }
   }, [apiPriceRange.min, apiPriceRange.max]);
 
+  const minP = apiPriceRange.min || 0;
+  const maxP = apiPriceRange.max > 0 ? apiPriceRange.max : 40000;
+
+  const hasActiveFilters = Boolean(
+    filters.categories.length > 0 ||
+    filters.subcategories.length > 0 ||
+    (filters.searchQuery && filters.searchQuery.trim() !== '') ||
+    (filters.sortBy && filters.sortBy !== 'newest') ||
+    filters.priceRange[0] > minP ||
+    (filters.priceRange[1] < maxP && maxP > 0 && filters.priceRange[1] !== maxP)
+  );
+
   const handleClearFilters = () => {
     clearGalleryFilters();
+    const defaultMinP = apiPriceRange.min || 0;
+    const defaultMaxP = apiPriceRange.max > 0 ? apiPriceRange.max : 40000;
     setFilters({
       ...DEFAULT_FILTERS,
-      priceRange: apiPriceRange.max > 0 ? [apiPriceRange.min, apiPriceRange.max] : [0, 40000],
+      searchQuery: '',
+      categories: [],
+      subcategories: [],
+      sortBy: 'newest',
+      priceRange: [defaultMinP, defaultMaxP],
     });
   };
 
@@ -523,7 +541,7 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
           </div>
 
           {/* Clear Filters Button in Controls Bar */}
-          {(filters.categories.length > 0 || filters.subcategories.length > 0 || filters.searchQuery || filters.sortBy !== 'newest' || filters.priceRange[0] > 0 || filters.priceRange[1] < (apiPriceRange.max || 40000)) && (
+          {hasActiveFilters && (
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
@@ -662,7 +680,7 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
                 </div>
 
                 {/* Clear Filters */}
-                {(filters.categories.length > 0 || filters.subcategories.length > 0 || filters.searchQuery || filters.sortBy !== 'newest' || filters.priceRange[0] > 0 || filters.priceRange[1] < (apiPriceRange.max || 40000)) && (
+                {hasActiveFilters && (
                   <motion.button
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
