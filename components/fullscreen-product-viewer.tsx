@@ -672,19 +672,20 @@ export default function FullscreenProductViewer({
         )}
 
         {/* Thumbnail Navigation */}
-        {!imageZoomed && (
-          <ThumbnailStrip
-            products={validProducts}
-            currentIndex={currentIndex}
-            hasMore={hasMore}
-            isLoadingMore={isLoadingMore}
-            onSelect={(idx) => {
-              setDirection(idx > currentIndex ? 'left' : 'right');
-              setCurrentIndex(idx);
-            }}
-            onLoadMore={loadMore}
-          />
-        )}
+        {/* {imageZoomed && ( */}
+        <ThumbnailStrip
+          products={validProducts}
+          currentIndex={currentIndex}
+          hasMore={hasMore}
+          isLoadingMore={isLoadingMore}
+          onSelect={(idx) => {
+            setDirection(idx > currentIndex ? 'left' : 'right');
+            setCurrentIndex(idx);
+          }}
+          onLoadMore={loadMore}
+          imageZoomed={imageZoomed}
+        />
+        {/* )} */}
 
         {/* Swipe Hint - Mobile */}
         <motion.div
@@ -715,6 +716,7 @@ interface ThumbnailStripProps {
   isLoadingMore: boolean;
   onSelect: (index: number) => void;
   onLoadMore: () => void;
+  imageZoomed: boolean;
 }
 
 function ThumbnailStrip({
@@ -724,6 +726,7 @@ function ThumbnailStrip({
   isLoadingMore,
   onSelect,
   onLoadMore,
+  imageZoomed
 }: ThumbnailStripProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -736,56 +739,58 @@ function ThumbnailStrip({
   }, [currentIndex]);
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="absolute bottom-6 sm:bottom-8 left-1/2 -translate-x-1/2 flex gap-2 overflow-x-auto px-4 max-w-xs sm:max-w-2xl justify-center z-20 hidden sm:flex pb-2 no-scrollbar"
-      ref={containerRef}
-    >
-      {products.map((product, idx) => (
-        <motion.button
-          key={`${product.id}-${idx}`}
-          onClick={() => onSelect(idx)}
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.95 }}
-          className={`flex-shrink-0 w-14 h-14 rounded-xl overflow-hidden border-2 transition-all backdrop-blur-sm ${idx === currentIndex
-            ? 'border-white shadow-xl ring-2 ring-white/50 scale-110'
-            : 'border-white/40 hover:border-white/80'
-            }`}
-        >
-          <SmartImage
-            src={product.image || (product as any).imageUrl || ''}
-            alt={product.name || 'Thumbnail'}
-            className="w-full h-full object-cover animate-fade-in"
-          />
-        </motion.button>
-      ))}
+    <div className={`${imageZoomed ? 'hidden' : ''}`}>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="absolute bottom-6 sm:bottom-8 left-1/2 -translate-x-1/2 flex gap-2 overflow-x-auto px-4 max-w-xs sm:max-w-2xl justify-center z-20 hidden sm:flex pb-2 no-scrollbar"
+        ref={containerRef}
+      >
+        {products.map((product, idx) => (
+          <motion.button
+            key={`${product.id}-${idx}`}
+            onClick={() => onSelect(idx)}
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.95 }}
+            className={`flex-shrink-0 w-14 h-14 rounded-xl overflow-hidden border-2 transition-all backdrop-blur-sm ${idx === currentIndex
+              ? 'border-white shadow-xl ring-2 ring-white/50 scale-110'
+              : 'border-white/40 hover:border-white/80'
+              }`}
+          >
+            <SmartImage
+              src={product.image || (product as any).imageUrl || ''}
+              alt={product.name || 'Thumbnail'}
+              className="w-full h-full object-cover animate-fade-in"
+            />
+          </motion.button>
+        ))}
 
-      {hasMore && (
-        <div
-          ref={(node) => {
-            if (!node) return;
-            const observer = new IntersectionObserver(
-              (entries) => {
-                if (entries[0].isIntersecting && !isLoadingMore) {
-                  onLoadMore();
-                }
-              },
-              { threshold: 0.1 }
-            );
-            observer.observe(node);
-            return () => observer.disconnect();
-          }}
-          className="flex-shrink-0 w-14 h-14 flex items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm border-2 border-white/20"
-        >
-          {isLoadingMore ? (
-            <div className="w-5 h-5 border-2 border-white/50 border-t-white rounded-full animate-spin" />
-          ) : (
-            <span className="text-white text-xs font-bold">+</span>
-          )}
-        </div>
-      )}
-    </motion.div>
+        {hasMore && (
+          <div
+            ref={(node) => {
+              if (!node) return;
+              const observer = new IntersectionObserver(
+                (entries) => {
+                  if (entries[0].isIntersecting && !isLoadingMore) {
+                    onLoadMore();
+                  }
+                },
+                { threshold: 0.1 }
+              );
+              observer.observe(node);
+              return () => observer.disconnect();
+            }}
+            className="flex-shrink-0 w-14 h-14 flex items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm border-2 border-white/20"
+          >
+            {isLoadingMore ? (
+              <div className="w-5 h-5 border-2 border-white/50 border-t-white rounded-full animate-spin" />
+            ) : (
+              <span className="text-white text-xs font-bold">+</span>
+            )}
+          </div>
+        )}
+      </motion.div>
+    </div>
   );
 }
 
