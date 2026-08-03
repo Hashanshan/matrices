@@ -9,6 +9,8 @@ function ViewPageContent() {
   const productId = searchParams.get('productId') || searchParams.get('id') || searchParams.get('code') || '';
   const category = searchParams.get('category') || '';
   const subcategory = searchParams.get('subcategory') || '';
+  const sortBy = searchParams.get('sortBy') || searchParams.get('sort') || '';
+  const search = searchParams.get('search') || searchParams.get('searchQuery') || '';
 
   return (
     <ViewClient
@@ -17,6 +19,8 @@ function ViewPageContent() {
       initialProductId={productId}
       initialCategory={category}
       initialSubcategory={subcategory}
+      initialSortBy={sortBy}
+      initialSearchQuery={search}
     />
   );
 }

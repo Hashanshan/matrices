@@ -5,16 +5,35 @@ import { useProducts } from '@/lib/hooks/use-products';
 import FullscreenProductViewer from '@/components/fullscreen-product-viewer';
 import Header from '@/components/header';
 
+import { loadGalleryFilters, clearGalleryFilters } from '@/lib/utils/filter-storage';
+
 interface ViewPageProps {
   fallbackData?: any;
   initialProductId?: string;
   initialCategory?: string;
   initialSubcategory?: string;
+  initialSortBy?: string;
+  initialSearchQuery?: string;
 }
 
-export default function SingleViewPage({ fallbackData, initialProductId, initialCategory, initialSubcategory }: ViewPageProps) {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [sortBy, setSortBy] = useState('view');
+export default function SingleViewPage({
+  fallbackData,
+  initialProductId,
+  initialCategory,
+  initialSubcategory,
+  initialSortBy,
+  initialSearchQuery,
+}: ViewPageProps) {
+  const savedFilters = loadGalleryFilters();
+
+  const activeCategory = initialCategory || (savedFilters.categories.length > 0 ? savedFilters.categories[0] : undefined);
+  const activeSubcategory = initialSubcategory || (savedFilters.subcategories.length > 0 ? savedFilters.subcategories[0] : undefined);
+  const [searchQuery, setSearchQuery] = useState(initialSearchQuery || savedFilters.searchQuery || '');
+  const [sortBy, setSortBy] = useState(initialSortBy || savedFilters.sortBy || 'view');
+
+  const backendSort = sortBy === 'price-low' ? 'price-low'
+    : sortBy === 'price-high' ? 'price-high'
+    : sortBy;
 
   // Use the cursor-paginated useProducts hook
   const {
@@ -27,16 +46,22 @@ export default function SingleViewPage({ fallbackData, initialProductId, initial
     totalCount,
     exactMatchFound,
   } = useProducts({
-    sort: sortBy,
+    sort: backendSort,
     search: searchQuery,
     productId: initialProductId,
-    category: initialCategory,
-    subcategory: initialSubcategory,
-    prioritizeCategory: initialCategory,
+    category: activeCategory,
+    subcategory: activeSubcategory,
+    prioritizeCategory: activeCategory,
     fallbackData: Array.isArray(fallbackData) && fallbackData.length > 0 ? fallbackData : undefined,
     initialLimit: 20,
     limit: 10,
   });
+
+  const handleClearFilters = () => {
+    clearGalleryFilters();
+    setSearchQuery('');
+    setSortBy('newest');
+  };
 
   if (isLoading && products.length === 0) {
     return (
@@ -67,6 +92,11 @@ export default function SingleViewPage({ fallbackData, initialProductId, initial
         isLoadingMore={isLoadingMore}
         onSearch={setSearchQuery}
         exactMatchFound={exactMatchFound}
+        activeCategory={activeCategory}
+        activeSubcategory={activeSubcategory}
+        activeSortBy={sortBy}
+        onSortChange={setSortBy}
+        onClearFilters={handleClearFilters}
       />
     </>
   );

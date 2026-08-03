@@ -222,11 +222,36 @@ async function getOfflineProducts(options: {
     });
   }
 
-  // 3. Re-order if prioritizedProd is present: Target Product -> Subcategory -> Category -> Remaining
-  if (prioritizedProd) {
-    const targetId = String(prioritizedProd.id || prioritizedProd.productId || prioritizedProd._id);
-    const targetCat = (prioritizedProd.categoryName || prioritizedProd.categories || prioritizedProd.category || '').toLowerCase().trim();
-    const targetSub = (prioritizedProd.subcategoryName || prioritizedProd.subcategories || prioritizedProd.subcategory || '').toLowerCase().trim();
+  const getSortComparator = (sortStr: string) => {
+    const s = (sortStr || '').toLowerCase();
+    if (s === 'price_asc' || s === 'price-low' || s === 'low-to-high') {
+      return (a: any, b: any) => (a.sellPrice || a.price || 0) - (b.sellPrice || b.price || 0);
+    } else if (s === 'price_desc' || s === 'price-high' || s === 'high-to-low') {
+      return (a: any, b: any) => (b.sellPrice || b.price || 0) - (a.sellPrice || a.price || 0);
+    } else if (s === 'name_asc' || s === 'a-z') {
+      return (a: any, b: any) => String(a.name || '').localeCompare(String(b.name || ''));
+    } else if (s === 'name_desc' || s === 'z-a') {
+      return (a: any, b: any) => String(b.name || '').localeCompare(String(a.name || ''));
+    } else if (s === 'rating') {
+      return (a: any, b: any) => (b.rating || 0) - (a.rating || 0);
+    }
+    return () => 0;
+  };
+
+  const sortFn = getSortComparator(options.sort || '');
+
+  // 3. Re-order if prioritizedProd or category/subcategory grouping active:
+  // Target Product -> Subcategory (sorted) -> Category (sorted) -> Remaining (sorted)
+  const targetCatStr = options.category
+    ? (Array.isArray(options.category) ? options.category[0] : options.category).toLowerCase().trim()
+    : (prioritizedProd ? (prioritizedProd.categoryName || prioritizedProd.categories || prioritizedProd.category || '').toLowerCase().trim() : '');
+
+  const targetSubStr = options.subcategory
+    ? (Array.isArray(options.subcategory) ? options.subcategory[0] : options.subcategory).toLowerCase().trim()
+    : (prioritizedProd ? (prioritizedProd.subcategoryName || prioritizedProd.subcategories || prioritizedProd.subcategory || '').toLowerCase().trim() : '');
+
+  if (prioritizedProd || targetSubStr || targetCatStr) {
+    const targetId = prioritizedProd ? String(prioritizedProd.id || prioritizedProd.productId || prioritizedProd._id) : null;
 
     const subMatches: any[] = [];
     const catMatches: any[] = [];
@@ -234,21 +259,30 @@ async function getOfflineProducts(options: {
 
     for (const p of filtered) {
       const currentId = String(p.id || p.productId || p._id);
-      if (currentId === targetId) continue;
+      if (targetId && currentId === targetId) continue;
 
-      const pCat = (p.categoryName || p.categories || p.category || '').toLowerCase().trim();
-      const pSub = (p.subcategoryName || p.subcategories || p.subcategory || '').toLowerCase().trim();
+      const pCat = (p.categoryName || p.categories || p.category || (typeof p.category === 'object' ? p.category?.name : '') || '').toLowerCase().trim();
+      const pSub = (p.subcategoryName || p.subcategories || p.subcategory || (typeof p.subcategory === 'object' ? p.subcategory?.name : '') || '').toLowerCase().trim();
 
-      if (targetSub && pSub === targetSub) {
+      if (targetSubStr && (pSub === targetSubStr || pSub.includes(targetSubStr))) {
         subMatches.push(p);
-      } else if (targetCat && pCat === targetCat) {
+      } else if (targetCatStr && (pCat === targetCatStr || pCat.includes(targetCatStr))) {
         catMatches.push(p);
       } else {
         others.push(p);
       }
     }
 
-    filtered = [prioritizedProd, ...subMatches, ...catMatches, ...others];
+    subMatches.sort(sortFn);
+    catMatches.sort(sortFn);
+    others.sort(sortFn);
+
+    filtered = [
+      ...(prioritizedProd ? [prioritizedProd] : []),
+      ...subMatches,
+      ...catMatches,
+      ...others
+    ];
   }
 
   const totalCount = raw.length > 0 ? raw.length : filtered.length;

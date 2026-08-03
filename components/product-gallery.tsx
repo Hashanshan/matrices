@@ -13,6 +13,8 @@ import RelatedProducts from './related-products';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 import { useWishlist } from '@/lib/contexts/wishlist-context';
+import { useSearchParams } from 'next/navigation';
+import { saveGalleryFilters, loadGalleryFilters, clearGalleryFilters, DEFAULT_FILTERS } from '@/lib/utils/filter-storage';
 
 const MySwal = withReactContent(Swal);
 
@@ -109,15 +111,34 @@ interface ProductGalleryProps {
 
 export default function ProductGallery({ searchQuery, initialCategory, initialSubcategory, onFilterChange }: ProductGalleryProps) {
   const { categories: apiCategories, priceRange: apiPriceRange } = useFilters();
+  const searchParams = useSearchParams();
 
-  const [filters, setFilters] = useState<FilterState>({
-    searchQuery,
-    categories: initialCategory ? [initialCategory] : [],
-    subcategories: initialSubcategory ? [initialSubcategory] : [],
-    priceRange: [0, 6200],
-    sortBy: 'newest',
-    gridSize: 4,
+  const [filters, setFilters] = useState<FilterState>(() => {
+    const saved = loadGalleryFilters();
+    const urlCategory = searchParams.get('category') || initialCategory;
+    const urlSubcategory = searchParams.get('subcategory') || initialSubcategory;
+    const urlSort = searchParams.get('sortBy') || searchParams.get('sort');
+    const urlSearch = searchParams.get('search') || searchQuery;
+    const urlMinPrice = searchParams.get('minPrice');
+    const urlMaxPrice = searchParams.get('maxPrice');
+
+    return {
+      searchQuery: urlSearch || saved.searchQuery || '',
+      categories: urlCategory ? [urlCategory] : (saved.categories || []),
+      subcategories: urlSubcategory ? [urlSubcategory] : (saved.subcategories || []),
+      priceRange: urlMinPrice || urlMaxPrice
+        ? [urlMinPrice ? parseInt(urlMinPrice) || 0 : 0, urlMaxPrice ? parseInt(urlMaxPrice) || 40000 : 40000]
+        : (saved.priceRange || [0, 40000]),
+      sortBy: (urlSort as any) || saved.sortBy || 'newest',
+      gridSize: saved.gridSize || 4,
+    };
   });
+
+  // Persist filters to sessionStorage whenever state changes
+  useEffect(() => {
+    saveGalleryFilters(filters);
+    if (onFilterChange) onFilterChange(filters);
+  }, [filters, onFilterChange]);
 
   // Sync price range once api data loads if it's default
   useEffect(() => {
@@ -130,6 +151,14 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
       });
     }
   }, [apiPriceRange.min, apiPriceRange.max]);
+
+  const handleClearFilters = () => {
+    clearGalleryFilters();
+    setFilters({
+      ...DEFAULT_FILTERS,
+      priceRange: apiPriceRange.max > 0 ? [apiPriceRange.min, apiPriceRange.max] : [0, 40000],
+    });
+  };
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
@@ -479,6 +508,19 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
             />
           </div>
 
+          {/* Clear Filters Button in Controls Bar */}
+          {(filters.categories.length > 0 || filters.subcategories.length > 0 || filters.searchQuery || filters.sortBy !== 'newest' || filters.priceRange[0] > 0 || filters.priceRange[1] < (apiPriceRange.max || 40000)) && (
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={handleClearFilters}
+              className="px-4 py-3 bg-red-50 text-red-600 hover:bg-red-100 rounded-full font-bold text-sm transition-all border border-red-200 flex items-center gap-2"
+            >
+              <X size={16} />
+              Clear Filters
+            </motion.button>
+          )}
+
           <div className="hidden lg:flex items-center justify-center px-6 py-3.5 bg-gray-50 border-2 border-gray-100 rounded-full text-sm text-[#0f172a] font-black min-w-[120px] uppercase">
             {totalCount} <span className="font-semibold text-gray-500 ml-1">Products</span>
           </div>
@@ -606,20 +648,14 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
                 </div>
 
                 {/* Clear Filters */}
-                {(filters.categories.length > 0 || filters.subcategories.length > 0 || filters.priceRange[0] !== 0 || filters.priceRange[1] !== 40000) && (
+                {(filters.categories.length > 0 || filters.subcategories.length > 0 || filters.searchQuery || filters.sortBy !== 'newest' || filters.priceRange[0] > 0 || filters.priceRange[1] < (apiPriceRange.max || 40000)) && (
                   <motion.button
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
-                    onClick={() =>
-                      setFilters((prev) => ({
-                        ...prev,
-                        categories: [],
-                        subcategories: [],
-                        priceRange: [0, 40000],
-                      }))
-                    }
-                    className="w-full bg-gray-100 text-[#0f172a] font-bold py-3.5 rounded-full hover:bg-gray-200 transition-all text-sm mt-4 border-2 border-transparent hover:border-gray-300"
+                    onClick={handleClearFilters}
+                    className="w-full bg-red-50 text-red-600 font-bold py-3.5 rounded-full hover:bg-red-100 transition-all text-sm mt-4 border-2 border-red-200 flex items-center justify-center gap-2"
                   >
+                    <X size={16} />
                     Clear All Filters
                   </motion.button>
                 )}

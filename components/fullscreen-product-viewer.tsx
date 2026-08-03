@@ -28,6 +28,11 @@ interface FullscreenProductViewerProps {
   isLoadingMore: boolean;
   onSearch: (query: string) => void;
   exactMatchFound?: boolean;
+  activeCategory?: string;
+  activeSubcategory?: string;
+  activeSortBy?: string;
+  onSortChange?: (sort: string) => void;
+  onClearFilters?: () => void;
 }
 
 export default function FullscreenProductViewer({
@@ -38,7 +43,12 @@ export default function FullscreenProductViewer({
   loadMore,
   isLoadingMore,
   onSearch,
-  exactMatchFound
+  exactMatchFound,
+  activeCategory,
+  activeSubcategory,
+  activeSortBy,
+  onSortChange,
+  onClearFilters
 }: FullscreenProductViewerProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [direction, setDirection] = useState<'left' | 'right'>('right');
@@ -121,8 +131,29 @@ export default function FullscreenProductViewer({
       }
     }
 
-    return [targetProd, ...subMatches, ...catMatches, ...others];
-  }, [products, initialProductId, viewerSearchQuery]);
+    const getSortComparator = (sortStr?: string) => {
+      const s = (sortStr || activeSortBy || '').toLowerCase();
+      if (s === 'price_asc' || s === 'price-low' || s === 'low-to-high') {
+        return (a: Product, b: Product) => (a.sellPrice || a.price || 0) - (b.sellPrice || b.price || 0);
+      } else if (s === 'price_desc' || s === 'price-high' || s === 'high-to-low') {
+        return (a: Product, b: Product) => (b.sellPrice || b.price || 0) - (a.sellPrice || a.price || 0);
+      } else if (s === 'name_asc' || s === 'a-z') {
+        return (a: Product, b: Product) => String(a.name || '').localeCompare(String(b.name || ''));
+      } else if (s === 'name_desc' || s === 'z-a') {
+        return (a: Product, b: Product) => String(b.name || '').localeCompare(String(b.name || ''));
+      } else if (s === 'rating') {
+        return (a: Product, b: Product) => (b.rating || 0) - (a.rating || 0);
+      }
+      return () => 0;
+    };
+
+    const sortFn = getSortComparator(activeSortBy);
+    subMatches.sort(sortFn);
+    catMatches.sort(sortFn);
+    others.sort(sortFn);
+
+    return [targetProd, ...subMatches, ...catMatches, ...others].filter(Boolean) as Product[];
+  }, [products, initialProductId, viewerSearchQuery, activeSortBy]);
 
   const currentProduct = validProducts[currentIndex] || validProducts[0] || null;
 
@@ -523,6 +554,17 @@ export default function FullscreenProductViewer({
                   />
                 </motion.button>
 
+                {onClearFilters && (activeCategory || activeSubcategory || activeSortBy || viewerSearchQuery) && (
+                  <motion.button
+                    onClick={onClearFilters}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-full bg-red-50 text-red-600 font-bold text-xs border border-red-200 shadow-sm"
+                  >
+                    <X size={14} />
+                    Clear Filters
+                  </motion.button>
+                )}
 
                 <motion.div className="relative">
                   <motion.button

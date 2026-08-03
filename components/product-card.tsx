@@ -13,6 +13,7 @@ import { useWishlist } from '@/lib/contexts/wishlist-context';
 import { getCachedImageUrl } from '@/lib/offline/image-cache';
 
 import SmartImage from './smart-image';
+import { loadGalleryFilters, buildFilterQueryParams } from '@/lib/utils/filter-storage';
 
 interface ProductCardProps {
   product: Product;
@@ -50,7 +51,9 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
       e.stopPropagation();
     }
     const targetId = product.productId || product.id || (product as any).code || '';
-    const targetUrl = `/view?productId=${encodeURIComponent(targetId)}`;
+    const currentFilters = loadGalleryFilters();
+    const queryStr = buildFilterQueryParams(currentFilters, targetId);
+    const targetUrl = `/view${queryStr}`;
     if (typeof window !== 'undefined') {
       window.location.href = targetUrl;
     } else {
