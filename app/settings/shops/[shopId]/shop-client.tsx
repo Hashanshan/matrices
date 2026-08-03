@@ -531,7 +531,7 @@ export default function ShopClient({ params }: { params?: Promise<{ shopId: stri
 
                               <div className="flex items-center gap-2 w-full sm:w-auto mt-2 lg:mt-0 shrink-0">
                                 <Link
-                                  href={`/settings/orders/default?orderId=${order.orderId}`}
+                                  href={`/settings/invoices/default?orderId=${order.orderId}`}
                                   className="px-4 py-2.5 bg-[#0f172a] hover:bg-[#1e293b] text-white font-black text-xs uppercase tracking-wider rounded-full shadow-md transition-all flex items-center justify-center gap-1.5 flex-1 sm:flex-initial"
                                 >
                                   <ExternalLink size={14} /> VIEW DETAILS

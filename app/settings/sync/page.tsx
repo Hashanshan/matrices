@@ -173,10 +173,10 @@ export default function SyncSettingsPage() {
                   <Store size={14} /> MY SHOPS
                 </Link>
                 <Link
-                  href="/settings/orders"
+                  href="/settings/invoices"
                   className="text-xs font-black text-[#0f172a] uppercase bg-white/60 hover:bg-white border border-white/60 px-4 py-2.5 rounded-full shadow-xs transition-all flex items-center gap-1.5 whitespace-nowrap"
                 >
-                  <FileText size={14} /> ORDERS
+                  <FileText size={14} /> INVOICES
                 </Link>
                 <Link
                   href="/settings/security"

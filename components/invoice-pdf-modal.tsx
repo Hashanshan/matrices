@@ -124,16 +124,7 @@ export default function InvoicePdfModal({ order, onClose }: InvoicePdfModalProps
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
       };
 
-      const worker = (window as any).html2pdf().set(opt).from(element);
-      const pdfBlob = await worker.output('blob');
-      const blobUrl = URL.createObjectURL(pdfBlob);
-      const link = document.createElement('a');
-      link.href = blobUrl;
-      link.download = `Invoice_${order.orderId}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
+      await (window as any).html2pdf().set(opt).from(element).save();
     } catch (err) {
       console.error('Error downloading PDF file:', err);
       alert('Could not download PDF to device. Please try again.');

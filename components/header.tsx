@@ -60,7 +60,7 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
   const profileLinks = [
     { href: '/settings/wishlist', label: 'My Wishlist', icon: Heart, iconClass: 'text-red-500 fill-red-500' },
     { href: '/settings/shops', label: 'My Shops', icon: Store, iconClass: '' },
-    { href: '/settings/orders', label: 'My Invoices', icon: FileText, iconClass: '' },
+    { href: '/settings/invoices', label: 'My Invoices', icon: FileText, iconClass: '' },
     { href: '/settings/sync', label: 'Data Sync & Storage', icon: RefreshCw, iconClass: 'text-emerald-600' },
     { href: '/settings/security', label: 'Security Settings', icon: ShieldCheck, iconClass: '' },
   ];

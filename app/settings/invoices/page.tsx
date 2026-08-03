@@ -89,17 +89,16 @@ const fetcher = async (url: string) => {
     const res = await fetch(targetUrl, {
       headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     });
-    if (!res.ok) throw new Error('Failed to fetch orders');
+    if (!res.ok) throw new Error('Failed to fetch invoices');
     return res.json();
   } catch {
     return getOfflineOrders();
   }
 };
 
-export default function SettingsOrdersPage() {
-  useEffect(() => {
-    window.location.href = '/settings/invoices';
-  }, []);
+export default function SettingsInvoicesPage() {
+  const { isPinVerified, resetPinVerification } = useAuth();
+  const [showPinModal, setShowPinModal] = useState(true);
 
   const [activeTab, setActiveTab] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -128,7 +127,7 @@ export default function SettingsOrdersPage() {
   const totalOrders: number = data?.totalOrders || orders.length;
   const totalPages: number = data?.totalPages || 1;
 
-  // Require Security PIN on every visit to /settings/orders
+  // Require Security PIN on every visit to /settings/invoices
   useEffect(() => {
     resetPinVerification();
   }, []);
@@ -437,7 +436,7 @@ export default function SettingsOrdersPage() {
                               {/* Action Buttons: View Details & Preview PDF */}
                               <div className="flex items-center gap-2 w-full sm:w-auto mt-2 lg:mt-0 shrink-0">
                                 <Link
-                                  href={`/settings/orders/default?orderId=${order.orderId}`}
+                                  href={`/settings/invoices/default?orderId=${order.orderId}`}
                                   className="px-4 py-2.5 bg-[#0f172a] hover:bg-[#1e293b] text-white font-black text-xs uppercase tracking-wider rounded-full shadow-md transition-all flex items-center justify-center gap-1.5 flex-1 sm:flex-initial"
                                 >
                                   <ExternalLink size={14} /> VIEW DETAILS
