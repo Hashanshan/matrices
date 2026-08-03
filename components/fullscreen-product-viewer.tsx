@@ -578,7 +578,7 @@ export default function FullscreenProductViewer({
                   />
                 </motion.button>
 
-                {onClearFilters && Boolean(activeCategory || activeSubcategory || (activeSortBy && activeSortBy !== 'newest' && activeSortBy !== 'view') || (viewerSearchQuery && viewerSearchQuery.trim() !== '')) && (
+                {/* {onClearFilters && Boolean(activeCategory || activeSubcategory || (activeSortBy && activeSortBy !== 'newest' && activeSortBy !== 'view') || (viewerSearchQuery && viewerSearchQuery.trim() !== '')) && (
                   <motion.button
                     onClick={() => {
                       onClearFilters();
@@ -591,7 +591,7 @@ export default function FullscreenProductViewer({
                     <X size={14} />
                     Clear Filters
                   </motion.button>
-                )}
+                )} */}
 
                 <motion.div className="relative">
                   <motion.button
