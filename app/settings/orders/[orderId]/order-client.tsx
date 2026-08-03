@@ -96,7 +96,7 @@ export default function OrderPdfClient({ params }: { params?: Promise<{ orderId:
       const resolved = use(params);
       resolvedOrderId = resolved?.orderId || '';
     }
-  } catch (e) {}
+  } catch (e) { }
 
   const rawParam = (routerParams?.orderId as string) || resolvedOrderId;
   const queryParam = searchParams?.get('orderId') || '';
@@ -260,7 +260,7 @@ export default function OrderPdfClient({ params }: { params?: Promise<{ orderId:
           ) : (
             <>
               <div className="flex items-center justify-between gap-4 mb-6 print:hidden no-print">
-                <BackButton label="Orders" />
+                {/* <BackButton label="Orders" /> */}
 
                 <div className="flex items-center gap-3">
                   <button

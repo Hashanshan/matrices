@@ -477,7 +477,7 @@ export default function FullscreenProductViewer({
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="absolute top-6 left-6 sm:top-8 sm:left-8 flex items-center gap-3 z-20"
+          className="absolute top-6 left-6 sm:top-8 sm:left-8 flex items-center gap-3 z-99"
         >
           <BackButton />
           <div className="bg-white/30 backdrop-blur-2xl text-[#0f172a] px-5 py-2.5 rounded-full shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] border border-white/60">
@@ -749,8 +749,8 @@ function ThumbnailStrip({
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.95 }}
           className={`flex-shrink-0 w-14 h-14 rounded-xl overflow-hidden border-2 transition-all backdrop-blur-sm ${idx === currentIndex
-              ? 'border-white shadow-xl ring-2 ring-white/50 scale-110'
-              : 'border-white/40 hover:border-white/80'
+            ? 'border-white shadow-xl ring-2 ring-white/50 scale-110'
+            : 'border-white/40 hover:border-white/80'
             }`}
         >
           <SmartImage

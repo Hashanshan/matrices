@@ -118,7 +118,7 @@ export default function ShopClient({ params }: { params?: Promise<{ shopId: stri
       const resolved = use(params);
       resolvedShopId = resolved?.shopId || '';
     }
-  } catch (e) {}
+  } catch (e) { }
 
   const rawParam = (routerParams?.shopId as string) || resolvedShopId;
   const queryParam = searchParams?.get('shopId') || '';
@@ -284,7 +284,7 @@ export default function ShopClient({ params }: { params?: Promise<{ shopId: stri
           ) : (
             <>
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
-                <BackButton label="Shops" />
+                {/* <BackButton label="Shops" /> */}
 
                 <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none w-full sm:w-auto max-w-full shrink-0">
                   <Link
@@ -444,11 +444,10 @@ export default function ShopClient({ params }: { params?: Promise<{ shopId: stri
                     <button
                       key={tab.id}
                       onClick={() => handleTabChange(tab.id)}
-                      className={`px-4 py-2.5 rounded-full font-black text-xs uppercase tracking-wider transition-all whitespace-nowrap border shrink-0 cursor-pointer ${
-                        activeTab === tab.id
-                          ? 'bg-[#0f172a] text-white border-[#0f172a] shadow-md scale-105'
-                          : 'bg-white/50 hover:bg-white text-[#0f172a] border-white/60'
-                      }`}
+                      className={`px-4 py-2.5 rounded-full font-black text-xs uppercase tracking-wider transition-all whitespace-nowrap border shrink-0 cursor-pointer ${activeTab === tab.id
+                        ? 'bg-[#0f172a] text-white border-[#0f172a] shadow-md scale-105'
+                        : 'bg-white/50 hover:bg-white text-[#0f172a] border-white/60'
+                        }`}
                     >
                       {tab.label}
                     </button>

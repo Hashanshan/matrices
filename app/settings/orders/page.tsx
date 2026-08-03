@@ -257,12 +257,7 @@ export default function SettingsOrdersPage() {
 
                 {/* Top Mobile Scrollable Navigation */}
                 <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none w-full sm:w-auto max-w-full shrink-0">
-                  <Link
-                    href="/settings/sync"
-                    className="text-xs font-black text-[#0f172a] uppercase bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 px-3.5 py-2.5 rounded-full shadow-xs transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0"
-                  >
-                    <RefreshCw size={14} className="text-emerald-600" /> SYNC
-                  </Link>
+
                   <Link
                     href="/settings/shops"
                     className="text-xs font-black text-[#0f172a] uppercase bg-white/60 hover:bg-white border border-white/60 px-3.5 py-2.5 rounded-full shadow-xs transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0"
@@ -347,11 +342,10 @@ export default function SettingsOrdersPage() {
                     <button
                       key={tab.id}
                       onClick={() => handleTabChange(tab.id)}
-                      className={`px-4 py-2.5 rounded-full font-black text-xs uppercase tracking-wider transition-all whitespace-nowrap border shrink-0 cursor-pointer ${
-                        activeTab === tab.id
-                          ? 'bg-[#0f172a] text-white border-[#0f172a] shadow-md scale-105'
-                          : 'bg-white/50 hover:bg-white text-[#0f172a] border-white/60'
-                      }`}
+                      className={`px-4 py-2.5 rounded-full font-black text-xs uppercase tracking-wider transition-all whitespace-nowrap border shrink-0 cursor-pointer ${activeTab === tab.id
+                        ? 'bg-[#0f172a] text-white border-[#0f172a] shadow-md scale-105'
+                        : 'bg-white/50 hover:bg-white text-[#0f172a] border-white/60'
+                        }`}
                     >
                       {tab.label}
                     </button>

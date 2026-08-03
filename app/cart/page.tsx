@@ -68,7 +68,7 @@ export default function CartPage() {
       <main className="min-h-screen bg-[#f8f9fc]">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
           {/* Back Button */}
-          <BackButton label="Continue Shopping" className="mb-6" />
+          {/* <BackButton label="Continue Shopping" className="mb-6" /> */}
 
           <h1 className="text-3xl font-black text-[#0f172a] mb-8 tracking-tight">Shopping Cart</h1>
 

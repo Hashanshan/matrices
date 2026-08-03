@@ -130,13 +130,13 @@ export default function CategoriesPage({ fallbackData }: { fallbackData?: any } 
           {/* Page Title & Back Button */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
             <div className="flex items-center gap-4">
-              <BackButton
+              {/* <BackButton
                 label={selectedCategory ? "Categories" : "Back"}
                 onClick={selectedCategory ? () => {
                   setSelectedCategory(null);
                   setSearchQuery('');
                 } : undefined}
-              />
+              /> */}
               <div>
                 <h1 className="text-3xl sm:text-4xl font-black text-[#0f172a] uppercase tracking-wide">
                   {selectedCategory ? `${selectedCategory}` : 'CATEGORIES'}

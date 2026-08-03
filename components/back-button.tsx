@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { ArrowLeft } from 'lucide-react';
+import { ChevronLeft } from 'lucide-react';
 import { triggerBack } from '@/lib/utils/back-navigation';
 
 interface BackButtonProps {
@@ -13,7 +13,7 @@ interface BackButtonProps {
 
 export default function BackButton({
   className = '',
-  label = 'Back',
+  label = '',
   showLabel = true,
   onClick,
 }: BackButtonProps) {
@@ -32,12 +32,12 @@ export default function BackButton({
       whileHover={{ scale: 1.05, x: -2 }}
       whileTap={{ scale: 0.95 }}
       onClick={handleClick}
-      className={`inline-flex items-center gap-2 px-3.5 py-2.5 rounded-full bg-white/70 backdrop-blur-md border border-gray-200/80 text-[#0f172a] shadow-sm hover:bg-white hover:border-gray-300 hover:shadow-md transition-all font-bold text-xs sm:text-sm group cursor-pointer ${className}`}
+      className={`inline-flex items-center  px-2.5 py-2.5 rounded-full bg-white/10 backdrop-blur-md border border-gray-200/80 text-[#0f172a] shadow-md hover:bg-white hover:border-gray-300 hover:shadow-md transition-all font-bold text-xs sm:text-sm group cursor-pointer ${className}`}
       title="Go Back"
       aria-label="Go Back"
     >
-      <ArrowLeft size={18} className="text-[#0f172a] group-hover:-translate-x-0.5 transition-transform" />
-      {showLabel && <span className="hidden sm:inline">{label}</span>}
+      <ChevronLeft size={18} className="text-[#0f172a] group-hover:-translate-x-0.5 transition-transform" />
+      {/* {showLabel && <span className="hidden sm:inline">{label}</span>} */}
     </motion.button>
   );
 }
