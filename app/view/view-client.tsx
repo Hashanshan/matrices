@@ -29,13 +29,13 @@ export default function SingleViewPage({
   const activeCategory = initialCategory || (savedFilters.categories.length > 0 ? savedFilters.categories[0] : undefined);
   const activeSubcategory = initialSubcategory || (savedFilters.subcategories.length > 0 ? savedFilters.subcategories[0] : undefined);
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery || savedFilters.searchQuery || '');
-  const [sortBy, setSortBy] = useState(initialSortBy || savedFilters.sortBy || 'view');
+  const [sortBy, setSortBy] = useState(initialSortBy || savedFilters.sortBy || 'newest');
 
   const backendSort = sortBy === 'price-low' ? 'price-low'
     : sortBy === 'price-high' ? 'price-high'
-    : sortBy;
+      : sortBy;
 
-  // Use the cursor-paginated useProducts hook
+  // Use the cursor-paginated useProducts hook for /view page with clean sort and search parameters
   const {
     products,
     isLoading,
@@ -46,12 +46,8 @@ export default function SingleViewPage({
     totalCount,
     exactMatchFound,
   } = useProducts({
-    sort: backendSort,
-    search: searchQuery,
-    productId: initialProductId,
-    category: activeCategory,
-    subcategory: activeSubcategory,
-    prioritizeCategory: activeCategory,
+    sort: backendSort || 'newest',
+    search: searchQuery || initialProductId,
     fallbackData: Array.isArray(fallbackData) && fallbackData.length > 0 ? fallbackData : undefined,
     initialLimit: 20,
     limit: 10,
