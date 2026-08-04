@@ -202,7 +202,7 @@ export default function FullscreenProductViewer({
   // Async background fetch to populate local IndexedDB cache if not already stored
   useEffect(() => {
     if (rawImage) {
-      getCachedImageUrl(rawImage).catch(() => {});
+      getCachedImageUrl(rawImage).catch(() => { });
     }
   }, [rawImage]);
 
@@ -232,7 +232,6 @@ export default function FullscreenProductViewer({
   }, [searchOpen]);
 
   const handleSwipe = useCallback((newDirection: 'left' | 'right') => {
-    setImageZoomed(false);
     setDirection(newDirection);
     if (newDirection === 'right') {
       // Go back — allow wrapping to end only when no more data to load
@@ -391,7 +390,7 @@ export default function FullscreenProductViewer({
       >
         <AnimatePresence initial={false} custom={direction}>
           <motion.div
-            key={currentProduct.id || (currentProduct as any)._id || currentIndex}
+            key={`${currentProduct.id || (currentProduct as any)._id || 'prod'}-${currentIndex}`}
             custom={direction}
             variants={pageFlipVariants}
             initial="enter"
@@ -400,7 +399,7 @@ export default function FullscreenProductViewer({
             transition={{
               type: 'tween',
               ease: 'easeOut',
-              duration: 0.2,
+              duration: 0.18,
             }}
             className="absolute inset-0 flex items-center justify-center p-4 sm:p-8"
             style={{
@@ -410,10 +409,11 @@ export default function FullscreenProductViewer({
             }}
             onClick={() => setImageZoomed(!imageZoomed)}
           >
-            <motion.div
-              className="relative w-full h-full"
-              animate={imageZoomed ? { scale: 1.15 } : { scale: 1 }}
-              transition={{ duration: 0.2 }}
+            <div
+              className="relative w-full h-full transition-transform duration-200 ease-out will-change-transform"
+              style={{
+                transform: imageZoomed ? 'scale(1.1) translateZ(0)' : 'scale(0.98) translateZ(0)',
+              }}
             >
               <SmartImage
                 src={displayImg || currentProduct?.image || (currentProduct as any)?.imageUrl || ''}
@@ -424,7 +424,7 @@ export default function FullscreenProductViewer({
               <div className="absolute bottom-4 right-4 bg-white/80 text-[#0f172a] px-4 py-1.5 rounded-full text-xs font-semibold shadow-sm opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity uppercase">
                 CLICK TO ZOOM
               </div>
-            </motion.div>
+            </div>
           </motion.div>
         </AnimatePresence>
 

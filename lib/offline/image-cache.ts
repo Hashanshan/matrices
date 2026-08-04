@@ -12,50 +12,22 @@ import { resolveApiUrl, getAuthToken } from '../utils';
 
 const IMAGE_CACHE_NAME = 'matrices-product-images-v1';
 
-// ── In-memory image URL map (populated once on first access) ─────────────────
-let imageMemoryMap: Map<string, string> | null = null;
-let imageMemoryMapLoading = false;
-let imageMemoryMapCallbacks: Array<() => void> = [];
+// ── In-memory image URL map for zero-latency synchronous lookups ─────────────────
+const imageMemoryMap: Map<string, string> = new Map();
 
-/** Load all image_map records from IndexedDB into memory (called once) */
+/** Pre-warm helper (no-op since map is initialized instantly) */
 async function ensureImageMemoryMap(): Promise<Map<string, string>> {
-  if (imageMemoryMap) return imageMemoryMap;
-
-  if (imageMemoryMapLoading) {
-    // Wait for the in-progress load
-    return new Promise((resolve) => {
-      imageMemoryMapCallbacks.push(() => resolve(imageMemoryMap!));
-    });
-  }
-
-  imageMemoryMapLoading = true;
-  try {
-    const records = await offlineDB.getAllImageMaps().catch(() => [] as ImageMapRecord[]);
-    imageMemoryMap = new Map(records.map((r) => [r.url, r.localSrc]));
-  } catch {
-    imageMemoryMap = new Map();
-  } finally {
-    imageMemoryMapLoading = false;
-    imageMemoryMapCallbacks.forEach((cb) => cb());
-    imageMemoryMapCallbacks = [];
-  }
-
   return imageMemoryMap;
 }
 
-// Auto-warm in-memory image map immediately on module load in browser
-if (typeof window !== 'undefined') {
-  ensureImageMemoryMap().catch(() => {});
-}
-
-/** Invalidate the in-memory map so it gets rebuilt on next access */
+/** Invalidate the in-memory map */
 export function invalidateImageMemoryMap(): void {
-  imageMemoryMap = null;
+  imageMemoryMap.clear();
 }
 
-/** Add/update a single entry in the in-memory map without rebuilding */
+/** Add/update a single entry in the in-memory map */
 function updateImageMemoryMap(url: string, localSrc: string): void {
-  if (imageMemoryMap) {
+  if (url && localSrc) {
     imageMemoryMap.set(url, localSrc);
   }
 }
@@ -256,18 +228,27 @@ export async function getCachedImageUrl(url: string): Promise<string> {
   if (isLocalUri(url)) return url;
 
   try {
-    // Try in-memory map first (fast path)
-    const map = await ensureImageMemoryMap();
-    const cached = map.get(url);
-    if (cached) return cached;
+    // 1. In-memory map (0ms instant)
+    if (imageMemoryMap.has(url)) {
+      return imageMemoryMap.get(url)!;
+    }
 
-    // CacheStorage fallback
+    // 2. Fast single-key IndexedDB lookup (1ms)
+    const record = await offlineDB.getImageMap(url).catch(() => null);
+    if (record?.localSrc) {
+      updateImageMemoryMap(url, record.localSrc);
+      return record.localSrc;
+    }
+
+    // 3. CacheStorage fallback
     if ('caches' in window) {
       const cache = await caches.open(IMAGE_CACHE_NAME);
       const match = await cache.match(url);
       if (match) {
         const blob = await match.blob();
-        return URL.createObjectURL(blob);
+        const objUrl = URL.createObjectURL(blob);
+        updateImageMemoryMap(url, objUrl);
+        return objUrl;
       }
     }
   } catch (e) {
@@ -279,11 +260,9 @@ export async function getCachedImageUrl(url: string): Promise<string> {
 
 /**
  * Synchronous version — returns cached URL immediately if already in memory map, else null.
- * Use this when you need zero-latency image resolution (e.g. list renders).
  */
 export function getCachedImageUrlSync(url: string): string | null {
   if (!url || isLocalUri(url)) return url;
-  if (!imageMemoryMap) return null; // Map not loaded yet
   return imageMemoryMap.get(url) || null;
 }
 
