@@ -615,6 +615,22 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         },
       ];
 
+      // Preserve locally created orders so full sync never erases local device orders
+      const existingDbOrders = await offlineDB.getAll<any>('orders').catch(() => []);
+      const localOrdersToPreserve = (existingDbOrders || []).filter((o: any) =>
+        o.isLocallyCreated === true ||
+        !o.isSynced ||
+        (o.id && (String(o.id).startsWith('LOCAL_') || String(o.id).startsWith('DRAFT-'))) ||
+        (o.orderId && (String(o.orderId).startsWith('LOCAL_') || String(o.orderId).startsWith('DRAFT-')))
+      ).map((o: any) => ({ ...o, isLocallyCreated: true }));
+
+      const preservedIds = new Set(localOrdersToPreserve.map((o: any) => String(o.id)));
+      const remoteOrdersFormatted = formattedOrders
+        .filter((ro: any) => !preservedIds.has(String(ro.id)))
+        .map((ro: any) => ({ ...ro, isLocallyCreated: false, isSynced: true }));
+
+      const mergedOrders = [...localOrdersToPreserve, ...remoteOrdersFormatted];
+
       // Delete all old sync data
       await offlineDB.clearAllData();
       await clearMatricesFolder();
@@ -623,7 +639,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       await offlineDB.saveBatch('subcategories', formattedSubcategories);
       await offlineDB.saveBatch('products', formattedProducts);
       await offlineDB.saveBatch('shops', formattedShops);
-      await offlineDB.saveBatch('orders', formattedOrders);
+      await offlineDB.saveBatch('orders', mergedOrders);
       await offlineDB.saveBatch('wishlist', formattedWishlist);
 
       setProgress(80);

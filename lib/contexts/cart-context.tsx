@@ -296,6 +296,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         updatedAt: new Date().toISOString(),
         status: 'draft',
         isSynced: false,
+        isLocallyCreated: true,
         notes,
       };
 

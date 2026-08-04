@@ -515,6 +515,7 @@ async function markOrderSyncedSuccess(localOrderId: string, serverOrder: any) {
     const target = localOrders.find((o: any) => String(o.id) === String(localOrderId) || String(o.orderId) === String(localOrderId));
     if (target) {
       target.isSynced = true;
+      target.isLocallyCreated = true;
       target.status = 'synced';
       if (serverOrder && serverOrder.orderId) {
         target.liveOrderId = serverOrder.orderId;

@@ -70,14 +70,22 @@ export default function SettingsOrdersPage() {
     setShowPinModal(!isPinVerified);
   }, [isPinVerified]);
 
-  // Fetch local IndexedDB orders (ONLY unsynced / local draft orders!)
+  // Fetch local IndexedDB orders (ONLY locally created orders on this device!)
   const loadLocalOrders = useCallback(async () => {
     setLoadingLocal(true);
     try {
       const rawOrders = await offlineDB.getAll<LocalOrder>('orders').catch(() => []);
-      const unsyncedOnly = (rawOrders || []).filter(o => !o.isSynced);
+      
+      // Show ONLY orders created locally on this device (whether unsynced or already synced!)
+      // Exclude remote live DB orders created by other salesreps/devices downloaded during sync
+      const locallyCreatedOnly = (rawOrders || []).filter((o: any) =>
+        o.isLocallyCreated === true ||
+        !o.isSynced ||
+        (o.id && (String(o.id).startsWith('LOCAL_') || String(o.id).startsWith('DRAFT-'))) ||
+        (o.orderId && (String(o.orderId).startsWith('LOCAL_') || String(o.orderId).startsWith('DRAFT-')))
+      );
 
-      const sorted = unsyncedOnly.sort((a, b) =>
+      const sorted = locallyCreatedOnly.sort((a, b) =>
         new Date(b.createdAt || b.orderDate || 0).getTime() - new Date(a.createdAt || a.orderDate || 0).getTime()
       );
       setLocalOrders(sorted);
@@ -310,9 +318,15 @@ export default function SettingsOrdersPage() {
                             {ord.orderId || ord.id}
                           </span>
 
-                          <span className="text-[11px] font-black uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-300 px-3 py-1 rounded-full flex items-center gap-1.5 animate-pulse">
-                            <Clock size={13} className="text-amber-600" /> Local Draft (Unsynced)
-                          </span>
+                          {ord.isSynced ? (
+                            <span className="text-[11px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-900 border border-emerald-300 px-3 py-1 rounded-full flex items-center gap-1.5">
+                              <ShieldCheck size={13} className="text-emerald-600" /> Synced to Server
+                            </span>
+                          ) : (
+                            <span className="text-[11px] font-black uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-300 px-3 py-1 rounded-full flex items-center gap-1.5 animate-pulse">
+                              <Clock size={13} className="text-amber-600" /> Local Draft (Unsynced)
+                            </span>
+                          )}
 
                           <span className="text-xs font-bold text-gray-500 flex items-center gap-1">
                             <Calendar size={13} />
