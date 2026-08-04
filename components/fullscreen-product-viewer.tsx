@@ -90,7 +90,6 @@ export default function FullscreenProductViewer({
   }, searchOpen || isModalOpen || menuOpen);
 
   const hasSetInitialIndex = useRef(false);
-  const [displayImg, setDisplayImg] = useState<string>('');
 
   const validProducts = useMemo(() => {
     const raw = (products || []).filter((p): p is Product => Boolean(p && (p.image || p.name || p.id)));
@@ -196,34 +195,16 @@ export default function FullscreenProductViewer({
     setCurrentIndex(0);
   }, [viewerSearchQuery, initialProductId]);
 
-  // Resolve offline image URL for current product — sync first for instant render
+  // Synchronous resolution of offline or cached image URL for zero-latency slide rendering
+  const rawImage = currentProduct?.image || (currentProduct as any)?.imageUrl || '';
+  const displayImg = getCachedImageUrlSync(rawImage) || rawImage;
+
+  // Async background fetch to populate local IndexedDB cache if not already stored
   useEffect(() => {
-    const rawUrl = currentProduct?.image || '';
-    if (!rawUrl) {
-      setDisplayImg('');
-      return;
+    if (rawImage) {
+      getCachedImageUrl(rawImage).catch(() => {});
     }
-
-    // Try synchronous in-memory map first (zero latency)
-    const synced = getCachedImageUrlSync(rawUrl);
-    if (synced) {
-      setDisplayImg(synced);
-    } else {
-      setDisplayImg(rawUrl);
-    }
-
-    // Then async-resolve in background (updates if a cached version exists)
-    let cancelled = false;
-    getCachedImageUrl(rawUrl)
-      .then((resolved) => {
-        if (!cancelled && resolved && resolved !== rawUrl) {
-          setDisplayImg(resolved);
-        }
-      })
-      .catch(() => { });
-
-    return () => { cancelled = true; };
-  }, [currentProduct?.image, currentProduct?.id]);
+  }, [rawImage]);
 
   // Pre-resolve images for adjacent products for instant swiping
   useEffect(() => {
@@ -249,27 +230,6 @@ export default function FullscreenProductViewer({
       searchInputRef.current.focus();
     }
   }, [searchOpen]);
-
-  // Handle SweetAlert for no exact match
-  // useEffect(() => {
-  //   if (exactMatchFound === false && validProducts.length > 0 && viewerSearchQuery) {
-  //     MySwal.fire({
-  //       title: 'No exact match found',
-  //       text: 'Do you want to continue to view related products?',
-  //       icon: 'info',
-  //       showCancelButton: true,
-  //       confirmButtonText: 'Continue',
-  //       confirmButtonColor: '#0f172a',
-  //       cancelButtonColor: '#64748b'
-  //     }).then((result) => {
-  //       if (!result.isConfirmed) {
-  //         setViewerSearchQuery('');
-  //         onSearch('');
-  //         setCurrentIndex(0);
-  //       }
-  //     });
-  //   }
-  // }, [exactMatchFound, validProducts.length, viewerSearchQuery, onSearch]);
 
   const handleSwipe = useCallback((newDirection: 'left' | 'right') => {
     setImageZoomed(false);
@@ -327,16 +287,14 @@ export default function FullscreenProductViewer({
   }, [validProducts.length, currentIndex]);
 
   const handleTouchStart = (e: React.TouchEvent) => {
-    if (imageZoomed) return;
     touchStartX.current = e.touches[0].clientX;
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
-    if (imageZoomed) return;
     const touchEndX = e.changedTouches[0].clientX;
     const diff = touchStartX.current - touchEndX;
 
-    if (Math.abs(diff) > 40) {
+    if (Math.abs(diff) > 35) {
       if (diff > 0) {
         handleSwipe('left');
       } else {
@@ -345,23 +303,23 @@ export default function FullscreenProductViewer({
     }
   };
 
-  const slideVariants = {
+  const pageFlipVariants = {
     enter: (dir: 'left' | 'right') => ({
-      x: dir === 'left' ? '5%' : '-5%',
+      rotateY: dir === 'left' ? -90 : 90,
       opacity: 0,
-      scale: 0.99,
+      scale: 0.97,
     }),
     center: {
       zIndex: 1,
-      x: 0,
+      rotateY: 0,
       opacity: 1,
       scale: 1,
     },
     exit: (dir: 'left' | 'right') => ({
       zIndex: 0,
-      x: dir === 'left' ? '-5%' : '5%',
+      rotateY: dir === 'left' ? 45 : -45,
       opacity: 0,
-      scale: 0.99,
+      scale: 0.97,
     }),
   };
 
@@ -429,21 +387,27 @@ export default function FullscreenProductViewer({
         className="w-full h-full flex items-center justify-center relative cursor-move group"
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
+        style={{ perspective: 1600, perspectiveOrigin: '50% 50%' }}
       >
         <AnimatePresence initial={false} custom={direction}>
           <motion.div
             key={currentProduct.id || (currentProduct as any)._id || currentIndex}
             custom={direction}
-            variants={slideVariants}
+            variants={pageFlipVariants}
             initial="enter"
             animate="center"
             exit="exit"
             transition={{
               type: 'tween',
               ease: 'easeOut',
-              duration: 0.12,
+              duration: 0.2,
             }}
             className="absolute inset-0 flex items-center justify-center p-4 sm:p-8"
+            style={{
+              transformStyle: 'preserve-3d',
+              transformOrigin: 'left center',
+              backfaceVisibility: 'hidden',
+            }}
             onClick={() => setImageZoomed(!imageZoomed)}
           >
             <motion.div
@@ -779,8 +743,8 @@ function ThumbnailStrip({
             <motion.button
               key={`${product.id}-${idx}`}
               onClick={() => onSelect(idx)}
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.95 }}
+              whileHover={{ scale: 1 }}
+              whileTap={{ scale: 0.9 }}
               className={`flex-shrink-0 w-14 h-14 rounded-xl overflow-hidden border-2 transition-all backdrop-blur-sm ${idx === currentIndex
                 ? 'border-white shadow-xl ring-2 ring-white/50 scale-110'
                 : 'border-white/40 hover:border-white/80'

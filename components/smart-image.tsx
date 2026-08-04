@@ -46,9 +46,17 @@ export default function SmartImage({
     const raw = src || fallbackSrc;
     if (!raw) return fallbackSrc;
     if (isLocalUri(raw)) return raw;
-    // Try the in-memory map (O(1), synchronous — returns null if map not loaded yet)
+    // Try the in-memory map (O(1), synchronous)
     const synced = getCachedImageUrlSync(raw);
-    return synced || raw;
+    if (synced) return synced;
+
+    // Prevent 30-second browser socket hang when device is offline
+    const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+    if (isOffline) {
+      return fallbackSrc;
+    }
+
+    return raw;
   };
 
   const [imgSrc, setImgSrc] = useState<string>(getInitialSrc);
@@ -61,7 +69,7 @@ export default function SmartImage({
     return () => { mountedRef.current = false; };
   }, []);
 
-  // Async resolution — runs only if synchronous lookup didn't find a local src
+  // Async resolution — queries IndexedDB / CacheStorage if synchronous lookup returned null
   useEffect(() => {
     const raw = src || fallbackSrc;
     if (!raw) {
@@ -69,7 +77,6 @@ export default function SmartImage({
       return;
     }
 
-    // Already local or matched synchronously — no async lookup needed
     if (isLocalUri(raw)) {
       if (imgSrc !== raw) setImgSrc(raw);
       setFailed(false);
@@ -83,18 +90,22 @@ export default function SmartImage({
       return;
     }
 
-    // Async fallback: query IDB / CacheStorage
     let cancelled = false;
     getCachedImageUrl(raw)
       .then((resolved) => {
-        if (!cancelled && mountedRef.current && resolved && resolved !== imgSrc) {
-          setImgSrc(resolved);
-          setFailed(false);
+        if (!cancelled && mountedRef.current) {
+          if (resolved && resolved !== imgSrc) {
+            setImgSrc(resolved);
+            setFailed(false);
+          } else if (!resolved || (resolved === raw && typeof navigator !== 'undefined' && !navigator.onLine)) {
+            // Offline and no local cached copy available in IndexedDB
+            setFailed(true);
+          }
         }
       })
       .catch(() => {
-        if (!cancelled && mountedRef.current && imgSrc !== raw) {
-          setImgSrc(raw);
+        if (!cancelled && mountedRef.current) {
+          setFailed(true);
         }
       });
 
@@ -112,13 +123,7 @@ export default function SmartImage({
   }, [src]);
 
   const handleError = () => {
-    if (imgSrc !== fallbackSrc) {
-      // Try fallback first
-      setImgSrc(fallbackSrc);
-    } else {
-      // Fallback also failed
-      setFailed(true);
-    }
+    setFailed(true);
     setLoading(false);
   };
 
