@@ -446,16 +446,14 @@ export default function ShopsSettingsPage() {
                   </div>
                 </div>
 
-                {/* Right Header Controls: Add Shop Button + Mobile Nav Links */}
-                <div className="flex flex-wrap items-center gap-2.5">
+                {/* Right Header Controls: Add Shop Button + Scrollable Nav Links */}
+                <div className="flex items-center gap-2.5 overflow-x-auto pb-2 max-w-full scrollbar-none no-scrollbar">
                   <button
                     onClick={handleOpenAddModal}
-                    className="bg-[#0f172a] hover:bg-[#1e293b] text-white font-black text-xs uppercase tracking-wider px-5 py-3 rounded-full shadow-lg hover:shadow-xl transition-all flex items-center gap-2 cursor-pointer active:scale-95"
+                    className="bg-[#0f172a] hover:bg-[#1e293b] text-white font-black text-xs uppercase tracking-wider px-5 py-3 rounded-full shadow-lg hover:shadow-xl transition-all flex items-center gap-2 cursor-pointer active:scale-95 whitespace-nowrap shrink-0"
                   >
                     <Plus size={16} /> ADD NEW SHOP
                   </button>
-
-                  <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none max-w-full shrink-0">
                     <Link
                       href="/settings/sync"
                       className="text-xs font-black text-[#0f172a] uppercase bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 px-3.5 py-2.5 rounded-full shadow-xs transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0"
@@ -491,7 +489,6 @@ export default function ShopsSettingsPage() {
                     </span>
                   </div>
                 </div>
-              </div>
 
               {/* Search Bar */}
               <div className="mb-6 flex items-center justify-between gap-4">

@@ -181,7 +181,7 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
                       initial={{ opacity: 0, y: -15, scale: 0.95 }}
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: -15, scale: 0.95 }}
-                      className="absolute right-0 mt-4 w-72 bg-white/95 backdrop-blur-2xl border border-white/80 rounded-[2.5rem] shadow-[0_20px_60px_rgba(0,0,0,0.2)] p-6 space-y-3 z-50 overflow-hidden"
+                      className="absolute right-0 mt-4 w-72 max-h-[calc(100vh-5rem)] overflow-y-auto bg-white/95 backdrop-blur-2xl border border-white/80 rounded-[2.5rem] shadow-[0_20px_60px_rgba(0,0,0,0.2)] p-6 space-y-3 z-50 custom-scrollbar"
                     >
                       <div className="pb-3 border-b border-gray-200/60">
                         <p className="text-base font-black text-[#0f172a] uppercase">{user.name}</p>
@@ -277,7 +277,7 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
                       initial={{ opacity: 0, y: -15, scale: 0.95 }}
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: -15, scale: 0.95 }}
-                      className="absolute right-0 mt-4 w-72 bg-white/95 backdrop-blur-2xl border border-white/80 rounded-[2.5rem] shadow-[0_20px_60px_rgba(0,0,0,0.2)] p-6 z-50 space-y-3 overflow-hidden"
+                      className="absolute right-0 mt-4 w-72 max-h-[calc(100vh-5rem)] overflow-y-auto bg-white/95 backdrop-blur-2xl border border-white/80 rounded-[2.5rem] shadow-[0_20px_60px_rgba(0,0,0,0.2)] p-6 z-50 space-y-3 custom-scrollbar"
                     >
                       {/* Mobile search */}
                       {showSearch && (

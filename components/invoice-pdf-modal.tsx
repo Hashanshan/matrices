@@ -352,7 +352,7 @@ export default function InvoicePdfModal({ order, onClose }: InvoicePdfModalProps
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
           transition={{ duration: 0.2 }}
-          className="pdf-modal-card relative w-full max-w-3xl bg-white rounded-[2.5rem] p-6 sm:p-10 text-gray-900 shadow-2xl cursor-default my-auto"
+          className="pdf-modal-card relative w-full max-w-3xl max-h-[90vh] bg-white rounded-[2.5rem] p-6 sm:p-10 text-gray-900 shadow-2xl cursor-default my-auto overflow-y-auto custom-scrollbar"
           onClick={(e) => e.stopPropagation()} // Prevent click inside modal from closing
         >
           {/* Modal Top Bar - Sticky Top */}

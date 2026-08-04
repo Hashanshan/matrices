@@ -75,7 +75,7 @@ export default function SettingsOrdersPage() {
     setLoadingLocal(true);
     try {
       const rawOrders = await offlineDB.getAll<LocalOrder>('orders').catch(() => []);
-      
+
       // Show ONLY orders created locally on this device (whether unsynced or already synced!)
       // Exclude remote live DB orders created by other salesreps/devices downloaded during sync
       const locallyCreatedOnly = (rawOrders || []).filter((o: any) =>
@@ -200,7 +200,7 @@ export default function SettingsOrdersPage() {
           </div>
         ) : (
           <div className="bg-white/70 backdrop-blur-2xl border border-white/80 rounded-[2.5rem] p-6 sm:p-8 shadow-[0_20px_50px_rgba(0,0,0,0.08)]">
-            
+
             {/* Header Controls */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
               <div>
@@ -219,210 +219,206 @@ export default function SettingsOrdersPage() {
                 </div>
               </div>
 
-              {/* Actions & Settings Nav Links */}
-              <div className="flex flex-wrap items-center gap-2.5">
+              {/* Actions & Settings Nav Links (Horizontally Scrollable) */}
+              <div className="flex items-center gap-2.5 overflow-x-auto pb-2 max-w-full scrollbar-none no-scrollbar">
                 <Link
                   href="/settings/orders/create"
-                  className="bg-[#0f172a] hover:bg-[#1e293b] text-white font-black text-xs uppercase tracking-wider px-5 py-3 rounded-full shadow-lg hover:shadow-xl transition-all flex items-center gap-2 cursor-pointer active:scale-95"
+                  className="bg-[#0f172a] hover:bg-[#1e293b] text-white font-black text-xs uppercase tracking-wider px-5 py-3 rounded-full shadow-lg hover:shadow-xl transition-all flex items-center gap-2 cursor-pointer active:scale-95 whitespace-nowrap shrink-0"
                 >
                   <Plus size={16} /> ADD NEW ORDER
                 </Link>
-
-                <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none max-w-full shrink-0">
-                  <Link
-                    href="/settings/sync"
-                    className="text-xs font-black uppercase bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 px-3.5 py-2.5 rounded-full shadow-xs transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0"
-                  >
-                    <RefreshCw size={14} className="text-emerald-600" /> SYNC
-                  </Link>
-                  <Link
-                    href="/settings/shops"
-                    className="text-xs font-black uppercase bg-white/60 hover:bg-white border border-white/60 text-[#0f172a] px-3.5 py-2.5 rounded-full shadow-xs transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0"
-                  >
-                    <Store size={14} /> SHOPS
-                  </Link>
-                  <span className="text-xs font-black uppercase bg-[#0f172a] text-white border border-[#0f172a] px-3.5 py-2.5 rounded-full shadow-xs flex items-center gap-1.5 whitespace-nowrap shrink-0">
-                    <ShoppingBag size={14} /> ORDERS ({allOrdersList.length})
-                  </span>
-                  <Link
-                    href="/settings/invoices"
-                    className="text-xs font-black uppercase bg-white/60 hover:bg-white border border-white/60 text-[#0f172a] px-3.5 py-2.5 rounded-full shadow-xs transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0"
-                  >
-                    <FileText size={14} /> INVOICES
-                  </Link>
-                  <Link
-                    href="/settings/wishlist"
-                    className="text-xs font-black uppercase bg-white/60 hover:bg-white border border-white/60 text-[#0f172a] px-3.5 py-2.5 rounded-full shadow-xs transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0"
-                  >
-                    <Heart size={14} fill="#ef4444" className="text-red-500" /> WISHLIST
-                  </Link>
-                  <Link
-                    href="/settings/security"
-                    className="text-xs font-black uppercase bg-white/60 hover:bg-white border border-white/60 text-[#0f172a] px-3.5 py-2.5 rounded-full shadow-xs transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0"
-                  >
-                    <ShieldCheck size={14} /> SECURITY
-                  </Link>
-                </div>
+                <Link
+                  href="/settings/sync"
+                  className="text-xs font-black uppercase bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 px-3.5 py-2.5 rounded-full shadow-xs transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0"
+                >
+                  <RefreshCw size={14} className="text-emerald-600" /> SYNC
+                </Link>
+                <Link
+                  href="/settings/shops"
+                  className="text-xs font-black uppercase bg-white/60 hover:bg-white border border-white/60 text-[#0f172a] px-3.5 py-2.5 rounded-full shadow-xs transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0"
+                >
+                  <Store size={14} /> SHOPS
+                </Link>
+                <span className="text-xs font-black uppercase bg-[#0f172a] text-white border border-[#0f172a] px-3.5 py-2.5 rounded-full shadow-xs flex items-center gap-1.5 whitespace-nowrap shrink-0">
+                  <ShoppingBag size={14} /> ORDERS ({allOrdersList.length})
+                </span>
+                <Link
+                  href="/settings/invoices"
+                  className="text-xs font-black uppercase bg-white/60 hover:bg-white border border-white/60 text-[#0f172a] px-3.5 py-2.5 rounded-full shadow-xs transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0"
+                >
+                  <FileText size={14} /> INVOICES
+                </Link>
+                <Link
+                  href="/settings/wishlist"
+                  className="text-xs font-black uppercase bg-white/60 hover:bg-white border border-white/60 text-[#0f172a] px-3.5 py-2.5 rounded-full shadow-xs transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0"
+                >
+                  <Heart size={14} fill="#ef4444" className="text-red-500" /> WISHLIST
+                </Link>
+                <Link
+                  href="/settings/security"
+                  className="text-xs font-black uppercase bg-white/60 hover:bg-white border border-white/60 text-[#0f172a] px-3.5 py-2.5 rounded-full shadow-xs transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0"
+                >
+                  <ShieldCheck size={14} /> SECURITY
+                </Link>
               </div>
             </div>
 
             {/* Search Bar */}
-            <div className="mb-6">
-              <div className="relative max-w-md w-full">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={e => { setSearchQuery(e.target.value); setPage(1); }}
-                  placeholder="SEARCH LOCAL ORDERS BY ID, SHOP, PRODUCT..."
-                  className="w-full pl-11 pr-4 py-3 bg-white/50 backdrop-blur-xl border border-white/60 rounded-full text-xs font-bold text-[#0f172a] placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0f172a]/30 shadow-sm uppercase"
-                />
-              </div>
-            </div>
+        <div className="mb-6">
+          <div className="relative max-w-md w-full">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={e => { setSearchQuery(e.target.value); setPage(1); }}
+              placeholder="SEARCH LOCAL ORDERS BY ID, SHOP, PRODUCT..."
+              className="w-full pl-11 pr-4 py-3 bg-white/50 backdrop-blur-xl border border-white/60 rounded-full text-xs font-bold text-[#0f172a] placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0f172a]/30 shadow-sm uppercase"
+            />
+          </div>
+        </div>
 
-            {/* Orders List */}
-            {loadingLocal ? (
-              <div className="py-20 text-center">
-                <div className="inline-block animate-spin rounded-full h-10 w-10 border-4 border-[#0f172a] border-t-transparent"></div>
-                <p className="mt-4 text-xs font-black uppercase text-gray-500">Loading Local Draft Orders...</p>
-              </div>
-            ) : paginatedOrders.length === 0 ? (
-              <div className="py-20 text-center bg-gray-50/50 rounded-3xl border border-dashed border-gray-200 p-8">
-                <ShoppingBag size={48} className="mx-auto text-gray-300 mb-3" />
-                <p className="text-base font-black text-[#0f172a] uppercase">No Local Draft Orders Found</p>
-                <p className="text-xs font-bold text-gray-400 mt-1 uppercase max-w-sm mx-auto">
-                  {searchQuery ? 'No draft orders match your search criteria.' : 'No unsynced orders in local DB. Click "+ ADD NEW ORDER" to create one.'}
-                </p>
-                <Link
-                  href="/settings/orders/create"
-                  className="mt-5 inline-flex items-center gap-2 bg-[#0f172a] text-white font-black text-xs uppercase px-6 py-3 rounded-full shadow-md hover:bg-[#1e293b] transition-all"
-                >
-                  <Plus size={16} /> Create New Order
-                </Link>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {paginatedOrders.map((ord) => (
-                  <motion.div
-                    key={ord.id || ord.orderId}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="bg-white/80 backdrop-blur-xl border border-white/90 rounded-3xl p-5 shadow-sm hover:shadow-md transition-all group"
-                  >
-                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                      
-                      {/* Left Details */}
-                      <div className="space-y-2.5">
-                        <div className="flex flex-wrap items-center gap-2.5">
-                          <span className="text-sm font-black text-[#0f172a] font-mono uppercase bg-gray-100 px-3 py-1 rounded-xl">
-                            {ord.orderId || ord.id}
-                          </span>
+        {/* Orders List */}
+        {loadingLocal ? (
+          <div className="py-20 text-center">
+            <div className="inline-block animate-spin rounded-full h-10 w-10 border-4 border-[#0f172a] border-t-transparent"></div>
+            <p className="mt-4 text-xs font-black uppercase text-gray-500">Loading Local Draft Orders...</p>
+          </div>
+        ) : paginatedOrders.length === 0 ? (
+          <div className="py-20 text-center bg-gray-50/50 rounded-3xl border border-dashed border-gray-200 p-8">
+            <ShoppingBag size={48} className="mx-auto text-gray-300 mb-3" />
+            <p className="text-base font-black text-[#0f172a] uppercase">No Local Draft Orders Found</p>
+            <p className="text-xs font-bold text-gray-400 mt-1 uppercase max-w-sm mx-auto">
+              {searchQuery ? 'No draft orders match your search criteria.' : 'No unsynced orders in local DB. Click "+ ADD NEW ORDER" to create one.'}
+            </p>
+            <Link
+              href="/settings/orders/create"
+              className="mt-5 inline-flex items-center gap-2 bg-[#0f172a] text-white font-black text-xs uppercase px-6 py-3 rounded-full shadow-md hover:bg-[#1e293b] transition-all"
+            >
+              <Plus size={16} /> Create New Order
+            </Link>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {paginatedOrders.map((ord) => (
+              <motion.div
+                key={ord.id || ord.orderId}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-white/80 backdrop-blur-xl border border-white/90 rounded-3xl p-5 shadow-sm hover:shadow-md transition-all group"
+              >
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
 
-                          {ord.isSynced ? (
-                            <span className="text-[11px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-900 border border-emerald-300 px-3 py-1 rounded-full flex items-center gap-1.5">
-                              <ShieldCheck size={13} className="text-emerald-600" /> Synced to Server
-                            </span>
-                          ) : (
-                            <span className="text-[11px] font-black uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-300 px-3 py-1 rounded-full flex items-center gap-1.5 animate-pulse">
-                              <Clock size={13} className="text-amber-600" /> Local Draft (Unsynced)
-                            </span>
-                          )}
+                  {/* Left Details */}
+                  <div className="space-y-2.5">
+                    <div className="flex flex-wrap items-center gap-2.5">
+                      <span className="text-sm font-black text-[#0f172a] font-mono uppercase bg-gray-100 px-3 py-1 rounded-xl">
+                        {ord.orderId || ord.id}
+                      </span>
 
-                          <span className="text-xs font-bold text-gray-500 flex items-center gap-1">
-                            <Calendar size={13} />
-                            {new Date(ord.orderDate || ord.createdAt).toLocaleDateString()}
-                          </span>
-                        </div>
+                      {ord.isSynced ? (
+                        <span className="text-[11px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-900 border border-emerald-300 px-3 py-1 rounded-full flex items-center gap-1.5">
+                          <ShieldCheck size={13} className="text-emerald-600" /> Synced to Server
+                        </span>
+                      ) : (
+                        <span className="text-[11px] font-black uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-300 px-3 py-1 rounded-full flex items-center gap-1.5 animate-pulse">
+                          <Clock size={13} className="text-amber-600" /> Local Draft (Unsynced)
+                        </span>
+                      )}
 
-                        {/* Shop Information */}
-                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-600 font-bold">
-                          <span className="font-black text-[#0f172a] text-sm uppercase flex items-center gap-1.5">
-                            <Store size={16} className="text-blue-600" />
-                            {ord.shop?.name || 'Customer Shop'}
-                            {ord.shop?.shopId && (
-                              <span className="text-[11px] font-mono text-gray-400">({ord.shop.shopId})</span>
-                            )}
-                          </span>
-                          {ord.shop?.phone && (
-                            <span className="flex items-center gap-1 text-gray-500">
-                              <Phone size={12} /> {ord.shop.phone}
-                            </span>
-                          )}
-                          {ord.shop?.address && (
-                            <span className="flex items-center gap-1 text-gray-500 truncate max-w-xs">
-                              <MapPin size={12} /> {ord.shop.address}
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Items Summary */}
-                        <div className="flex flex-wrap items-center gap-2 pt-1">
-                          <span className="text-xs font-extrabold text-gray-500 bg-gray-50 px-2.5 py-1 rounded-lg border border-gray-200/60">
-                            {(ord.items || []).length} {ord.items?.length === 1 ? 'ITEM' : 'ITEMS'}
-                          </span>
-                          {(ord.items || []).slice(0, 3).map((it, idx) => (
-                            <span key={idx} className="text-[11px] font-bold text-gray-600 bg-white border border-gray-200 px-2.5 py-1 rounded-lg">
-                              {it.name} ({it.quantity}x)
-                            </span>
-                          ))}
-                          {(ord.items || []).length > 3 && (
-                            <span className="text-[11px] font-extrabold text-gray-400">
-                              +{(ord.items || []).length - 3} more
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Right Totals & Actions */}
-                      <div className="flex flex-col sm:flex-row lg:flex-col items-start sm:items-center lg:items-end justify-between gap-3 pt-3 lg:pt-0 border-t lg:border-t-0 border-gray-100">
-                        <div className="text-left sm:text-right">
-                          <p className="text-[11px] font-black text-gray-400 uppercase tracking-wider">Total Amount</p>
-                          <p className="text-xl font-black text-[#0f172a]">{formatPrice(ord.total || 0)}</p>
-                          {ord.discount > 0 && (
-                            <p className="text-[10px] font-black text-emerald-600 uppercase">
-                              Includes {ord.discount}% Discount (-{formatPrice(ord.discountAmount)})
-                            </p>
-                          )}
-                        </div>
-
-                        {/* Action Buttons */}
-                        <div className="flex items-center gap-2">
-                          <Link
-                            href={`/settings/orders/create?editId=${encodeURIComponent(ord.id)}`}
-                            className="px-4 py-2 bg-[#0f172a] hover:bg-[#1e293b] text-white text-xs font-black uppercase rounded-full shadow-xs flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
-                          >
-                            <Edit3 size={14} /> EDIT
-                          </Link>
-
-                          <button
-                            onClick={() => handleDeleteOrder(ord)}
-                            className="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 text-xs font-black uppercase rounded-full border border-red-200 flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
-                          >
-                            <Trash2 size={14} /> DELETE
-                          </button>
-                        </div>
-                      </div>
-
+                      <span className="text-xs font-bold text-gray-500 flex items-center gap-1">
+                        <Calendar size={13} />
+                        {new Date(ord.orderDate || ord.createdAt).toLocaleDateString()}
+                      </span>
                     </div>
-                  </motion.div>
-                ))}
-              </div>
-            )}
 
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="mt-8 flex justify-center">
-                <Pagination
-                  currentPage={page}
-                  totalPages={totalPages}
-                  onPageChange={(p) => setPage(p)}
-                />
-              </div>
-            )}
+                    {/* Shop Information */}
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-600 font-bold">
+                      <span className="font-black text-[#0f172a] text-sm uppercase flex items-center gap-1.5">
+                        <Store size={16} className="text-blue-600" />
+                        {ord.shop?.name || 'Customer Shop'}
+                        {ord.shop?.shopId && (
+                          <span className="text-[11px] font-mono text-gray-400">({ord.shop.shopId})</span>
+                        )}
+                      </span>
+                      {ord.shop?.phone && (
+                        <span className="flex items-center gap-1 text-gray-500">
+                          <Phone size={12} /> {ord.shop.phone}
+                        </span>
+                      )}
+                      {ord.shop?.address && (
+                        <span className="flex items-center gap-1 text-gray-500 truncate max-w-xs">
+                          <MapPin size={12} /> {ord.shop.address}
+                        </span>
+                      )}
+                    </div>
 
+                    {/* Items Summary */}
+                    <div className="flex flex-wrap items-center gap-2 pt-1">
+                      <span className="text-xs font-extrabold text-gray-500 bg-gray-50 px-2.5 py-1 rounded-lg border border-gray-200/60">
+                        {(ord.items || []).length} {ord.items?.length === 1 ? 'ITEM' : 'ITEMS'}
+                      </span>
+                      {(ord.items || []).slice(0, 3).map((it, idx) => (
+                        <span key={idx} className="text-[11px] font-bold text-gray-600 bg-white border border-gray-200 px-2.5 py-1 rounded-lg">
+                          {it.name} ({it.quantity}x)
+                        </span>
+                      ))}
+                      {(ord.items || []).length > 3 && (
+                        <span className="text-[11px] font-extrabold text-gray-400">
+                          +{(ord.items || []).length - 3} more
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Right Totals & Actions */}
+                  <div className="flex flex-col sm:flex-row lg:flex-col items-start sm:items-center lg:items-end justify-between gap-3 pt-3 lg:pt-0 border-t lg:border-t-0 border-gray-100">
+                    <div className="text-left sm:text-right">
+                      <p className="text-[11px] font-black text-gray-400 uppercase tracking-wider">Total Amount</p>
+                      <p className="text-xl font-black text-[#0f172a]">{formatPrice(ord.total || 0)}</p>
+                      {ord.discount > 0 && (
+                        <p className="text-[10px] font-black text-emerald-600 uppercase">
+                          Includes {ord.discount}% Discount (-{formatPrice(ord.discountAmount)})
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex items-center gap-2">
+                      <Link
+                        href={`/settings/orders/create?editId=${encodeURIComponent(ord.id)}`}
+                        className="px-4 py-2 bg-[#0f172a] hover:bg-[#1e293b] text-white text-xs font-black uppercase rounded-full shadow-xs flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
+                      >
+                        <Edit3 size={14} /> EDIT
+                      </Link>
+
+                      <button
+                        onClick={() => handleDeleteOrder(ord)}
+                        className="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 text-xs font-black uppercase rounded-full border border-red-200 flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
+                      >
+                        <Trash2 size={14} /> DELETE
+                      </button>
+                    </div>
+                  </div>
+
+                </div>
+              </motion.div>
+            ))}
           </div>
         )}
-      </main>
-    </div>
-  );
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="mt-8 flex justify-center">
+            <Pagination
+              currentPage={page}
+              totalPages={totalPages}
+              onPageChange={(p) => setPage(p)}
+            />
+          </div>
+        )}
+      </div>
+    )}
+  </main>
+</div>
+);
 }
