@@ -72,3 +72,33 @@ export function getAuthToken(): string | null {
 
   return null;
 }
+
+/** Check if API response indicates token/session expiration and redirect to login */
+export function handleTokenExpiredRedirect(data?: any, status?: number): boolean {
+  if (typeof window === 'undefined') return false;
+
+  const msg = typeof data === 'string'
+    ? data
+    : (data?.msg || data?.message || data?.error || '');
+
+  const isExpired =
+    status === 401 ||
+    status === 403 ||
+    (typeof msg === 'string' && /token expired|jwt expired|session expired/i.test(msg));
+
+  if (isExpired) {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    localStorage.removeItem('matrices_user');
+    localStorage.removeItem('matrices_token');
+    localStorage.removeItem('matrices_login_time');
+    document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+
+    const isLoginPage = window.location.pathname === '/';
+    if (!isLoginPage) {
+      window.location.href = '/?expired=true';
+    }
+    return true;
+  }
+  return false;
+}

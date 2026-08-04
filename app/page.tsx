@@ -18,6 +18,18 @@ function LoginFormContent() {
   useEffect(() => {
     if (searchParams.get('expired') === 'true' || searchParams.get('sessionExpired') === 'true') {
       setExpiredMsg(true);
+      import('sweetalert2').then((Swal) => {
+        Swal.default.fire({
+          icon: 'warning',
+          title: 'Session Expired',
+          text: 'Session expired. Please log in again.',
+          timer: 3500,
+          showConfirmButton: false,
+          toast: true,
+          position: 'top-end',
+          timerProgressBar: true,
+        });
+      });
     }
   }, [searchParams]);
 

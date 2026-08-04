@@ -578,14 +578,15 @@ const fetcher = async <T = any>(url: string): Promise<T> => {
       headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     });
 
-    if (!res.ok) {
-      if (res.status === 401 || res.status === 403) {
-        if (typeof window !== 'undefined') window.dispatchEvent(new Event('auth-error'));
-      }
-      throw new Error(`HTTP ${res.status}`);
+    const data = await res.json().catch(() => ({}));
+
+    if (handleTokenExpiredRedirect(data, res.status)) {
+      return { success: false, data: [] } as unknown as T;
     }
 
-    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
 
     // Pre-warm image cache in the background after a successful products fetch
     if (isProducts && data?.data?.length > 0) {
