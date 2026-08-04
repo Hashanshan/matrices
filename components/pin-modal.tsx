@@ -149,25 +149,25 @@ export default function PinModal({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
           onClick={(e) => e.stopPropagation()}
-          className="relative w-full max-w-md max-h-[90vh] bg-white/95 backdrop-blur-2xl rounded-[2.5rem] p-6 sm:p-8 border border-white/90 shadow-[0_25px_70px_rgba(0,0,0,0.25)] overflow-y-auto custom-scrollbar cursor-default"
+          className="relative w-full max-w-md max-h-[90vh] bg-slate-200/30 backdrop-blur-3xl rounded-[2.5rem] p-6 sm:p-8 border border-white text-white shadow-[0_25px_70px_rgba(0,0,0,0.4)] overflow-y-auto scrollbar-none cursor-default"
         >
           {/* Close Button - iPad Style Pill */}
           <button
             onClick={onClose}
-            className="absolute top-5 right-5 p-2.5 text-gray-500 hover:text-[#0f172a] hover:bg-slate-100 rounded-full transition-all shadow-sm border border-slate-200/60 cursor-pointer"
+            className="absolute top-5 right-5 p-2.5 text-slate-300 hover:text-white hover:bg-white/10 rounded-full transition-all shadow-xs border border-white/20 cursor-pointer"
           >
             <X size={18} />
           </button>
 
           {/* Icon & Title Header */}
           <div className="text-center mb-6">
-            <div className="w-16 h-16 bg-[#0f172a] text-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-xl shadow-slate-900/20 border border-white/20">
+            <div className="w-16 h-16 bg-[#0f172a] text-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-xl shadow-slate-950/40 border border-white/20">
               {mode === 'pin' ? <ShieldCheck size={32} /> : <KeyRound size={32} />}
             </div>
-            <h2 className="text-2xl font-black text-[#0f172a] uppercase tracking-wide">
+            <h2 className="text-2xl font-black text-white uppercase tracking-wide">
               {mode === 'pin' ? 'SECURITY PIN REQUIRED' : 'VERIFY WITH PASSWORD'}
             </h2>
-            <p className="text-xs text-gray-500 font-extrabold tracking-wider uppercase mt-1">
+            <p className="text-xs text-slate-300 font-extrabold tracking-wider uppercase mt-1">
               {mode === 'pin'
                 ? 'ENTER YOUR 4-DIGIT PIN TO ACCESS SETTINGS'
                 : 'ENTER YOUR ACCOUNT PASSWORD TO CREATE / RESET PIN'}
@@ -176,7 +176,7 @@ export default function PinModal({
 
           {/* Error Message */}
           {errorMsg && (
-            <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center text-xs font-black text-red-500 mb-4 uppercase">
+            <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center text-xs font-black text-red-400 mb-4 uppercase">
               {errorMsg}
             </motion.p>
           )}
@@ -192,11 +192,11 @@ export default function PinModal({
                     <motion.div
                       key={index}
                       animate={{ scale: isFilled ? 1.15 : 1 }}
-                      className={`w-12 h-12 rounded-full flex items-center justify-center border-2 transition-all shadow-xs ${errorMsg
-                        ? 'border-red-500 bg-red-50 text-red-500'
+                      className={`w-12 h-12 rounded-full flex items-center justify-center border transition-all shadow-xs ${errorMsg
+                        ? 'border-red-400 bg-red-500/30 text-red-300'
                         : isFilled
-                          ? 'border-[#0f172a] bg-[#0f172a] text-white shadow-md'
-                          : 'border-slate-300 bg-white/80 text-transparent'
+                          ? 'border-white/40 bg-[#0f172a] text-white shadow-md'
+                          : 'border-white/10 bg-slate-400/40 text-transparent'
                         }`}
                     >
                       {isFilled ? <Lock size={16} /> : null}
@@ -212,7 +212,7 @@ export default function PinModal({
                     key={num}
                     onClick={() => handleDigit(num)}
                     disabled={isSubmitting}
-                    className="w-16 h-16 rounded-full bg-white hover:bg-slate-100 text-[#0f172a] font-black text-2xl border border-slate-200/90 shadow-md active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center mx-auto cursor-pointer"
+                    className="w-16 h-16 rounded-full bg-slate-200 hover:bg-white text-[#0f172a] font-black text-2xl border border-slate-300 shadow-lg active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center mx-auto cursor-pointer"
                   >
                     {num}
                   </button>
@@ -220,21 +220,21 @@ export default function PinModal({
                 <button
                   onClick={handleClear}
                   disabled={isSubmitting || pin.length === 0}
-                  className="w-16 h-16 rounded-full bg-slate-100 hover:bg-slate-200 text-[#0f172a] font-extrabold text-xs uppercase border border-slate-200/80 disabled:opacity-30 transition-all flex items-center justify-center mx-auto shadow-xs cursor-pointer"
+                  className="w-16 h-16 rounded-full bg-slate-500/40 hover:bg-slate-500/60 text-slate-200 font-extrabold text-xs uppercase border border-white/20 disabled:opacity-30 transition-all flex items-center justify-center mx-auto shadow-xs cursor-pointer"
                 >
                   CLEAR
                 </button>
                 <button
                   onClick={() => handleDigit('0')}
                   disabled={isSubmitting}
-                  className="w-16 h-16 rounded-full bg-white hover:bg-slate-100 text-[#0f172a] font-black text-2xl border border-slate-200/90 shadow-md active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center mx-auto cursor-pointer"
+                  className="w-16 h-16 rounded-full bg-slate-200 hover:bg-white text-[#0f172a] font-black text-2xl border border-slate-300 shadow-lg active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center mx-auto cursor-pointer"
                 >
                   0
                 </button>
                 <button
                   onClick={handleBackspace}
                   disabled={isSubmitting || pin.length === 0}
-                  className="w-16 h-16 rounded-full bg-slate-100 hover:bg-slate-200 text-[#0f172a] flex items-center justify-center border border-slate-200/80 disabled:opacity-30 transition-all mx-auto shadow-xs cursor-pointer"
+                  className="w-16 h-16 rounded-full bg-slate-500/40 hover:bg-slate-500/60 text-slate-200 flex items-center justify-center border border-white/20 disabled:opacity-30 transition-all mx-auto shadow-xs cursor-pointer"
                 >
                   <Delete size={20} />
                 </button>
@@ -244,7 +244,7 @@ export default function PinModal({
               <button
                 onClick={() => submitPin(pin)}
                 disabled={pin.length < 4 || isSubmitting}
-                className="w-full bg-[#0f172a] text-white py-4 rounded-full font-black text-sm uppercase tracking-wider hover:bg-[#1e293b] disabled:opacity-40 transition-all shadow-xl shadow-slate-900/20 flex items-center justify-center gap-2 mb-3 cursor-pointer"
+                className="w-full bg-[#0f172a] hover:bg-[#1e293b] text-white py-4 rounded-full font-black text-sm uppercase tracking-wider disabled:opacity-40 transition-all shadow-xl border border-white/10 flex items-center justify-center gap-2 mb-3 cursor-pointer"
               >
                 {isSubmitting ? (
                   <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>

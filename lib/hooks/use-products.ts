@@ -1,6 +1,6 @@
 import useSWRInfinite from 'swr/infinite';
 import useSWR from 'swr';
-import { resolveApiUrl, getAuthToken } from '../utils';
+import { resolveApiUrl, getAuthToken, handleTokenExpiredRedirect } from '../utils';
 import { offlineDB } from '../offline/indexed-db';
 import { useDataMode } from '../contexts/data-mode-context';
 import { prewarmImageCache } from '../offline/image-cache';
