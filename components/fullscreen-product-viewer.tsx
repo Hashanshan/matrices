@@ -231,7 +231,7 @@ export default function FullscreenProductViewer({
     indicesToWarm.forEach((idx) => {
       if (idx >= 0 && idx < validProducts.length) {
         const url = validProducts[idx]?.image;
-        if (url) getCachedImageUrl(url).catch(() => {});
+        if (url) getCachedImageUrl(url).catch(() => { });
       }
     });
   }, [currentIndex, validProducts]);
@@ -669,6 +669,10 @@ export default function FullscreenProductViewer({
             <h2 className="text-sm sm:text-2xl sm:text-3xl font-black mb-1 sm:mb-2 leading-tight uppercase">{currentProduct.name}</h2>
             <p className="text-sm text-gray-500 font-bold line-clamp-2 mb-2 sm:mb-4 uppercase">
               {currentProduct.subcategories ? `${currentProduct.categories} > ${currentProduct.subcategories}` : currentProduct.categories}
+            </p>
+            {/* product id */}
+            <p className="text-sm text-gray-700 font-bold line-clamp-2 mb-2 sm:mb-4 uppercase">
+              {currentProduct.productId}
             </p>
 
             {/* Price */}
