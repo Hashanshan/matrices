@@ -8,6 +8,8 @@
     "start": "next start",
     "lint": "eslint .",
     "cap:sync": "next build && cap sync",
+    "apk:legacy": "next build && cap copy && cd android && gradlew.bat assembleLegacyDebug",
+    "apk:modern": "next build && cap copy && cd android && gradlew.bat assembleModernDebug",
     "apk:build": "next build && cap copy && cd android && gradlew.bat assembleDebug",
     "ipa:build": "next build && cap sync ios && npx eas-cli build --platform ios"
   },

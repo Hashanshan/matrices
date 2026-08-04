@@ -3,3 +3,7 @@ npm run cap:sync
 # Build the Android APK binary
 npm run apk:build
 
+npm run ipa:build
+
+npm run apk:modern
+npm run apk:legacy

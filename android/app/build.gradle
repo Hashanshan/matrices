@@ -18,6 +18,21 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    flavorDimensions "version"
+
+    productFlavors {
+        legacy {
+            dimension "version"
+            minSdkVersion 19
+            versionNameSuffix "-legacy"
+        }
+        modern {
+            dimension "version"
+            minSdkVersion 24
+            versionNameSuffix "-modern"
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled false

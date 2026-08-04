@@ -1,14 +1,14 @@
 {
   "expo": {
     "name": "Matrices",
-    "slug": "catelogue",
+    "slug": "matrices-catalogue",
     "scheme": "App",
     "ios": {
       "bundleIdentifier": "com.matrices.catalogue"
     },
     "extra": {
       "eas": {
-        "projectId": "6ac1f3b1-df78-4208-bc22-b6b956bd064b"
+        "projectId": "2227f590-fd44-4dfb-847a-41de811d6dd2"
       }
     }
   }

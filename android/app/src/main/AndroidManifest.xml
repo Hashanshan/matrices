@@ -1,5 +1,18 @@
-<?xml version="1.0" encoding="utf-8" ?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-sdk tools:overrideLibrary="org.apache.cordova, io.ionic.libs.ioncameralib, io.ionic.libs.iongeolocationlib, io.ionic.libs.ionfilesystemlib, io.ionic.libs.filesystem, com.google.android.material, com.google.android.gms.location, com.google.android.gms.tasks, com.google.android.gms.base, com.google.android.gms.common, com.getcapacitor, com.getcapacitor.android, com.capacitorjs.plugins.camera, com.capacitorjs.plugins.filesystem, com.capacitorjs.plugins.geolocation, androidx.camera.core, androidx.camera.camera2, androidx.camera.lifecycle, androidx.camera.view, androidx.camera.video, androidx.camera.extensions, androidx.graphics.shapes, androidx.graphics.path, androidx.graphics, androidx.annotation, androidx.media, androidx.palette, androidx.browser, androidx.core.splashscreen, androidx.core, androidx.core.ktx, androidx.core.viewtree, androidx.appcompat, androidx.appcompat.resources, androidx.coordinatorlayout, androidx.constraintlayout, androidx.constraintlayout.widget, androidx.fragment, androidx.fragment.ktx, androidx.activity, androidx.activity.ktx, androidx.lifecycle, androidx.lifecycle.ktx, androidx.savedstate, androidx.savedstate.ktx, androidx.tracing, androidx.vectordrawable, androidx.vectordrawable.animated, androidx.versionedparcelable, androidx.customview, androidx.drawerlayout, androidx.webkit, androidx.arch.core, androidx.profileinstaller, androidx.concurrent.futures, androidx.interpolator, androidx.loader, androidx.viewpager, androidx.exifinterface, androidx.startup, androidx.transition, androidx.cardview, androidx.recyclerview, androidx.viewpager2, androidx.dynamicanimation, androidx.emoji2" />
+
+
+
+
+
+
+
+
+
+
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
