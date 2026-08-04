@@ -1,18 +1,39 @@
-# v0 sandbox internal files
+# Dependencies
+node_modules/
+
+# Next.js build output
+.next/
+out/
+
+# Capacitor native & synced files
+ios/App/App/public
+ios/App/Pods/
+ios/App/Podfile.lock
+ios/App/App/build/
+ios/App/*.xcworkspace/xcuserdata
+ios/App/*.xcodeproj/xcuserdata
+
+android/.gradle/
+android/app/build/
+android/build/
+
+# EAS & Build artifacts
+.eas/
+*.apk
+*.aab
+*.ipa
+
+# Environment files
+.env*.local
+
+# OS / Editor files
+.DS_Store
+Thumbs.db
+
+# v0 / Vercel sandbox internal files
 __v0_runtime_loader.js
 __v0_devtools.tsx
 __v0_jsx-dev-runtime.ts
 .snowflake/
 .v0-trash/
 .vercel/
-
-# Environment variables
-.env*.local
-
-# Common ignores
-node_modules
-.next/
-.DS_Store
-
-out
-./out

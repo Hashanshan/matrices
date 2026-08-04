@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint .",
     "cap:sync": "next build && cap sync",
-    "apk:build": "next build && cap copy && cd android && gradlew.bat assembleDebug"
+    "apk:build": "next build && cap copy && cd android && gradlew.bat assembleDebug",
+    "ipa:build": "next build && cap sync ios && npx eas-cli build --platform ios"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
@@ -16,6 +17,7 @@
     "@capacitor/camera": "^8.2.2",
     "@capacitor/cli": "^8.4.2",
     "@capacitor/core": "^8.4.2",
+    "@capacitor/ios": "^8.4.2",
     "@capacitor/filesystem": "^8.1.2",
     "@capacitor/geolocation": "^8.2.0",
     "@vercel/analytics": "1.6.1",
@@ -41,6 +43,7 @@
     "@types/node": "^24",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "eas-cli": "^16.0.0",
     "postcss": "^8.5",
     "tailwindcss": "^4.2.0",
     "typescript": "5.7.3"
