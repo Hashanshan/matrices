@@ -272,6 +272,7 @@ export default function FullscreenProductViewer({
   // }, [exactMatchFound, validProducts.length, viewerSearchQuery, onSearch]);
 
   const handleSwipe = useCallback((newDirection: 'left' | 'right') => {
+    setImageZoomed(false);
     setDirection(newDirection);
     if (newDirection === 'right') {
       // Go back — allow wrapping to end only when no more data to load
@@ -326,14 +327,16 @@ export default function FullscreenProductViewer({
   }, [validProducts.length, currentIndex]);
 
   const handleTouchStart = (e: React.TouchEvent) => {
+    if (imageZoomed) return;
     touchStartX.current = e.touches[0].clientX;
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
+    if (imageZoomed) return;
     const touchEndX = e.changedTouches[0].clientX;
     const diff = touchStartX.current - touchEndX;
 
-    if (Math.abs(diff) > 50) {
+    if (Math.abs(diff) > 40) {
       if (diff > 0) {
         handleSwipe('left');
       } else {
@@ -342,26 +345,23 @@ export default function FullscreenProductViewer({
     }
   };
 
-  const pageFlipVariants = {
+  const slideVariants = {
     enter: (dir: 'left' | 'right') => ({
-      rotateY: dir === 'left' ? -90 : 90,
+      x: dir === 'left' ? '5%' : '-5%',
       opacity: 0,
-      scale: 0.98,
-      filter: 'brightness(0.95)',
+      scale: 0.99,
     }),
     center: {
       zIndex: 1,
-      rotateY: 0,
+      x: 0,
       opacity: 1,
       scale: 1,
-      filter: 'brightness(1)',
     },
     exit: (dir: 'left' | 'right') => ({
       zIndex: 0,
-      rotateY: dir === 'left' ? 45 : -45,
+      x: dir === 'left' ? '-5%' : '5%',
       opacity: 0,
-      scale: 0.98,
-      filter: 'brightness(0.95)',
+      scale: 0.99,
     }),
   };
 
@@ -429,33 +429,27 @@ export default function FullscreenProductViewer({
         className="w-full h-full flex items-center justify-center relative cursor-move group"
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
-        style={{ perspective: 1800, perspectiveOrigin: '50% 50%' }}
       >
-        <AnimatePresence initial={false} custom={direction} mode="wait">
+        <AnimatePresence initial={false} custom={direction}>
           <motion.div
-            key={currentIndex}
+            key={currentProduct.id || (currentProduct as any)._id || currentIndex}
             custom={direction}
-            variants={pageFlipVariants}
+            variants={slideVariants}
             initial="enter"
             animate="center"
             exit="exit"
             transition={{
               type: 'tween',
               ease: 'easeOut',
-              duration: 0.08,
+              duration: 0.12,
             }}
             className="absolute inset-0 flex items-center justify-center p-4 sm:p-8"
-            style={{
-              transformStyle: 'preserve-3d',
-              transformOrigin: 'left center',
-              backfaceVisibility: 'hidden',
-            }}
             onClick={() => setImageZoomed(!imageZoomed)}
           >
             <motion.div
               className="relative w-full h-full"
-              animate={imageZoomed ? { scale: 1.1 } : { scale: 1 }}
-              transition={{ duration: 0.3 }}
+              animate={imageZoomed ? { scale: 1.15 } : { scale: 1 }}
+              transition={{ duration: 0.2 }}
             >
               <SmartImage
                 src={displayImg || currentProduct?.image || (currentProduct as any)?.imageUrl || ''}
@@ -756,13 +750,20 @@ function ThumbnailStrip({
 }: ThumbnailStripProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // Render a sliding window of max 11 thumbnails around the active index for optimal performance
+  const WINDOW_RADIUS = 5;
+  const startIdx = Math.max(0, currentIndex - WINDOW_RADIUS);
+  const endIdx = Math.min(products.length, currentIndex + WINDOW_RADIUS + 1);
+  const visibleProducts = products.slice(startIdx, endIdx);
+
   useEffect(() => {
     if (!containerRef.current) return;
-    const activeEl = containerRef.current.children[currentIndex] as HTMLElement;
+    const relIndex = currentIndex - startIdx;
+    const activeEl = containerRef.current.children[relIndex] as HTMLElement;
     if (activeEl) {
       activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
     }
-  }, [currentIndex]);
+  }, [currentIndex, startIdx]);
 
   return (
     <div className={`${imageZoomed ? 'hidden' : ''}`}>
@@ -772,24 +773,27 @@ function ThumbnailStrip({
         className="absolute bottom-6 sm:bottom-8 left-1/2 -translate-x-1/2 flex gap-2 overflow-x-auto px-4 max-w-xs sm:max-w-2xl justify-center z-20 hidden sm:flex pb-2 no-scrollbar"
         ref={containerRef}
       >
-        {products.map((product, idx) => (
-          <motion.button
-            key={`${product.id}-${idx}`}
-            onClick={() => onSelect(idx)}
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.95 }}
-            className={`flex-shrink-0 w-14 h-14 rounded-xl overflow-hidden border-2 transition-all backdrop-blur-sm ${idx === currentIndex
-              ? 'border-white shadow-xl ring-2 ring-white/50 scale-110'
-              : 'border-white/40 hover:border-white/80'
-              }`}
-          >
-            <SmartImage
-              src={product.image || (product as any).imageUrl || ''}
-              alt={product.name || 'Thumbnail'}
-              className="w-full h-full object-cover animate-fade-in"
-            />
-          </motion.button>
-        ))}
+        {visibleProducts.map((product, relIdx) => {
+          const idx = startIdx + relIdx;
+          return (
+            <motion.button
+              key={`${product.id}-${idx}`}
+              onClick={() => onSelect(idx)}
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.95 }}
+              className={`flex-shrink-0 w-14 h-14 rounded-xl overflow-hidden border-2 transition-all backdrop-blur-sm ${idx === currentIndex
+                ? 'border-white shadow-xl ring-2 ring-white/50 scale-110'
+                : 'border-white/40 hover:border-white/80'
+                }`}
+            >
+              <SmartImage
+                src={product.image || (product as any).imageUrl || ''}
+                alt={product.name || 'Thumbnail'}
+                className="w-full h-full object-cover"
+              />
+            </motion.button>
+          );
+        })}
 
         {hasMore && (
           <div

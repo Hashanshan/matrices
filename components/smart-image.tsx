@@ -144,8 +144,12 @@ export default function SmartImage({
 
   const needsUnoptimized = isLocalUri(imgSrc);
 
+  const containerClass = fill
+    ? `absolute inset-0 w-full h-full ${className}`
+    : `relative ${className}`;
+
   return (
-    <div className={`relative ${className}`} style={style}>
+    <div className={containerClass} style={style}>
       {showShimmer && loading && (
         <div className="absolute inset-0 bg-gray-200 animate-pulse rounded-inherit" />
       )}
@@ -156,6 +160,7 @@ export default function SmartImage({
         className={`w-full h-full object-contain ${showShimmer && loading ? 'opacity-0' : 'opacity-100'} transition-opacity duration-150`}
         style={{ display: 'block' }}
         loading={priority ? 'eager' : 'lazy'}
+        {...(priority ? ({ fetchPriority: 'high' } as any) : {})}
         decoding="async"
         onLoad={() => setLoading(false)}
         onError={handleError}

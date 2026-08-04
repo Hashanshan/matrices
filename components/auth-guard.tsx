@@ -1,6 +1,6 @@
 'use client';
 
-import { useAuth } from '@/lib/contexts/auth-context';
+import { useAuth, isSessionExpired } from '@/lib/contexts/auth-context';
 import { useRouter, usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
@@ -17,6 +17,12 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!mounted) return;
     
+    // Check 24-hour session expiration on route change
+    if (isLoggedIn && isSessionExpired()) {
+      window.location.href = '/?expired=true';
+      return;
+    }
+
     // If user is not logged in and not on the login page (root), redirect to root
     if (!isLoggedIn && pathname !== '/') {
       router.replace('/');

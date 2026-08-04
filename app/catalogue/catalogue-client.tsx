@@ -18,12 +18,31 @@ export default function CategoriesPage({ fallbackData }: { fallbackData?: any } 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
-  useEffect(() => {
-    prewarmImageCache().catch(() => {});
-  }, []);
-
   // Fetch filters (categories, subcategories) from API with fallbackData
   const { categories, isLoading, isValidating } = useFilters({ fallbackData });
+
+  useEffect(() => {
+    prewarmImageCache().catch(() => {});
+    if (categories && categories.length > 0) {
+      const urls: string[] = [];
+      categories.forEach((c) => {
+        if (c.image) urls.push(c.image);
+        if (c.subcategories) {
+          c.subcategories.forEach((s) => {
+            if (s.image) urls.push(s.image);
+          });
+        }
+      });
+      if (urls.length > 0 && typeof window !== 'undefined') {
+        urls.forEach((url) => {
+          if (url) {
+            const img = new window.Image();
+            img.src = url;
+          }
+        });
+      }
+    }
+  }, [categories]);
 
   // Intercept back button when subcategories are selected to step back to category list first
   useBackHandler(() => {

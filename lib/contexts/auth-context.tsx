@@ -28,10 +28,28 @@ function hashPin(pin: string): string {
   return String(hash >>> 0);
 }
 
+const SESSION_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+export function isSessionExpired(): boolean {
+  if (typeof window === 'undefined') return false;
+  const loginTimeStr = localStorage.getItem('matrices_login_time');
+  if (!loginTimeStr) return false;
+  const loginTime = Number(loginTimeStr);
+  if (isNaN(loginTime) || loginTime <= 0) return false;
+  return (Date.now() - loginTime) >= SESSION_DURATION_MS;
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(() => {
     if (typeof window !== 'undefined') {
       const savedUser = localStorage.getItem('user');
+      const loginTimeStr = localStorage.getItem('matrices_login_time');
+      if (loginTimeStr) {
+        const elapsed = Date.now() - Number(loginTimeStr);
+        if (elapsed >= SESSION_DURATION_MS) {
+          return null; // Expired
+        }
+      }
       if (savedUser) {
         try {
           return JSON.parse(savedUser);
@@ -47,6 +65,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (typeof window !== 'undefined') {
       const savedUser = localStorage.getItem('user');
       const savedToken = localStorage.getItem('token');
+      const loginTimeStr = localStorage.getItem('matrices_login_time');
+      if (loginTimeStr) {
+        const elapsed = Date.now() - Number(loginTimeStr);
+        if (elapsed >= SESSION_DURATION_MS) {
+          // Clean up expired session stored items immediately
+          localStorage.removeItem('user');
+          localStorage.removeItem('token');
+          localStorage.removeItem('matrices_login_time');
+          document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+          return false;
+        }
+      }
       return Boolean(savedUser || savedToken);
     }
     return false;
@@ -70,6 +100,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const logout = () => {
+    setUser(null);
+    setIsLoggedIn(false);
+    markPinVerified(false);
+    localStorage.removeItem('user');
+    localStorage.removeItem('token');
+    localStorage.removeItem('matrices_login_time');
+    document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+  };
+
+  // Check 24-hour expiration periodically and on window focus
+  useEffect(() => {
+    const checkExpiration = () => {
+      if (isLoggedIn && isSessionExpired()) {
+        logout();
+        if (typeof window !== 'undefined' && window.location.pathname !== '/') {
+          window.location.href = '/?expired=true';
+        }
+      }
+    };
+
+    checkExpiration();
+    const interval = setInterval(checkExpiration, 30000); // Check every 30s
+    window.addEventListener('focus', checkExpiration);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', checkExpiration);
+    };
+  }, [isLoggedIn]);
+
   useEffect(() => {
     const handleAuthError = () => {
       const mode = typeof window !== 'undefined' ? localStorage.getItem('matrices_data_mode') : null;
@@ -90,15 +150,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoggedIn(true);
     markPinVerified(false);
     localStorage.setItem('user', JSON.stringify(newUser));
-  };
-
-  const logout = () => {
-    setUser(null);
-    setIsLoggedIn(false);
-    markPinVerified(false);
-    localStorage.removeItem('user');
-    localStorage.removeItem('token');
-    document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+    localStorage.setItem('matrices_login_time', Date.now().toString());
   };
 
   const updateProfile = (profile: UserProfile) => {

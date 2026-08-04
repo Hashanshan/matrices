@@ -1,23 +1,31 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/contexts/auth-context';
 import Image from 'next/image';
-export default function LoginPage() {
+
+function LoginFormContent() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [expiredMsg, setExpiredMsg] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { login } = useAuth();
+
+  useEffect(() => {
+    if (searchParams.get('expired') === 'true' || searchParams.get('sessionExpired') === 'true') {
+      setExpiredMsg(true);
+    }
+  }, [searchParams]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
     const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
-
 
     try {
       const res = await fetch(BACKEND_URL + '/api/catelogue/auth/login', {
@@ -31,10 +39,6 @@ export default function LoginPage() {
       const data = await res.json();
 
       if (res.ok) {
-        // Handle successful login using AuthContext
-        // We will create a UserProfile object as expected by the context. 
-        // Token is not explicitly in UserProfile based on existing types? Let's check context.
-        // The previous logic just saved token to localStorage. AuthContext saves the `user` object.
         const userObj = {
           id: data.id || email,
           name: data.name,
@@ -45,12 +49,10 @@ export default function LoginPage() {
 
         login(userObj as any);
 
-        // Ensure token is also stored if we are relying on it elsewhere
         localStorage.setItem('token', data.token);
-        // Set token in a cookie to enable SSR fetching on protected routes
+        localStorage.setItem('matrices_login_time', Date.now().toString());
         document.cookie = `token=${data.token}; path=/; max-age=86400; SameSite=Lax`;
 
-        // Redirect to catalogue
         router.push('/catalogue');
       } else {
         setError(data.msg || 'Login failed. Please try again.');
@@ -86,6 +88,12 @@ export default function LoginPage() {
             Sign in to access the product catalogue
           </p>
         </div>
+        {expiredMsg && (
+          <div className="bg-amber-500/20 border border-amber-500/50 text-amber-100 p-3 rounded-[1rem] text-xs text-center font-bold uppercase tracking-wide">
+            Your 24-hour session has expired. Please sign in with your password to continue.
+          </div>
+        )}
+
         <form className="mt-8 space-y-6" onSubmit={handleLogin}>
           <div className="rounded-md  -space-y-px ">
             <div className="mb-4 ">
@@ -147,5 +155,13 @@ export default function LoginPage() {
         </form>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#0f172a]" />}>
+      <LoginFormContent />
+    </Suspense>
   );
 }
