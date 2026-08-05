@@ -7,3 +7,49 @@ npm run ipa:build
 
 npm run apk:modern
 npm run apk:legacy
+
+
+
+const fs = require('fs');
+const path = require('path');
+
+const srcIcon = 'C:\\Users\\sathi\\.gemini\\antigravity-ide\\brain\\0c5ae1ea-e724-45ea-b063-c18889e46341\\matrices_icon2_edgetoedge_1785849361522.png';
+
+const targets = [
+  path.join(__dirname, 'public', 'app_logo.png'),
+  path.join(__dirname, 'public', 'icon.png'),
+  path.join(__dirname, 'public', 'logo1.png'),
+  path.join(__dirname, 'public', 'matrices-logo.png'),
+  path.join(__dirname, 'ios', 'App', 'App', 'Assets.xcassets', 'AppIcon.appiconset', 'AppIcon-512@2x.png'),
+];
+
+targets.forEach(target => {
+  try {
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.copyFileSync(srcIcon, target);
+    console.log(`Copied icon to ${target}`);
+  } catch (err) {
+    console.error(`Error copying to ${target}:`, err);
+  }
+});
+
+const androidResDir = path.join(__dirname, 'android', 'app', 'src', 'main', 'res');
+if (fs.existsSync(androidResDir)) {
+  const mipmapDirs = fs.readdirSync(androidResDir).filter(d => d.startsWith('mipmap-'));
+  mipmapDirs.forEach(dir => {
+    const fullDir = path.join(androidResDir, dir);
+    if (fs.statSync(fullDir).isDirectory()) {
+      const files = fs.readdirSync(fullDir).filter(f => f.endsWith('.png'));
+      files.forEach(file => {
+        const dest = path.join(fullDir, file);
+        try {
+          fs.copyFileSync(srcIcon, dest);
+          console.log(`Copied icon to ${dest}`);
+        } catch (err) {
+          console.error(`Error copying to ${dest}:`, err);
+        }
+      });
+    }
+  });
+}
+
