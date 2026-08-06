@@ -111,7 +111,7 @@ interface ProductGalleryProps {
 }
 
 export default function ProductGallery({ searchQuery, initialCategory, initialSubcategory, onFilterChange }: ProductGalleryProps) {
-  const { categories: apiCategories, priceRange: apiPriceRange } = useFilters();
+  const { categories: apiCategories, priceRange: apiPriceRange, mutate: mutateFilters } = useFilters();
   const searchParams = useSearchParams();
 
   const [filters, setFilters] = useState<FilterState>(() => {
@@ -125,8 +125,8 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
 
     return {
       searchQuery: urlSearch || saved.searchQuery || '',
-      categories: urlCategory ? [urlCategory] : (saved.categories || []),
-      subcategories: urlSubcategory ? [urlSubcategory] : (saved.subcategories || []),
+      categories: urlCategory ? [urlCategory] : [],
+      subcategories: urlSubcategory ? [urlSubcategory] : [],
       priceRange: urlMinPrice || urlMaxPrice
         ? [urlMinPrice ? parseInt(urlMinPrice) || 0 : 0, urlMaxPrice ? parseInt(urlMaxPrice) || 40000 : 40000]
         : (saved.priceRange || [0, 40000]),
@@ -262,7 +262,13 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
   //   }
   // }, [exactMatchFound, products.length, filters.searchQuery]);
 
-  const { wishlist, isProductWishlisted } = useWishlist();
+  const { wishlist, isProductWishlisted, mutate: mutateWishlist } = useWishlist();
+
+  // Automatically trigger background revalidation of both wishlist and filters on mount
+  useEffect(() => {
+    mutateWishlist().catch(() => {});
+    mutateFilters().catch(() => {});
+  }, [mutateWishlist, mutateFilters]);
 
   // Client-side filtering only handles price range now (others are backend-filtered)
   const filteredProducts = useMemo(() => {
@@ -279,7 +285,8 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
   const CATEGORIES = useMemo(() => {
     const wishlistedMap = new Map<string, number>();
     (wishlist.categories || []).forEach((c, idx) => {
-      wishlistedMap.set(c.name.toUpperCase(), c.order ?? idx);
+      const cName = typeof c === 'string' ? c : (c as any)?.name || (c as any)?.categoryName || '';
+      if (cName) wishlistedMap.set(cName.toUpperCase(), (c as any)?.order ?? idx);
     });
 
     const catNames = apiCategories.map(c => c.name);
@@ -303,9 +310,13 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
 
     const wishlistedSubMap = new Map<string, number>();
     (wishlist.subcategories || [])
-      .filter(s => s.category.toUpperCase() === category.toUpperCase())
+      .filter(s => {
+        const sCat = typeof s === 'object' ? (s as any)?.category || (s as any)?.categoryName : '';
+        return sCat && String(sCat).toUpperCase() === category.toUpperCase();
+      })
       .forEach((s, idx) => {
-        wishlistedSubMap.set(s.name.toUpperCase(), s.order ?? idx);
+        const sName = typeof s === 'string' ? s : (s as any)?.name || (s as any)?.subcategoryName || '';
+        if (sName) wishlistedSubMap.set(String(sName).toUpperCase(), (s as any)?.order ?? idx);
       });
 
     const subNames = cat.subcategories.map(s => s.name);
@@ -374,7 +385,8 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
   const sortedGroupedEntries = useMemo(() => {
     const wishlistedCatOrderMap = new Map<string, number>();
     (wishlist.categories || []).forEach((c, idx) => {
-      wishlistedCatOrderMap.set(c.name.toUpperCase(), c.order ?? idx);
+      const cName = typeof c === 'string' ? c : (c as any)?.name || (c as any)?.categoryName || '';
+      if (cName) wishlistedCatOrderMap.set(cName.toUpperCase(), (c as any)?.order ?? idx);
     });
 
     const entries = Object.entries(groupedProducts);

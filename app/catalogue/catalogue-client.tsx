@@ -19,7 +19,7 @@ export default function CategoriesPage({ fallbackData }: { fallbackData?: any } 
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   // Fetch filters (categories, subcategories) from API with fallbackData
-  const { categories, isLoading, isValidating } = useFilters({ fallbackData });
+  const { categories, isLoading, isValidating, mutate: mutateFilters } = useFilters({ fallbackData });
 
   useEffect(() => {
     prewarmImageCache().catch(() => {});
@@ -61,7 +61,14 @@ export default function CategoriesPage({ fallbackData }: { fallbackData?: any } 
     isSubcategoryWishlisted,
     toggleCategoryWishlist,
     toggleSubcategoryWishlist,
+    mutate: mutateWishlist,
   } = useWishlist();
+
+  // Automatically trigger background revalidation of both wishlist and filters on mount
+  useEffect(() => {
+    mutateWishlist().catch(() => {});
+    mutateFilters().catch(() => {});
+  }, [mutateWishlist, mutateFilters]);
 
   const selectedCategoryObj = useMemo(() => {
     if (!selectedCategory) return null;

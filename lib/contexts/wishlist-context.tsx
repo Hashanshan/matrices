@@ -57,6 +57,7 @@ interface WishlistContextType {
   toggleProductWishlist: (productId: string) => Promise<void>;
   reorderWishlist: (type: 'category' | 'subcategory' | 'product', items: any[]) => Promise<void>;
   totalWishlistCount: number;
+  mutate: () => Promise<any>;
 }
 
 const WishlistContext = createContext<WishlistContextType | undefined>(undefined);
@@ -113,7 +114,7 @@ const fetcher = async (url: string): Promise<WishlistResponse> => {
 
 export function WishlistProvider({ children }: { children: React.ReactNode }) {
   const token = typeof window !== 'undefined' ? getAuthToken() : null;
-  const { data, isLoading, mutate } = useSWR<WishlistResponse>(token ? '/api/wishlist' : null, fetcher, {
+  const { data, isLoading, mutate } = useSWR<WishlistResponse>('/api/wishlist', fetcher, {
     revalidateOnFocus: false,
     revalidateOnReconnect: true,
     dedupingInterval: 5000,
@@ -475,6 +476,7 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
         toggleProductWishlist,
         reorderWishlist,
         totalWishlistCount,
+        mutate,
       }}
     >
       {children}
