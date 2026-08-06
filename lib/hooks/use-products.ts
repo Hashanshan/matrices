@@ -57,33 +57,36 @@ async function getOfflineProducts(options: {
 
   const wishlistedSubMap = new Map<string, number>();
   (userWishlist.subcategories || []).forEach((s: any, idx: number) => {
-    if (s?.category && s?.name) {
-      wishlistedSubMap.set(`${String(s.category).toUpperCase()}>${String(s.name).toUpperCase()}`, s.order ?? idx);
+    const sCat = typeof s === 'object' ? s?.category || s?.categoryName : '';
+    const sName = typeof s === 'string' ? s : s?.name || s?.subcategoryName || '';
+    if (sCat && sName) {
+      wishlistedSubMap.set(`${String(sCat).toUpperCase()}>${String(sName).toUpperCase()}`, s.order ?? idx);
     }
   });
 
   const wishlistedCatMap = new Map<string, number>();
   (userWishlist.categories || []).forEach((c: any, idx: number) => {
-    if (c?.name) wishlistedCatMap.set(String(c.name).toUpperCase(), c.order ?? idx);
+    const cName = typeof c === 'string' ? c : c?.name || c?.categoryName || '';
+    if (cName) wishlistedCatMap.set(String(cName).toUpperCase(), c.order ?? idx);
   });
 
   const getWishlistScore = (p: any): number => {
-    const pId = String(p.productId || p.id || p._id || '').trim();
-    const pCode = String(p.code || p.productCode || '').trim();
-    if (pId && wishlistedProdMap.has(pId)) return wishlistedProdMap.get(pId)!;
-    if (pCode && wishlistedProdMap.has(pCode)) return wishlistedProdMap.get(pCode)!;
-
     const pCat = (p.categoryName || p.categories || p.category || (typeof p.category === 'object' ? p.category?.name : '') || '').trim().toUpperCase();
     const pSub = (p.subcategoryName || p.subcategories || p.subcategory || (typeof p.subcategory === 'object' ? p.subcategory?.name : '') || '').trim().toUpperCase();
+    const pId = String(p.productId || p.id || p._id || '').trim();
+    const pCode = String(p.code || p.productCode || '').trim();
+
+    if (pCat && wishlistedCatMap.has(pCat)) {
+      return wishlistedCatMap.get(pCat)!;
+    }
 
     if (pCat && pSub) {
       const subKey = `${pCat}>${pSub}`;
       if (wishlistedSubMap.has(subKey)) return 1000 + wishlistedSubMap.get(subKey)!;
     }
 
-    if (pCat && wishlistedCatMap.has(pCat)) {
-      return 10000 + wishlistedCatMap.get(pCat)!;
-    }
+    if (pId && wishlistedProdMap.has(pId)) return 10000 + wishlistedProdMap.get(pId)!;
+    if (pCode && wishlistedProdMap.has(pCode)) return 10000 + wishlistedProdMap.get(pCode)!;
 
     return 999999;
   };
@@ -451,13 +454,16 @@ async function getOfflineFilters(): Promise<FiltersResponse> {
   const userWishlist = dbWishlist.find((w: any) => w.id === 'user_wishlist') || dbWishlist[0] || {};
   const wishlistedCatMap = new Map<string, number>();
   (userWishlist.categories || []).forEach((c: any, idx: number) => {
-    if (c?.name) wishlistedCatMap.set(String(c.name).toUpperCase(), c.order ?? idx);
+    const cName = typeof c === 'string' ? c : c?.name || c?.categoryName || '';
+    if (cName) wishlistedCatMap.set(String(cName).toUpperCase(), c.order ?? idx);
   });
 
   const wishlistedSubMap = new Map<string, number>();
   (userWishlist.subcategories || []).forEach((s: any, idx: number) => {
-    if (s?.category && s?.name) {
-      wishlistedSubMap.set(`${String(s.category).toUpperCase()}>${String(s.name).toUpperCase()}`, s.order ?? idx);
+    const sCat = typeof s === 'object' ? s?.category || s?.categoryName : '';
+    const sName = typeof s === 'string' ? s : s?.name || s?.subcategoryName || '';
+    if (sCat && sName) {
+      wishlistedSubMap.set(`${String(sCat).toUpperCase()}>${String(sName).toUpperCase()}`, s.order ?? idx);
     }
   });
 
