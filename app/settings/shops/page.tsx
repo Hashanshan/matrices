@@ -25,6 +25,7 @@ interface Shop {
   shopId: string;
   name: string;
   phone: string;
+  phones?: string[];
   address: string;
   mapUrl?: string;
   imageUrl?: string;
@@ -53,11 +54,13 @@ const fetcher = async (url: string) => {
     const rawShops = await offlineDB.getAll<any>('shops').catch(() => []);
     const search = parseQuery();
     const filtered = search
-      ? rawShops.filter((s: any) =>
-        (s.name || '').toLowerCase().includes(search) ||
-        (s.shopId || '').toLowerCase().includes(search) ||
-        (s.phone || '').toLowerCase().includes(search)
-      )
+      ? rawShops.filter((s: any) => {
+        const phoneMatch = (s.phone || '').toLowerCase().includes(search) ||
+          (Array.isArray(s.phones) && s.phones.some((p: string) => (p || '').toLowerCase().includes(search)));
+        return (s.name || '').toLowerCase().includes(search) ||
+          (s.shopId || '').toLowerCase().includes(search) ||
+          phoneMatch;
+      })
       : rawShops;
 
     return {
@@ -105,7 +108,7 @@ export default function ShopsSettingsPage() {
 
   // Form Fields State
   const [formName, setFormName] = useState('');
-  const [formPhone, setFormPhone] = useState('');
+  const [formPhones, setFormPhones] = useState<string[]>(['']);
   const [formAddress, setFormAddress] = useState('');
   const [formMapUrl, setFormMapUrl] = useState('');
   const [formImageUrl, setFormImageUrl] = useState('');
@@ -159,7 +162,7 @@ export default function ShopsSettingsPage() {
   const handleOpenAddModal = () => {
     setEditingShop(null);
     setFormName('');
-    setFormPhone('');
+    setFormPhones(['']);
     setFormAddress('');
     setFormMapUrl('');
     setFormImageUrl('');
@@ -170,7 +173,10 @@ export default function ShopsSettingsPage() {
     setIsAddModalOpen(false);
     setEditingShop(shop);
     setFormName(shop.name || '');
-    setFormPhone(shop.phone || '');
+    const existingPhones = Array.isArray(shop.phones) && shop.phones.length > 0
+      ? shop.phones
+      : (shop.phone ? shop.phone.split(',').map(p => p.trim()).filter(Boolean) : ['']);
+    setFormPhones(existingPhones.length > 0 ? existingPhones : ['']);
     setFormAddress(shop.address || '');
     setFormMapUrl(shop.mapUrl || '');
     setFormImageUrl(shop.imageUrl || '');
@@ -180,10 +186,31 @@ export default function ShopsSettingsPage() {
     setIsAddModalOpen(false);
     setEditingShop(null);
     setFormName('');
-    setFormPhone('');
+    setFormPhones(['']);
     setFormAddress('');
     setFormMapUrl('');
     setFormImageUrl('');
+  };
+
+  const handlePhoneChange = (index: number, val: string) => {
+    setFormPhones((prev) => {
+      const updated = [...prev];
+      updated[index] = val;
+      return updated;
+    });
+  };
+
+  const handleAddPhone = () => {
+    if (formPhones.length < 4) {
+      setFormPhones((prev) => [...prev, '']);
+    }
+  };
+
+  const handleRemovePhone = (index: number) => {
+    setFormPhones((prev) => {
+      const updated = prev.filter((_, i) => i !== index);
+      return updated.length > 0 ? updated : [''];
+    });
   };
 
   // Location Check-in via Geolocation API
@@ -307,9 +334,19 @@ export default function ShopsSettingsPage() {
       const method = isEdit ? 'PUT' : 'POST';
       const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
 
+      const cleanPhones = formPhones.map((p) => p.trim()).filter(Boolean);
+      if (cleanPhones.length === 0) {
+        Swal.fire({ icon: 'warning', title: 'Phone Required', text: 'Please enter at least 1 phone number.' });
+        setIsSubmitting(false);
+        return;
+      }
+
+      const primaryPhone = cleanPhones[0];
+
       const shopPayload = {
         name: formName,
-        phone: formPhone,
+        phone: primaryPhone,
+        phones: cleanPhones,
         address: formAddress,
         mapUrl: formMapUrl,
         imageUrl: formImageUrl,
@@ -581,13 +618,38 @@ export default function ShopsSettingsPage() {
 
                           {/* Contact, Location & Map Checkin Info */}
                           <div className="space-y-2 mb-5">
-                            <a
-                              href={`tel:${shop.phone}`}
-                              className="flex items-center gap-2 text-xs font-bold text-[#0f172a] hover:text-blue-600 transition-colors uppercase"
-                            >
-                              <Phone size={14} className="text-gray-500 shrink-0" />
-                              <span>{shop.phone || 'NO PHONE'}</span>
-                            </a>
+                            {/* Phone Numbers List (1 to 4) */}
+                            <div>
+                              {(() => {
+                                const phoneList = Array.isArray(shop.phones) && shop.phones.length > 0
+                                  ? shop.phones
+                                  : (shop.phone ? shop.phone.split(',').map((p) => p.trim()).filter(Boolean) : []);
+                                if (phoneList.length === 0) {
+                                  return (
+                                    <div className="flex items-center gap-2 text-xs font-bold text-gray-400 uppercase">
+                                      <Phone size={14} className="text-gray-400 shrink-0" />
+                                      <span>NO PHONE</span>
+                                    </div>
+                                  );
+                                }
+                                return (
+                                  <div className="flex flex-wrap gap-1.5 items-center">
+                                    {phoneList.map((ph, pIdx) => (
+                                      <a
+                                        key={pIdx}
+                                        href={`tel:${ph}`}
+                                        className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white/70 hover:bg-[#0f172a] text-[#0f172a] hover:text-white rounded-full text-xs font-bold transition-all border border-white/80 shadow-2xs group/ph"
+                                        title={`Call ${ph}`}
+                                      >
+                                        <Phone size={11} className="text-emerald-600 group-hover/ph:text-emerald-300 shrink-0" />
+                                        <span>{ph}</span>
+                                      </a>
+                                    ))}
+                                  </div>
+                                );
+                              })()}
+                            </div>
+
                             <div className="flex items-start gap-2 text-xs font-bold text-gray-600 uppercase">
                               <MapPin size={14} className="text-gray-500 mt-0.5 shrink-0" />
                               <span className="line-clamp-2">{shop.address || 'NO ADDRESS'}</span>
@@ -743,19 +805,52 @@ export default function ShopsSettingsPage() {
                 />
               </div>
 
-              {/* Phone Number */}
-              <div>
-                <label className="block text-xs font-black text-[#0f172a] uppercase mb-1">
-                  PHONE NUMBER <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="tel"
-                  required
-                  value={formPhone}
-                  onChange={e => setFormPhone(e.target.value)}
-                  placeholder="E.G. 0771234567"
-                  className="w-full px-4 py-3 bg-gray-50/50 border border-gray-300 focus:border-[#0f172a] rounded-2xl text-xs font-bold text-[#0f172a] focus:outline-none focus:ring-2 focus:ring-[#0f172a]/20 uppercase transition-all"
-                />
+              {/* Phone Numbers (1 to 4) */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-black text-[#0f172a] uppercase">
+                    PHONE NUMBERS ({formPhones.length}/4) <span className="text-red-500">*</span>
+                  </label>
+                  {formPhones.length < 4 && (
+                    <button
+                      type="button"
+                      onClick={handleAddPhone}
+                      className="inline-flex items-center gap-1 text-[0.65rem] font-black text-blue-700 hover:text-blue-900 uppercase bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-full border border-blue-200 transition-all cursor-pointer"
+                    >
+                      <Plus size={12} /> ADD NUMBER
+                    </button>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  {formPhones.map((ph, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <div className="relative flex-1">
+                        <input
+                          type="tel"
+                          required={idx === 0}
+                          value={ph}
+                          onChange={(e) => handlePhoneChange(idx, e.target.value)}
+                          placeholder={idx === 0 ? 'PRIMARY PHONE E.G. 0771234567' : `ADDITIONAL NUMBER #${idx + 1}`}
+                          className="w-full pl-9 pr-4 py-3 bg-gray-50/50 border border-gray-300 focus:border-[#0f172a] rounded-2xl text-xs font-bold text-[#0f172a] focus:outline-none focus:ring-2 focus:ring-[#0f172a]/20 uppercase transition-all"
+                        />
+                        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                          <Phone size={14} />
+                        </div>
+                      </div>
+                      {idx > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemovePhone(idx)}
+                          className="p-3 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-2xl border border-gray-200 transition-all cursor-pointer shrink-0"
+                          title="Remove phone number"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
 
               {/* Address */}

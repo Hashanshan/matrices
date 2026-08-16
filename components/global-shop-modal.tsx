@@ -12,6 +12,7 @@ export interface ShopOption {
   shopId: string;
   name: string;
   phone?: string;
+  phones?: string[];
   address?: string;
 }
 
@@ -93,46 +94,38 @@ export default function GlobalShopModal({
         return;
       }
 
-      if (!isVerifying) {
-        if (/^[0-9]$/.test(e.key)) {
-          e.preventDefault();
-          handleDigit(e.key);
-        } else if (e.key === 'Backspace') {
-          e.preventDefault();
-          handleBackspace();
-        } else if (e.key === 'Delete') {
-          e.preventDefault();
-          handleClear();
-        } else if (e.key === 'Escape') {
-          e.preventDefault();
-          onClose();
-        } else if (e.key === 'Enter') {
-          e.preventDefault();
-          if (pin.length === 4) {
-            submitPin(pin);
-          }
-        }
+      if (/^[0-9]$/.test(e.key)) {
+        e.preventDefault();
+        handleDigit(e.key);
+      } else if (e.key === 'Backspace') {
+        e.preventDefault();
+        handleBackspace();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, pinVerified, pin, isVerifying, onClose]);
+  }, [isOpen, pinVerified, pin]);
 
+  // Merge IndexedDB & API Shops
   useEffect(() => {
     async function mergeShops() {
-      if (!shopsData) return;
       const dbShops = await offlineDB.getAll<any>('shops').catch(() => []);
-      const apiShops: ShopOption[] = shopsData?.shops || [];
+      const apiShops: any[] = shopsData?.shops || [];
       const shopMap = new Map<string, ShopOption>();
 
       dbShops.forEach((s: any) => {
         const id = s.shopId || s.id;
         if (id) {
+          const pList = Array.isArray(s.phones) && s.phones.length > 0 ? s.phones : (s.phone ? s.phone.split(',').map((p: string) => p.trim()).filter(Boolean) : []);
           shopMap.set(id, {
             shopId: id,
             name: s.name || 'Unnamed Shop',
-            phone: s.phone || '',
+            phone: s.phone || (pList[0] || ''),
+            phones: pList,
             address: s.address || '',
           });
         }
@@ -140,10 +133,12 @@ export default function GlobalShopModal({
 
       apiShops.forEach((s: any) => {
         if (s.shopId) {
+          const pList = Array.isArray(s.phones) && s.phones.length > 0 ? s.phones : (s.phone ? s.phone.split(',').map((p: string) => p.trim()).filter(Boolean) : []);
           shopMap.set(s.shopId, {
             shopId: s.shopId,
             name: s.name || 'Unnamed Shop',
-            phone: s.phone || '',
+            phone: s.phone || (pList[0] || ''),
+            phones: pList,
             address: s.address || '',
           });
         }
@@ -158,11 +153,13 @@ export default function GlobalShopModal({
   const filteredShops = allShops.filter((s) => {
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase().trim();
+    const phoneMatch = (s.phone || '').toLowerCase().includes(q) ||
+      (Array.isArray(s.phones) && s.phones.some((p) => p.toLowerCase().includes(q)));
     return (
       (s.name || '').toLowerCase().includes(q) ||
       (s.shopId || '').toLowerCase().includes(q) ||
       (s.address || '').toLowerCase().includes(q) ||
-      (s.phone || '').toLowerCase().includes(q)
+      phoneMatch
     );
   });
 
@@ -398,11 +395,17 @@ export default function GlobalShopModal({
                           <h4 className="text-sm font-black uppercase">{shop.name}</h4>
                           <div className="flex items-center gap-3 text-xs font-bold opacity-80">
                             <span className="font-mono">ID: {shop.shopId}</span>
-                            {shop.phone && (
-                              <span className="flex items-center gap-1">
-                                <Phone size={12} /> {shop.phone}
-                              </span>
-                            )}
+                            {(() => {
+                              const pList = Array.isArray(shop.phones) && shop.phones.length > 0
+                                ? shop.phones
+                                : (shop.phone ? [shop.phone] : []);
+                              if (pList.length === 0) return null;
+                              return (
+                                <span className="flex items-center gap-1">
+                                  <Phone size={12} /> {pList.join(' • ')}
+                                </span>
+                              );
+                            })()}
                           </div>
                           {shop.address && (
                             <p className="text-[11px] opacity-70 truncate max-w-xs font-medium flex items-center gap-1">

@@ -506,7 +506,9 @@ async function resolveShopIdMapping(oldTempId: string, realShopId: string, serve
         ...targetShop,
         id: realShopId || targetShop.id,
         shopId: realShopId || targetShop.shopId,
-        ...(serverShopData?.imageUrl ? { imageUrl: serverShopData.imageUrl } : {})
+        ...(serverShopData?.imageUrl ? { imageUrl: serverShopData.imageUrl } : {}),
+        ...(serverShopData?.phones ? { phones: serverShopData.phones } : {}),
+        ...(serverShopData?.phone ? { phone: serverShopData.phone } : {})
       };
       await offlineDB.upsert('shops', updatedShop);
     }

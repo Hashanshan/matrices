@@ -17,6 +17,7 @@ interface Shop {
   shopId: string;
   name: string;
   phone: string;
+  phones?: string[];
   address: string;
   mapUrl?: string;
   imageUrl?: string;
@@ -333,9 +334,20 @@ export default function ShopClient({ params }: { params?: Promise<{ shopId: stri
                       {shop.name}
                     </h1>
                     <div className="flex flex-wrap items-center gap-3 sm:gap-4 mt-2 text-xs font-bold text-gray-600 uppercase">
-                      <a href={`tel:${shop.phone}`} className="flex items-center gap-1.5 hover:text-[#0f172a]">
-                        <Phone size={14} className="text-gray-500 shrink-0" /> {shop.phone}
-                      </a>
+                      {/* Phone Numbers List */}
+                      <div className="flex flex-wrap gap-1.5 items-center">
+                        {(shop.phones && shop.phones.length > 0 ? shop.phones : (shop.phone ? [shop.phone] : [])).map((ph, idx) => (
+                          <a
+                            key={idx}
+                            href={`tel:${ph}`}
+                            className="inline-flex items-center gap-1.5 px-3 py-1 bg-white/70 hover:bg-[#0f172a] text-[#0f172a] hover:text-white rounded-full text-xs font-bold transition-all border border-white/80 shadow-2xs group/ph"
+                            title={`Call ${ph}`}
+                          >
+                            <Phone size={12} className="text-emerald-600 group-hover/ph:text-emerald-300 shrink-0" />
+                            <span>{ph}</span>
+                          </a>
+                        ))}
+                      </div>
                       <span className="flex items-center gap-1.5">
                         <MapPin size={14} className="text-gray-500 shrink-0" /> {shop.address}
                       </span>

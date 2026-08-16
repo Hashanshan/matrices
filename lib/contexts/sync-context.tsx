@@ -584,18 +584,24 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         };
       });
 
-      const formattedShops = shops.map((s: any, idx: number) => ({
-        id: String(s._id || s.id || s.shopId || `shop_${idx}`),
-        shopId: String(s.shopId || s._id || s.id || `shop_${idx}`),
-        name: s.name || s.shopName || 'Shop',
-        phone: s.phone || '',
-        address: s.address || '',
-        imageUrl: s.imageUrl || s.image || '',
-        mapUrl: s.mapUrl || '',
-        deliveredOrders: s.deliveredOrders || 0,
-        pendingOrders: s.pendingOrders || 0,
-        currentCredit: s.currentCredit || 0,
-      }));
+      const formattedShops = shops.map((s: any, idx: number) => {
+        const pList = Array.isArray(s.phones) && s.phones.length > 0
+          ? s.phones
+          : (s.phone ? s.phone.split(',').map((p: string) => p.trim()).filter(Boolean) : []);
+        return {
+          id: String(s._id || s.id || s.shopId || `shop_${idx}`),
+          shopId: String(s.shopId || s._id || s.id || `shop_${idx}`),
+          name: s.name || s.shopName || 'Shop',
+          phone: s.phone || (pList[0] || ''),
+          phones: pList,
+          address: s.address || '',
+          imageUrl: s.imageUrl || s.image || '',
+          mapUrl: s.mapUrl || '',
+          deliveredOrders: s.deliveredOrders || 0,
+          pendingOrders: s.pendingOrders || 0,
+          currentCredit: s.currentCredit || 0,
+        };
+      });
 
       const formattedOrders = orders.map((o: any, idx: number) => ({
         id: String(o._id || o.id || o.orderId || `order_${idx}`),
