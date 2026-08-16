@@ -231,12 +231,13 @@ export async function processSyncQueueSequential(
         throw new Error(serverError);
       }
 
-      // Handle shop temp ID mapping replacement if a shop was created
-      const isShopCreate = item.endpoint.includes('/shops/create') || item.entity === 'Customer' || item.entity === 'Shop';
-      const realShopId = resJson.shop?.shopId || resJson.shopId;
+      // Handle shop creation/update ID mapping and bucket imageUrl update
+      const isShopOp = item.endpoint.includes('/shops') || item.entity === 'Customer' || item.entity === 'Shop';
+      const serverShop = resJson.shop || resJson.data;
+      const realShopId = serverShop?.shopId || resJson.shopId;
       const oldTempShopId = item.entityId || item.payload?.shopId;
-      if (isShopCreate && realShopId && oldTempShopId && oldTempShopId.startsWith('TMP_')) {
-        await resolveShopIdMapping(oldTempShopId, realShopId);
+      if (isShopOp) {
+        await resolveShopIdMapping(oldTempShopId, realShopId || oldTempShopId, serverShop);
       }
 
       // Handle order sync status update if an order was created
@@ -469,40 +470,48 @@ export function downloadFailureReportPDF(userName: string, queue: SyncQueueItem[
 
 /**
  * Resolves temporary shop ID (TMP_xxxx) to real live shop ID (e.g. SHOP0042)
- * across sync queue and local IndexedDB stores.
+ * and updates shop's Cloudinary bucket imageUrl in local IndexedDB store.
  */
-async function resolveShopIdMapping(oldTempId: string, realShopId: string) {
-  if (!oldTempId || !realShopId || oldTempId === realShopId) return;
-
+async function resolveShopIdMapping(oldTempId: string, realShopId: string, serverShopData?: any) {
   try {
-    // 1. Update remaining items in IndexedDB sync_queue
-    const queue = await offlineDB.getAll<SyncQueueItem>('sync_queue');
-    for (const item of queue) {
-      if (item.payload && item.payload.shop && item.payload.shop.shopId === oldTempId) {
-        item.payload.shop.shopId = realShopId;
-        await updateSyncQueueItem(item);
+    // 1. Update remaining items in IndexedDB sync_queue if ID changed
+    if (oldTempId && realShopId && oldTempId !== realShopId) {
+      const queue = await offlineDB.getAll<SyncQueueItem>('sync_queue');
+      for (const item of queue) {
+        if (item.payload && item.payload.shop && item.payload.shop.shopId === oldTempId) {
+          item.payload.shop.shopId = realShopId;
+          await updateSyncQueueItem(item);
+        }
+      }
+
+      // 2. Update local orders in IndexedDB orders store
+      const localOrders = await offlineDB.getAll<any>('orders');
+      for (const ord of localOrders) {
+        if (ord.shop && ord.shop.shopId === oldTempId) {
+          ord.shop.shopId = realShopId;
+          await offlineDB.upsert('orders', ord);
+        }
       }
     }
 
-    // 2. Update local orders in IndexedDB orders store
-    const localOrders = await offlineDB.getAll<any>('orders');
-    for (const ord of localOrders) {
-      if (ord.shop && ord.shop.shopId === oldTempId) {
-        ord.shop.shopId = realShopId;
-        await offlineDB.upsert('orders', ord);
-      }
-    }
-
-    // 3. Update local shop in IndexedDB shops store
+    // 3. Update local shop in IndexedDB shops store with real ID and bucket imageUrl
     const localShops = await offlineDB.getAll<any>('shops');
-    const tempShop = localShops.find((s: any) => String(s.shopId || s.id) === String(oldTempId));
-    if (tempShop) {
-      await offlineDB.deleteById('shops', oldTempId);
-      const updatedShop = { ...tempShop, id: realShopId, shopId: realShopId };
+    const lookupId = oldTempId || realShopId;
+    const targetShop = localShops.find((s: any) => String(s.shopId || s.id) === String(lookupId));
+    if (targetShop) {
+      if (oldTempId && realShopId && oldTempId !== realShopId) {
+        await offlineDB.deleteById('shops', oldTempId);
+      }
+      const updatedShop = {
+        ...targetShop,
+        id: realShopId || targetShop.id,
+        shopId: realShopId || targetShop.shopId,
+        ...(serverShopData?.imageUrl ? { imageUrl: serverShopData.imageUrl } : {})
+      };
       await offlineDB.upsert('shops', updatedShop);
     }
   } catch (err) {
-    console.warn('Error resolving temp shop ID mapping during sync:', err);
+    console.warn('Error resolving shop ID mapping and bucket image during sync:', err);
   }
 }
 

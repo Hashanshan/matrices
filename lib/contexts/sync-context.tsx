@@ -589,6 +589,8 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         name: s.name || s.shopName || 'Shop',
         phone: s.phone || '',
         address: s.address || '',
+        imageUrl: s.imageUrl || s.image || '',
+        mapUrl: s.mapUrl || '',
         deliveredOrders: s.deliveredOrders || 0,
         pendingOrders: s.pendingOrders || 0,
         currentCredit: s.currentCredit || 0,
@@ -645,12 +647,13 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       setProgress(80);
       setSyncStatusText('Preparing full offline image download...');
 
-      // Collect ALL unique image URLs from categories, subcategories, and products
+      // Collect ALL unique image URLs from categories, subcategories, products, and shops
       const allImageUrls: string[] = [
         ...formattedCategories.map((c: { image?: string }) => c.image),
         ...formattedSubcategories.map((s: { image?: string }) => s.image),
         ...formattedProducts.map((p: { image?: string; imageUrl?: string }) => p.imageUrl || p.image),
         ...formattedProducts.flatMap((p: { images?: string[] }) => p.images || []),
+        ...formattedShops.map((s: { imageUrl?: string }) => s.imageUrl),
       ].filter((url): url is string => Boolean(url && typeof url === 'string' && url.trim().length > 0));
 
       const uniqueImageUrls = Array.from(new Set(allImageUrls));
