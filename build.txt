@@ -1,5 +1,7 @@
 # Build static web export and copy assets into Android
 npm run cap:sync
+npx cap sync android
+
 # Build the Android APK binary
 npm run apk:build
 
@@ -9,6 +11,8 @@ npm run apk:modern
 npm run apk:legacy
 
 
+sdk.dir=C\:\\Users\\sathi\\AppData\\Local\\Android\\Sdk add this as file
+local.properties
 
 const fs = require('fs');
 const path = require('path');
