@@ -322,6 +322,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       if (typeof window !== 'undefined') {
         localStorage.setItem('matrices_data_mode', 'online');
         window.dispatchEvent(new Event('matrices-data-mode-change'));
+        window.dispatchEvent(new Event('matrices-sync-stats-updated'));
       }
 
       Swal.fire({
@@ -705,6 +706,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       setSyncStatusText('Sync Complete! 100% of data & images available offline.');
 
       window.dispatchEvent(new Event('matrices-data-mode-change'));
+      window.dispatchEvent(new Event('matrices-sync-stats-updated'));
 
       return true;
     } catch (err: any) {

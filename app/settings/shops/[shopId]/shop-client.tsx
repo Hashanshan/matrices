@@ -66,6 +66,7 @@ interface Order {
 
 import { resolveApiUrl, getAuthToken } from '@/lib/utils';
 import { offlineDB } from '@/lib/offline/indexed-db';
+import SmartImage from '@/components/smart-image';
 
 const fetcher = async (url: string) => {
   const mode = typeof window !== 'undefined' ? (localStorage.getItem('matrices_data_mode') as string) : 'online';
@@ -315,7 +316,7 @@ export default function ShopClient({ params }: { params?: Promise<{ shopId: stri
               <div className="bg-white/40 backdrop-blur-2xl border border-white/60 rounded-[2rem] sm:rounded-[2.5rem] p-5 sm:p-8 shadow-[0_20px_50px_rgba(0,0,0,0.06)] mb-6 overflow-hidden">
                 {shop.imageUrl && (
                   <div className="relative w-full h-48 sm:h-56 rounded-2xl sm:rounded-3xl overflow-hidden mb-6 border border-white/80 shadow-sm">
-                    <img src={shop.imageUrl} alt={shop.name} className="w-full h-full object-cover" />
+                    <SmartImage src={shop.imageUrl} alt={shop.name} className="w-full h-full object-cover" />
                   </div>
                 )}
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-gray-200/60">

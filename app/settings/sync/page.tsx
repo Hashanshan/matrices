@@ -51,7 +51,7 @@ export default function SyncSettingsPage() {
         NativeAdapter.checkStorage(),
       ]);
 
-      if (m) setDbMeta(m);
+      setDbMeta(m || null);
       setStorageStats(stats);
       setPermissionState({
         granted: perm.granted,
@@ -65,6 +65,22 @@ export default function SyncSettingsPage() {
   useEffect(() => {
     setPlatformInfo(NativeAdapter.getPlatformInfo());
     refreshStats();
+  }, [refreshStats]);
+
+  // Keep dbMeta & storageStats real-time synchronized with useSync & events
+  useEffect(() => {
+    setDbMeta(meta || null);
+    refreshStats();
+  }, [meta, lastSyncedAt, refreshStats]);
+
+  useEffect(() => {
+    const handleStatsUpdated = () => refreshStats();
+    window.addEventListener('matrices-sync-stats-updated', handleStatsUpdated);
+    window.addEventListener('matrices-data-mode-change', handleStatsUpdated);
+    return () => {
+      window.removeEventListener('matrices-sync-stats-updated', handleStatsUpdated);
+      window.removeEventListener('matrices-data-mode-change', handleStatsUpdated);
+    };
   }, [refreshStats]);
 
   // Require Security PIN on every visit to /settings/sync
@@ -199,6 +215,60 @@ export default function SyncSettingsPage() {
               </div>
             )}
 
+            {/* Live Storage & Sync Status Overview Strip */}
+            <div className="bg-white/70 backdrop-blur-2xl border border-white/80 rounded-[2rem] p-5 sm:p-6 shadow-xl flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
+              <div className="flex flex-wrap items-center gap-4 sm:gap-6">
+                {/* Last Sync Status */}
+                <div className="flex items-center gap-3">
+                  <div className={`p-3 rounded-2xl shrink-0 ${dbMeta?.lastSyncedAt ? 'bg-emerald-500/10 text-emerald-600' : 'bg-gray-100 text-gray-400'}`}>
+                    <CheckCircle2 size={24} />
+                  </div>
+                  <div>
+                    <span className="text-[0.65rem] font-black text-gray-400 uppercase tracking-widest block">LAST SYNC DATE & TIME</span>
+                    <span className="text-sm sm:text-base font-black text-[#0f172a]">{formattedDate}</span>
+                  </div>
+                </div>
+
+                <div className="hidden sm:block w-px h-10 bg-gray-200" />
+
+                {/* Storage Used Status */}
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-blue-500/10 text-blue-600 rounded-2xl shrink-0">
+                    <HardDrive size={24} />
+                  </div>
+                  <div>
+                    <span className="text-[0.65rem] font-black text-gray-400 uppercase tracking-widest block">LOCAL STORAGE USED</span>
+                    <span className="text-sm sm:text-base font-black text-[#0f172a]">
+                      {storageStats?.totalUsageMB ?? dbMeta?.imageStorageMB ?? 0} MB <span className="text-xs font-bold text-gray-500 font-normal">({storageStats?.downloadedImagesCount ?? dbMeta?.totalImages ?? 0} Images)</span>
+                    </span>
+                  </div>
+                </div>
+
+                <div className="hidden sm:block w-px h-10 bg-gray-200" />
+
+                {/* Local DB Summary */}
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-amber-500/10 text-amber-600 rounded-2xl shrink-0">
+                    <Database size={24} />
+                  </div>
+                  <div>
+                    <span className="text-[0.65rem] font-black text-gray-400 uppercase tracking-widest block">OFFLINE CATALOG DATA</span>
+                    <span className="text-sm sm:text-base font-black text-[#0f172a]">
+                      {dbMeta?.totalProducts ?? 0} Products <span className="text-xs font-bold text-gray-500 font-normal">• {dbMeta?.totalShops ?? 0} Shops</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <button
+                onClick={() => refreshStats()}
+                className="px-4 py-2.5 bg-white hover:bg-gray-50 text-[#0f172a] rounded-full text-xs font-bold uppercase tracking-wider border border-gray-200 shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer shrink-0 self-end md:self-center"
+                title="Refresh Storage Statistics"
+              >
+                <RotateCcw size={14} /> REFRESH STATS
+              </button>
+            </div>
+
             {/* Top Action Cards: Push Changes, Download Catalog, & Delete Sync Data */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
@@ -241,7 +311,10 @@ export default function SyncSettingsPage() {
                     <motion.button
                       whileHover={{ scale: isPushing || isOffline || totalUnpushed === 0 ? 1 : 1.02 }}
                       whileTap={{ scale: isPushing || isOffline || totalUnpushed === 0 ? 1 : 0.98 }}
-                      onClick={() => pushChanges()}
+                      onClick={async () => {
+                        await pushChanges();
+                        await refreshStats();
+                      }}
                       disabled={isPushing || isOffline || totalUnpushed === 0}
                       className={`flex-1 px-6 py-4 rounded-full font-black text-xs sm:text-sm uppercase tracking-wider shadow-xl transition-all flex items-center justify-center gap-2 cursor-pointer ${isOffline || totalUnpushed === 0
                           ? 'bg-white/10 text-gray-400 border border-white/10 cursor-not-allowed'
@@ -256,7 +329,10 @@ export default function SyncSettingsPage() {
 
                     {failedQueueCount > 0 && (
                       <button
-                        onClick={() => retryFailedPush()}
+                        onClick={async () => {
+                          await retryFailedPush();
+                          await refreshStats();
+                        }}
                         disabled={isPushing || isOffline}
                         className="px-5 py-4 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-full text-xs uppercase tracking-wider shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer shrink-0"
                       >
@@ -317,7 +393,10 @@ export default function SyncSettingsPage() {
                   <motion.button
                     whileHover={{ scale: isSyncing || isOffline || totalUnpushed > 0 ? 1 : 1.02 }}
                     whileTap={{ scale: isSyncing || isOffline || totalUnpushed > 0 ? 1 : 0.98 }}
-                    onClick={() => triggerSync()}
+                    onClick={async () => {
+                      await triggerSync();
+                      await refreshStats();
+                    }}
                     disabled={isSyncing || isOffline || totalUnpushed > 0}
                     className={`w-full px-6 py-4 rounded-full font-black text-xs sm:text-sm uppercase tracking-wider shadow-xl transition-all flex items-center justify-center gap-3 cursor-pointer ${isOffline || totalUnpushed > 0
                         ? 'bg-gray-200 text-gray-400 border border-gray-300 cursor-not-allowed'
@@ -383,7 +462,10 @@ export default function SyncSettingsPage() {
                   <motion.button
                     whileHover={{ scale: isSyncing || isPushing ? 1 : 1.02 }}
                     whileTap={{ scale: isSyncing || isPushing ? 1 : 0.98 }}
-                    onClick={() => deleteSyncData()}
+                    onClick={async () => {
+                      await deleteSyncData();
+                      await refreshStats();
+                    }}
                     disabled={isSyncing || isPushing}
                     className="w-full px-6 py-4 rounded-full font-black text-xs sm:text-sm uppercase tracking-wider shadow-xl transition-all flex items-center justify-center gap-2 bg-rose-600 hover:bg-rose-700 text-white shadow-rose-600/20 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   >

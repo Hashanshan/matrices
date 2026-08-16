@@ -19,6 +19,7 @@ import { resolveApiUrl, getAuthToken } from '@/lib/utils';
 import { offlineDB } from '@/lib/offline/indexed-db';
 import { addToSyncQueue } from '@/lib/offline/pending-sync';
 import { useDataMode } from '@/lib/contexts/data-mode-context';
+import SmartImage from '@/components/smart-image';
 
 interface Shop {
   shopId: string;
@@ -544,7 +545,7 @@ export default function ShopsSettingsPage() {
                           {/* Shop Image Cover Banner */}
                           {shop.imageUrl ? (
                             <div className="relative w-full h-40 sm:h-44 rounded-2xl sm:rounded-3xl overflow-hidden mb-4 border border-white/80 shadow-sm group-hover:scale-[1.01] transition-transform">
-                              <img
+                              <SmartImage
                                 src={shop.imageUrl}
                                 alt={shop.name}
                                 className="w-full h-full object-cover"

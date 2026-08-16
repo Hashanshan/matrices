@@ -225,8 +225,14 @@ class OfflineDB {
   async clearAllData(): Promise<void> {
     const db = await this.getDB();
     const stores = ['categories', 'subcategories', 'products', 'wishlist', 'shops', 'orders', 'meta', 'image_map'];
-    const tx = db.transaction(stores, 'readwrite');
-    stores.forEach((s) => tx.objectStore(s).clear());
+    return new Promise((resolve, reject) => {
+      const existingStores = stores.filter((s) => db.objectStoreNames.contains(s));
+      if (existingStores.length === 0) return resolve();
+      const tx = db.transaction(existingStores, 'readwrite');
+      existingStores.forEach((s) => tx.objectStore(s).clear());
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
   }
 
   /** Put (insert or update) a single record without clearing the store */
