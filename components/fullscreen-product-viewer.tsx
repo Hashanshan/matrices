@@ -25,9 +25,10 @@ interface FullscreenProductViewerProps {
   products: Product[];
   initialProductId?: string;
   totalCount: number;
-  hasMore: boolean;
-  loadMore: () => void;
-  isLoadingMore: boolean;
+  hasMore?: boolean;
+  loadMore?: () => void;
+  isLoadingMore?: boolean;
+  prioritizeIndex?: (index: number) => void;
   onSearch: (query: string) => void;
   exactMatchFound?: boolean;
   activeCategory?: string;
@@ -41,9 +42,10 @@ export default function FullscreenProductViewer({
   products,
   initialProductId,
   totalCount,
-  hasMore,
-  loadMore,
-  isLoadingMore,
+  hasMore = false,
+  loadMore = () => {},
+  isLoadingMore = false,
+  prioritizeIndex,
   onSearch,
   exactMatchFound,
   activeCategory,
@@ -92,7 +94,7 @@ export default function FullscreenProductViewer({
   const hasSetInitialIndex = useRef(false);
 
   const validProducts = useMemo(() => {
-    const raw = (products || []).filter((p): p is Product => Boolean(p && (p.image || p.name || p.id)));
+    const raw = (products || []).filter((p): p is Product => Boolean(p && (p.image || p.name || p.id || (p as any).isPlaceholder)));
     if (!raw.length) return [];
 
     const activeTarget = viewerSearchQuery.trim() || initialProductId?.trim() || '';
@@ -102,6 +104,7 @@ export default function FullscreenProductViewer({
     const targetClean = activeTarget.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
 
     const targetIdx = raw.findIndex((p: any) => {
+      if (p.isPlaceholder) return false;
       const pProdId = String(p.productId || '').trim().toLowerCase();
       const pId = String(p.id || '').trim().toLowerCase();
       const pCode = String(p.code || p.productCode || '').trim().toLowerCase();
@@ -201,23 +204,44 @@ export default function FullscreenProductViewer({
 
   // Async background fetch to populate local IndexedDB cache if not already stored
   useEffect(() => {
-    if (rawImage) {
+    if (rawImage && !(currentProduct as any)?.isPlaceholder) {
       getCachedImageUrl(rawImage).catch(() => { });
     }
-  }, [rawImage]);
+  }, [rawImage, currentProduct]);
 
-  // Pre-resolve images for adjacent products for instant swiping
+  // Pre-resolve images for adjacent products for instant swiping, both forward and backward
   useEffect(() => {
-    const indicesToWarm = [currentIndex - 1, currentIndex + 1, currentIndex + 2];
+    if (!validProducts.length) return;
+    const len = validProducts.length;
+
+    const indicesToWarm = [
+      (currentIndex + 1) % len,
+      (currentIndex + 2) % len,
+      (currentIndex - 1 + len) % len,
+      (currentIndex - 2 + len) % len,
+    ];
+
     indicesToWarm.forEach((idx) => {
-      if (idx >= 0 && idx < validProducts.length) {
-        const url = validProducts[idx]?.image;
-        if (url) getCachedImageUrl(url).catch(() => { });
+      const p = validProducts[idx];
+      if (p && !(p as any).isPlaceholder && p.image) {
+        getCachedImageUrl(p.image).catch(() => { });
+        if (typeof window !== 'undefined') {
+          const img = new window.Image();
+          img.src = p.image;
+        }
+      } else if (p && (p as any).isPlaceholder && prioritizeIndex) {
+        prioritizeIndex(idx);
       }
     });
-  }, [currentIndex, validProducts]);
 
-  // Load more when approaching the end — pre-fetch 5 slides before the boundary
+    // Prioritize current index if placeholder
+    const curr = validProducts[currentIndex];
+    if (curr && (curr as any).isPlaceholder && prioritizeIndex) {
+      prioritizeIndex(currentIndex);
+    }
+  }, [currentIndex, validProducts, prioritizeIndex]);
+
+  // Load more when approaching the end if paginated hook is used
   useEffect(() => {
     if (validProducts.length > 0 && currentIndex >= validProducts.length - 5 && hasMore && !isLoadingMore) {
       loadMore();
@@ -233,20 +257,14 @@ export default function FullscreenProductViewer({
 
   const handleSwipe = useCallback((newDirection: 'left' | 'right') => {
     setDirection(newDirection);
+    if (!validProducts.length) return;
+
     if (newDirection === 'right') {
-      // Go back — allow wrapping to end only when no more data to load
-      setCurrentIndex((prev) => {
-        if (prev === 0) return hasMore ? 0 : validProducts.length - 1;
-        return prev - 1;
-      });
+      // Go back (swipe right) — wrap from 0 to last product (validProducts.length - 1)
+      setCurrentIndex((prev) => (prev === 0 ? validProducts.length - 1 : prev - 1));
     } else {
-      // Go forward — clamp at last item when more data is loading, wrap only when fully loaded
-      setCurrentIndex((prev) => {
-        if (prev >= validProducts.length - 1) {
-          return hasMore ? validProducts.length - 1 : 0;
-        }
-        return prev + 1;
-      });
+      // Go forward (swipe left) — wrap from last product to 0
+      setCurrentIndex((prev) => (prev >= validProducts.length - 1 ? 0 : prev + 1));
     }
     // Reset modal and states on product change
     setIsModalOpen(false);
@@ -254,7 +272,7 @@ export default function FullscreenProductViewer({
     setSelectedColor(null);
     setSelectedSize(null);
     setNotes('');
-  }, [validProducts.length, hasMore]);
+  }, [validProducts.length]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -410,20 +428,30 @@ export default function FullscreenProductViewer({
             onClick={() => setImageZoomed(!imageZoomed)}
           >
             <div
-              className="relative w-full h-full transition-transform duration-200 ease-out will-change-transform"
+              className="relative w-full h-full transition-transform duration-200 ease-out will-change-transform flex items-center justify-center"
               style={{
                 transform: imageZoomed ? 'scale(1.1) translateZ(0)' : 'scale(0.98) translateZ(0)',
               }}
             >
-              <SmartImage
-                src={displayImg || currentProduct?.image || (currentProduct as any)?.imageUrl || ''}
-                alt={currentProduct?.name || 'Product Image'}
-                className="w-full h-full object-contain rounded-3xl shadow-2xl"
-                priority
-              />
-              <div className="absolute bottom-4 right-4 bg-white/80 text-[#0f172a] px-4 py-1.5 rounded-full text-xs font-semibold shadow-sm opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity uppercase">
-                CLICK TO ZOOM
-              </div>
+              {(currentProduct as any)?.isPlaceholder ? (
+                <div className="w-full max-w-md h-96 flex flex-col items-center justify-center rounded-3xl bg-white/20 backdrop-blur-2xl border border-white/40 shadow-2xl p-8">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#0f172a] mb-4"></div>
+                  <p className="text-[#0f172a] font-black text-sm tracking-widest uppercase">Loading Product...</p>
+                  <p className="text-[#0f172a]/60 text-xs font-semibold mt-1">FETCHING HIGH-RES ASSETS</p>
+                </div>
+              ) : (
+                <>
+                  <SmartImage
+                    src={displayImg || currentProduct?.image || (currentProduct as any)?.imageUrl || ''}
+                    alt={currentProduct?.name || 'Product Image'}
+                    className="w-full h-full object-contain rounded-3xl shadow-2xl"
+                    priority
+                  />
+                  <div className="absolute bottom-4 right-4 bg-white/80 text-[#0f172a] px-4 py-1.5 rounded-full text-xs font-semibold shadow-sm opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity uppercase">
+                    CLICK TO ZOOM
+                  </div>
+                </>
+              )}
             </div>
           </motion.div>
         </AnimatePresence>
@@ -618,7 +646,7 @@ export default function FullscreenProductViewer({
         </motion.div>
 
         {/* Product Info Overlay - Capitalized */}
-        {!imageZoomed && (
+        {!imageZoomed && currentProduct && !(currentProduct as any)?.isPlaceholder && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -643,7 +671,7 @@ export default function FullscreenProductViewer({
         )}
 
         {/* Add to Cart Button */}
-        {!imageZoomed && (
+        {!imageZoomed && currentProduct && !(currentProduct as any)?.isPlaceholder && (
           <motion.button
             whileHover={{ scale: 1.05, y: -4 }}
             whileTap={{ scale: 0.95 }}
@@ -656,7 +684,6 @@ export default function FullscreenProductViewer({
         )}
 
         {/* Thumbnail Navigation */}
-        {/* {imageZoomed && ( */}
         <ThumbnailStrip
           products={validProducts}
           currentIndex={currentIndex}
@@ -669,7 +696,6 @@ export default function FullscreenProductViewer({
           onLoadMore={loadMore}
           imageZoomed={imageZoomed}
         />
-        {/* )} */}
 
         {/* Swipe Hint - Mobile */}
         <motion.div
@@ -682,7 +708,7 @@ export default function FullscreenProductViewer({
         </motion.div>
       </div>
 
-      {isModalOpen && (
+      {isModalOpen && currentProduct && !(currentProduct as any)?.isPlaceholder && (
         <QuickAddModal
           isOpen={isModalOpen}
           product={currentProduct}
@@ -696,10 +722,10 @@ export default function FullscreenProductViewer({
 interface ThumbnailStripProps {
   products: Product[];
   currentIndex: number;
-  hasMore: boolean;
-  isLoadingMore: boolean;
+  hasMore?: boolean;
+  isLoadingMore?: boolean;
   onSelect: (index: number) => void;
-  onLoadMore: () => void;
+  onLoadMore?: () => void;
   imageZoomed: boolean;
 }
 
@@ -739,6 +765,7 @@ function ThumbnailStrip({
       >
         {visibleProducts.map((product, relIdx) => {
           const idx = startIdx + relIdx;
+          const isPh = (product as any)?.isPlaceholder;
           return (
             <motion.button
               key={`${product.id}-${idx}`}
@@ -750,11 +777,17 @@ function ThumbnailStrip({
                 : 'border-white/40 hover:border-white/80'
                 }`}
             >
-              <SmartImage
-                src={product.image || (product as any).imageUrl || ''}
-                alt={product.name || 'Thumbnail'}
-                className="w-full h-full object-cover"
-              />
+              {isPh ? (
+                <div className="w-full h-full flex items-center justify-center bg-white/10">
+                  <div className="w-3 h-3 border border-white/50 border-t-white rounded-full animate-spin" />
+                </div>
+              ) : (
+                <SmartImage
+                  src={product.image || (product as any).imageUrl || ''}
+                  alt={product.name || 'Thumbnail'}
+                  className="w-full h-full object-cover"
+                />
+              )}
             </motion.button>
           );
         })}
@@ -765,7 +798,7 @@ function ThumbnailStrip({
               if (!node) return;
               const observer = new IntersectionObserver(
                 (entries) => {
-                  if (entries[0].isIntersecting && !isLoadingMore) {
+                  if (entries[0].isIntersecting && !isLoadingMore && onLoadMore) {
                     onLoadMore();
                   }
                 },

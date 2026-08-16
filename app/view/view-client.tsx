@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useProducts } from '@/lib/hooks/use-products';
+import { useViewProducts } from '@/lib/hooks/use-view-products';
 import FullscreenProductViewer from '@/components/fullscreen-product-viewer';
 import Header from '@/components/header';
 
@@ -35,22 +35,22 @@ export default function SingleViewPage({
     : sortBy === 'price-high' ? 'price-high'
       : sortBy;
 
-  // Use the cursor-paginated useProducts hook for /view page with clean sort and search parameters
+  // Use specialized useViewProducts hook: loads first 20 & last 20 upfront in online mode + silent background streaming
   const {
     products,
     isLoading,
-    isLoadingMore,
     isValidating,
-    hasMore,
-    loadMore,
     totalCount,
     exactMatchFound,
-  } = useProducts({
+    prioritizeIndex,
+  } = useViewProducts({
     sort: backendSort || 'newest',
+    category: activeCategory,
+    subcategory: activeSubcategory,
     search: searchQuery || initialProductId,
+    productId: initialProductId,
     fallbackData: Array.isArray(fallbackData) && fallbackData.length > 0 ? fallbackData : undefined,
-    initialLimit: 20,
-    limit: 10,
+    limit: 20,
   });
 
   const handleClearFilters = () => {
@@ -83,9 +83,7 @@ export default function SingleViewPage({
         products={products}
         initialProductId={initialProductId}
         totalCount={totalCount}
-        hasMore={hasMore}
-        loadMore={loadMore}
-        isLoadingMore={isLoadingMore}
+        prioritizeIndex={prioritizeIndex}
         onSearch={setSearchQuery}
         exactMatchFound={exactMatchFound}
         activeCategory={activeCategory}

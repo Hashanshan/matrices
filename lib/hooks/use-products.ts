@@ -19,7 +19,7 @@ export interface CatalogueProduct {
   description: string;
 }
 
-interface ProductsResponse {
+export interface ProductsResponse {
   success: boolean;
   count: number;
   totalCount?: number;
@@ -32,7 +32,7 @@ interface ProductsResponse {
 // ─── Offline helpers ────────────────────────────────────────────────────────
 
 /** Shape IndexedDB products into the ProductsResponse format the hooks expect */
-async function getOfflineProducts(options: {
+export async function getOfflineProducts(options: {
   sort?: string;
   category?: string | string[];
   prioritizeCategory?: string;
