@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { Product, FilterState } from '@/lib/types';
-import { useProducts, useFilters } from '@/lib/hooks/use-products';
+import { useProducts, useFilters, getOfflineProducts } from '@/lib/hooks/use-products';
 import ProductCard from './product-card';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronDown, X, Check, PanelLeftClose, PanelLeftOpen, Filter, SortDesc, LayoutGrid, Loader2, Search } from 'lucide-react';
@@ -16,6 +16,9 @@ import { useWishlist } from '@/lib/contexts/wishlist-context';
 import { useSearchParams } from 'next/navigation';
 import { saveGalleryFilters, loadGalleryFilters, clearGalleryFilters, DEFAULT_FILTERS } from '@/lib/utils/filter-storage';
 import { useBackHandler } from '@/lib/utils/back-navigation';
+import { offlineDB } from '@/lib/offline/indexed-db';
+import { resolveApiUrl, getAuthToken } from '@/lib/utils';
+import { useDataMode } from '@/lib/contexts/data-mode-context';
 
 const MySwal = withReactContent(Swal);
 
@@ -26,7 +29,8 @@ function CategorySection({
   isCollapsed,
   toggleSection,
   accurateCount,
-  gridClass
+  gridClass,
+  onGlobalLoadMore,
 }: {
   category: string;
   categoryProducts: any[];
@@ -35,23 +39,102 @@ function CategorySection({
   toggleSection: (cat: string) => void;
   accurateCount: number;
   gridClass: string;
+  onGlobalLoadMore?: () => void;
 }) {
   const [visibleCount, setVisibleCount] = useState(20);
-  const observerRef = useRef<IntersectionObserver | null>(null);
-  const loadMoreRef = useCallback((node: HTMLDivElement | null) => {
-    if (observerRef.current) observerRef.current.disconnect();
+  const [extraCategoryProducts, setExtraCategoryProducts] = useState<any[]>([]);
+  const [isLoadingCategoryMore, setIsLoadingCategoryMore] = useState(false);
+  const { dataMode } = useDataMode();
 
-    observerRef.current = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting) {
-        setVisibleCount(prev => Math.min(prev + 20, categoryProducts.length));
+  // Combine parent products with any specifically loaded category products (deduplicated by product id/code)
+  const combinedProducts = useMemo(() => {
+    const map = new Map<string, any>();
+    (categoryProducts || []).forEach(p => {
+      const key = String(p.productId || p.id || '').trim().toLowerCase();
+      if (key) map.set(key, p);
+    });
+    (extraCategoryProducts || []).forEach(p => {
+      const key = String(p.productId || p.id || '').trim().toLowerCase();
+      if (key && !map.has(key)) map.set(key, p);
+    });
+    return Array.from(map.values());
+  }, [categoryProducts, extraCategoryProducts]);
+
+  // Actual list of products currently visible
+  const visibleProducts = useMemo(() => {
+    return combinedProducts.slice(0, visibleCount);
+  }, [combinedProducts, visibleCount]);
+
+  const currentShowingCount = visibleProducts.length;
+  const targetTotalCount = Math.max(accurateCount, combinedProducts.length);
+
+  // If showing count is less than top count -> hasMore is true
+  const hasMore = currentShowingCount < targetTotalCount;
+
+  // Handle manual "Load More" button click (and auto-scroll)
+  const handleLoadMore = async () => {
+    if (isLoadingCategoryMore) return;
+
+    // 1. If we already have more products loaded in memory, just expand visibleCount
+    if (visibleCount < combinedProducts.length) {
+      setVisibleCount(prev => Math.min(prev + 20, combinedProducts.length));
+      return;
+    }
+
+    // 2. If we need to fetch more products for this specific category (both online and offline)
+    if (combinedProducts.length < targetTotalCount) {
+      setIsLoadingCategoryMore(true);
+      try {
+        const isOffline = dataMode === 'offline' || (typeof navigator !== 'undefined' && !navigator.onLine);
+        if (isOffline) {
+          // Fetch from IndexedDB
+          const offlineRes = await getOfflineProducts({
+            category: category,
+            limit: 100,
+          });
+          if (offlineRes && offlineRes.data && offlineRes.data.length > 0) {
+            setExtraCategoryProducts(prev => [...prev, ...offlineRes.data]);
+            setVisibleCount(prev => prev + 20);
+          } else {
+            // Also try fallback direct query from offlineDB products store
+            const allRaw = await offlineDB.getAll<any>('products').catch(() => []);
+            const catMatches = allRaw.filter((p: any) => {
+              const pCat = String(p.category || p.categoryName || p.categories || '').trim().toUpperCase();
+              return pCat === category.toUpperCase();
+            });
+            if (catMatches.length > 0) {
+              setExtraCategoryProducts(prev => [...prev, ...catMatches]);
+              setVisibleCount(prev => prev + 20);
+            }
+          }
+        } else {
+          // Fetch from Online API endpoint
+          const token = getAuthToken();
+          const targetUrl = resolveApiUrl(`/api/products?category=${encodeURIComponent(category)}&limit=50&page=${Math.floor(combinedProducts.length / 50) + 1}`);
+          const res = await fetch(targetUrl, {
+            headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) }
+          });
+          if (res.ok) {
+            const data = await res.json();
+            const items = data.data || data.products || [];
+            if (items.length > 0) {
+              setExtraCategoryProducts(prev => [...prev, ...items]);
+              setVisibleCount(prev => prev + 20);
+            }
+          }
+        }
+
+        // Also trigger parent global hook to advance cursor
+        if (onGlobalLoadMore) {
+          onGlobalLoadMore();
+        }
+      } catch (err) {
+        console.error(`Failed to load more products for category ${category}:`, err);
+      } finally {
+        setIsLoadingCategoryMore(false);
       }
-    }, { threshold: 0.1 });
-
-    if (node) observerRef.current.observe(node);
-  }, [categoryProducts.length]);
-
-  const visibleProducts = categoryProducts.slice(0, visibleCount);
-  const hasMore = visibleCount < categoryProducts.length;
+    }
+  };
 
   return (
     <motion.section
@@ -71,7 +154,7 @@ function CategorySection({
           <h2 className="text-2xl font-black text-[#0f172a] tracking-wide uppercase">{category}</h2>
         </div>
         <span className="text-sm font-bold text-gray-500 bg-gray-50 px-4 py-2 rounded-full">
-          {accurateCount} {accurateCount === 1 ? 'Product' : 'Products'}
+          {targetTotalCount} {targetTotalCount === 1 ? 'Product' : 'Products'}
         </span>
       </div>
 
@@ -84,15 +167,35 @@ function CategorySection({
             transition={{ duration: 0.3 }}
             className="overflow-hidden backdrop-blur-[2px] p-2"
           >
-            <div className="pb-8 ">
+            <div className="pb-8">
               <motion.div layout className={`grid gap-6 sm:gap-8 ${gridClass}`} style={{ gridAutoRows: 'max-content' }}>
                 {visibleProducts.map((product, index) => (
-                  <ProductCard key={product.id} product={product} index={index} />
+                  <ProductCard key={product.id || `${product.productId}-${index}`} product={product} index={index} />
                 ))}
               </motion.div>
+
+              {/* Load More Button (Both Online & Offline - Hidden when showing count equals top count) */}
               {hasMore && (
-                <div ref={loadMoreRef} className="h-20 w-full mt-4 flex items-center justify-center">
-                  <Loader2 size={24} className="animate-spin text-[#0f172a]/50" />
+                <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
+                  <motion.button
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.97 }}
+                    onClick={handleLoadMore}
+                    disabled={isLoadingCategoryMore}
+                    className="w-full sm:w-auto px-8 py-4 bg-[#0f172a] hover:bg-[#1e293b] text-white font-black text-xs sm:text-sm uppercase tracking-wider rounded-full shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2.5 cursor-pointer disabled:opacity-50 border border-slate-700"
+                  >
+                    {isLoadingCategoryMore ? (
+                      <>
+                        <Loader2 size={18} className="animate-spin text-white" />
+                        <span>Loading {category} Products...</span>
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown size={18} />
+                        <span>Load More {category} ({currentShowingCount} of {targetTotalCount})</span>
+                      </>
+                    )}
+                  </motion.button>
                 </div>
               )}
             </div>
@@ -729,6 +832,7 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
                     toggleSection={toggleSection}
                     accurateCount={accurateCount}
                     gridClass={gridClass}
+                    onGlobalLoadMore={loadMore}
                   />
                 );
               })}

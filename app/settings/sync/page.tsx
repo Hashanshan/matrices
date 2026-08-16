@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback } from 'react';
 import Header from '@/components/header';
 import { useAuth } from '@/lib/contexts/auth-context';
 import { useSync } from '@/lib/contexts/sync-context';
-import { useDataMode } from '@/lib/contexts/data-mode-context';
 import PinModal from '@/components/pin-modal';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -27,8 +26,6 @@ export default function SyncSettingsPage() {
     queueItems, pendingQueueCount, failedQueueCount, isPushing, pushStatusText,
     pushChanges, retryFailedPush, deleteSyncData, deleteQueueItem, clearAllQueue, downloadReport
   } = useSync();
-  
-  const { dataMode, setDataMode } = useDataMode();
 
   const [showPinModal, setShowPinModal] = useState(true);
   const [dbMeta, setDbMeta] = useState<SyncMetadata | null>(meta);
