@@ -66,6 +66,8 @@ export default function CartPage() {
     clearCart,
     deselectShop,
     submitCartAsLocalOrder,
+    getCartItem,
+    isProductInCart,
   } = useCart();
   const { user } = useAuth();
 
@@ -132,8 +134,14 @@ export default function CartPage() {
 
   const handleSelectProduct = (product: ProductItem) => {
     setSelectedProductForAdd(product);
-    setAddQuantity(1);
-    setAddNote('');
+    const existing = getCartItem(product.productId || product.id);
+    if (existing) {
+      setAddQuantity(existing.quantity || 1);
+      setAddNote(existing.notes || '');
+    } else {
+      setAddQuantity(1);
+      setAddNote('');
+    }
   };
 
   const handleConfirmAddProduct = () => {
@@ -142,11 +150,11 @@ export default function CartPage() {
     const qty = Math.max(1, addQuantity);
     const unitPrice = selectedProductForAdd.sellPrice;
     const cleanNote = addNote.trim();
-    const comboId = `${selectedProductForAdd.productId}_${cleanNote.toLowerCase()}`;
+    const cleanId = selectedProductForAdd.productId || selectedProductForAdd.id;
 
     const newItem = {
-      id: comboId,
-      productId: selectedProductForAdd.productId,
+      id: cleanId,
+      productId: cleanId,
       name: selectedProductForAdd.name,
       quantity: qty,
       price: unitPrice,

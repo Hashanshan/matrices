@@ -3,12 +3,13 @@
 import { useState, useEffect } from 'react';
 import { Product } from '@/lib/types';
 import { motion } from 'framer-motion';
-import { Star, ShoppingCart, Heart, Eye } from 'lucide-react';
+import { Star, ShoppingCart, Heart, Eye, Check } from 'lucide-react';
 import Image from 'next/image';
 import QuickAddModal from './quick-add-modal';
 import { formatPrice } from '@/lib/currency';
 import { useRouter } from "next/navigation";
 import { useWishlist } from '@/lib/contexts/wishlist-context';
+import { useCart } from '@/lib/contexts/cart-context';
 
 import { getCachedImageUrl } from '@/lib/offline/image-cache';
 
@@ -25,9 +26,12 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
   const router = useRouter();
 
   const { isProductWishlisted, toggleProductWishlist } = useWishlist();
+  const { isProductInCart, getCartItem } = useCart();
 
   const targetProductId = product.productId || product.id || '';
   const isFavorite = isProductWishlisted(targetProductId);
+  const inCartItem = getCartItem(targetProductId);
+  const isAddedToCart = Boolean(inCartItem);
 
   const rawImg = product.image || product.imageUrl || '';
 
@@ -86,7 +90,7 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
               />
 
               {/* Quick Actions overlaying image */}
-              <div className={`absolute top-3 right-3 flex flex-col gap-2 transition-opacity duration-300 z-20 ${isFavorite ? 'opacity-100' : 'opacity-100 sm:opacity-0 sm:group-hover:opacity-100'}`}>
+              <div className={`absolute top-3 right-3 flex flex-col gap-2 transition-opacity duration-300 z-20 ${isFavorite || isAddedToCart ? 'opacity-100' : 'opacity-100 sm:opacity-0 sm:group-hover:opacity-100'}`}>
                 <button
                   onClick={handleFavorite}
                   className="w-10 h-10 bg-white/90 backdrop-blur-xl border border-white/80 rounded-full shadow-lg flex items-center justify-center text-gray-700 hover:text-red-500 hover:bg-white transition-all active:scale-90"
@@ -96,10 +100,19 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
                 </button>
                 <button
                   onClick={handleQuickAdd}
-                  className="w-10 h-10 bg-white/90 backdrop-blur-xl border border-white/80 rounded-full shadow-lg flex items-center justify-center text-gray-700 hover:text-[#0f172a] hover:bg-white transition-all active:scale-90"
-                  title="Quick Add to Cart"
+                  className={`w-10 h-10 backdrop-blur-xl border rounded-full shadow-lg flex items-center justify-center transition-all active:scale-90 relative ${
+                    isAddedToCart
+                      ? 'bg-emerald-600 border-emerald-500 text-white shadow-emerald-600/30'
+                      : 'bg-white/90 border-white/80 text-gray-700 hover:text-[#0f172a] hover:bg-white'
+                  }`}
+                  title={isAddedToCart ? `In Cart (${inCartItem?.quantity}) - Click to edit` : "Quick Add to Cart"}
                 >
-                  <ShoppingCart size={18} />
+                  {isAddedToCart ? <Check size={18} className="stroke-[3]" /> : <ShoppingCart size={18} />}
+                  {isAddedToCart && inCartItem && inCartItem.quantity > 1 && (
+                    <span className="absolute -top-1 -right-1 bg-white text-emerald-800 text-[10px] font-black w-4 h-4 rounded-full flex items-center justify-center shadow-xs">
+                      {inCartItem.quantity}
+                    </span>
+                  )}
                 </button>
               </div>
             </div>
@@ -153,9 +166,21 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
 
               <button
                 onClick={handleQuickAdd}
-                className="flex-1 py-3 bg-[#0f172a] hover:bg-[#1e293b] text-white font-black text-xs uppercase tracking-wider rounded-full shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+                className={`flex-1 py-3 font-black text-xs uppercase tracking-wider rounded-full shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 ${
+                  isAddedToCart
+                    ? 'bg-emerald-700 hover:bg-emerald-800 text-white border border-emerald-500 shadow-emerald-700/20'
+                    : 'bg-[#0f172a] hover:bg-[#1e293b] text-white'
+                }`}
               >
-                <ShoppingCart size={15} /> ADD TO CART
+                {isAddedToCart ? (
+                  <>
+                    <Check size={15} className="stroke-[3]" /> IN CART ({inCartItem?.quantity})
+                  </>
+                ) : (
+                  <>
+                    <ShoppingCart size={15} /> ADD TO CART
+                  </>
+                )}
               </button>
             </div>
           </div>

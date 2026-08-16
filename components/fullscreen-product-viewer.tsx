@@ -2,7 +2,7 @@
 
 import { useState, useRef, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, ChevronRight, ShoppingCart, X, Minus, Plus, Heart, Search, ArrowLeft } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ShoppingCart, X, Minus, Plus, Heart, Search, ArrowLeft, Check } from 'lucide-react';
 import { useCart } from '@/lib/contexts/cart-context';
 import { useWishlist } from '@/lib/contexts/wishlist-context';
 import { useCallback } from 'react';
@@ -67,10 +67,9 @@ export default function FullscreenProductViewer({
   const [viewerSearchQuery, setViewerSearchQuery] = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
   const touchStartX = useRef(0);
-  const { addToCart } = useCart();
+  const { addToCart, isProductInCart, getCartItem, getAddToCartButtonLabel, cart } = useCart();
   const { isProductWishlisted, toggleProductWishlist } = useWishlist();
   const [menuOpen, setMenuOpen] = useState(false);
-  const { cart } = useCart();
 
   // Handle in-page viewer back events (closing search, modal, or menu)
   useBackHandler(() => {
@@ -397,6 +396,10 @@ export default function FullscreenProductViewer({
     );
   }
 
+  const inCartItem = currentProduct ? getCartItem(currentProduct.productId || currentProduct.id) : undefined;
+  const isAddedToCart = Boolean(inCartItem);
+  const addToCartBtnText = isAddedToCart ? `IN CART (${inCartItem?.quantity}) - EDIT` : getAddToCartButtonLabel('ADD TO CART');
+
   return (
     <div className="w-full h-screen !backdrop-blur-[2px] overflow-hidden relative max-w-full">
       {/* Full Image Container */}
@@ -652,10 +655,17 @@ export default function FullscreenProductViewer({
             animate={{ opacity: 1, y: 0 }}
             className="absolute bottom-32 sm:bottom-40 left-6 sm:left-8 bg-white/40 backdrop-blur-2xl text-[#0f172a] p-6 rounded-[2rem] max-w-sm border border-white/60 shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] z-1 sm:w-[90%] md:w-[70%] lg:w-[50%] xl:w-[30%]"
           >
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
+              <p className="text-sm text-gray-500 font-bold line-clamp-1 uppercase">
+                {currentProduct.subcategories ? `${currentProduct.categories} > ${currentProduct.subcategories}` : currentProduct.categories}
+              </p>
+              {isAddedToCart && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-black uppercase tracking-wider border border-emerald-300 shadow-xs">
+                  <Check size={12} className="stroke-[3]" /> In Cart: {inCartItem?.quantity}
+                </span>
+              )}
+            </div>
             <h2 className="text-sm sm:text-2xl sm:text-3xl font-black mb-1 sm:mb-2 leading-tight uppercase">{currentProduct.name}</h2>
-            <p className="text-sm text-gray-500 font-bold line-clamp-2 mb-2 sm:mb-4 uppercase">
-              {currentProduct.subcategories ? `${currentProduct.categories} > ${currentProduct.subcategories}` : currentProduct.categories}
-            </p>
             {/* product id */}
             <p className="text-sm text-gray-700 font-bold line-clamp-2 mb-2 sm:mb-4 uppercase">
               {currentProduct.productId}
@@ -670,16 +680,20 @@ export default function FullscreenProductViewer({
           </motion.div>
         )}
 
-        {/* Add to Cart Button */}
+        {/* Add to Cart / In Cart Button */}
         {!imageZoomed && currentProduct && !(currentProduct as any)?.isPlaceholder && (
           <motion.button
             whileHover={{ scale: 1.05, y: -4 }}
             whileTap={{ scale: 0.95 }}
             onClick={() => setIsModalOpen(true)}
-            className="absolute bottom-26 md:bottom-26 lg:bottom-30 left-1/2 -translate-x-1/2 bg-[#0f172a] hover:bg-[#1e293b] text-white px-8 sm:px-12 py-4 sm:py-5 rounded-full font-black flex items-center gap-3 shadow-[0_15px_30px_-10px_rgba(15,23,42,0.4)] transition-all z-30 text-sm md:text-md lg:text-lg uppercase tracking-wider"
+            className={`absolute bottom-26 md:bottom-26 lg:bottom-30 left-1/2 -translate-x-1/2 ${
+              isAddedToCart
+                ? 'bg-emerald-700 hover:bg-emerald-800 border-2 border-emerald-400 shadow-[0_15px_30px_-10px_rgba(4,120,87,0.5)]'
+                : 'bg-[#0f172a] hover:bg-[#1e293b] shadow-[0_15px_30px_-10px_rgba(15,23,42,0.4)]'
+            } text-white px-8 sm:px-12 py-4 sm:py-5 rounded-full font-black flex items-center gap-3 transition-all z-30 text-sm md:text-md lg:text-lg uppercase tracking-wider cursor-pointer`}
           >
-            <ShoppingCart size={22} />
-            <span>ADD TO CART</span>
+            {isAddedToCart ? <Check size={22} className="stroke-[3]" /> : <ShoppingCart size={22} />}
+            <span>{addToCartBtnText}</span>
           </motion.button>
         )}
 

@@ -27,11 +27,33 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
   const [mounted, setMounted] = useState(false);
   const [displayImg, setDisplayImg] = useState<string>(product?.image || product?.imageUrl || '');
 
-  const { addToCart, getAddToCartButtonLabel } = useCart();
+  const { addToCart, getAddToCartButtonLabel, getCartItem, isProductInCart } = useCart();
+
+  const prodKey = product?.productId || product?.id || '';
+  const existingCartItem = getCartItem(prodKey);
+  const isAlreadyInCart = Boolean(existingCartItem);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Pre-fill quantity, notes, color, size if already in cart
+  useEffect(() => {
+    if (isOpen && product) {
+      const item = getCartItem(product.productId || product.id);
+      if (item) {
+        setQuantity(item.quantity || 1);
+        setNotes(item.notes || '');
+        setSelectedColor(item.selectedColor || (product.variants?.colors?.[0]?.name || ''));
+        setSelectedSize(item.selectedSize || (product.variants?.sizes?.[0]?.name || ''));
+      } else {
+        setQuantity(1);
+        setNotes('');
+        setSelectedColor(product.variants?.colors?.[0]?.name || '');
+        setSelectedSize(product.variants?.sizes?.[0]?.name || '');
+      }
+    }
+  }, [isOpen, product, getCartItem]);
 
   // Listen for global close event when PIN shop modal opens
   useEffect(() => {
@@ -57,7 +79,7 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
     setIsSubmitting(true);
 
     const cartItem = {
-      id: `${product.id}-${Date.now()}`,
+      id: `${product.productId || product.id}`,
       ...product,
       quantity: Math.max(1, quantity),
       selectedColor,
@@ -70,11 +92,6 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
     setIsSubmitting(false);
 
     if (success) {
-      // SILENT ADD (No success popup alert as requested!)
-      setQuantity(1);
-      setSelectedColor(product.variants?.colors?.[0]?.name || '');
-      setSelectedSize(product.variants?.sizes?.[0]?.name || '');
-      setNotes('');
       onClose();
     } else {
       // Shop selection required -> close modal so PIN modal is alone
@@ -84,7 +101,7 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
 
   if (!mounted || !product) return null;
 
-  const addToCartBtnText = getAddToCartButtonLabel('ADD TO CART');
+  const addToCartBtnText = isAlreadyInCart ? 'UPDATE IN CART' : getAddToCartButtonLabel('ADD TO CART');
 
   return createPortal(
     <AnimatePresence>
@@ -151,7 +168,14 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
                   transition={{ delay: 0.1 }}
                   className="mb-8 pr-8"
                 >
-                  <div className="text-sm text-gray-400 font-bold mb-2 uppercase tracking-wider">{product.category}</div>
+                  <div className="flex items-center gap-2 mb-2 flex-wrap">
+                    <span className="text-sm text-gray-400 font-bold uppercase tracking-wider">{product.category || product.categories}</span>
+                    {isAlreadyInCart && (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-black uppercase tracking-wider border border-emerald-300 shadow-xs">
+                        <Check size={14} className="stroke-[3]" /> Already in Cart ({existingCartItem?.quantity})
+                      </span>
+                    )}
+                  </div>
                   <h3 className="text-2xl md:text-3xl font-black text-[#0f172a] mb-3 leading-tight">{product.name}</h3>
                   <p className="text-3xl md:text-4xl font-black text-accent">{formatPrice(product.price)}</p>
 

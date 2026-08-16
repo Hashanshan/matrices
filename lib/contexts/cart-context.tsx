@@ -12,6 +12,8 @@ interface CartContextType {
   selectedShop: ShopOption | null;
   setSelectedShop: (shop: ShopOption | null) => void;
   getAddToCartButtonLabel: (fallbackLabel?: string) => string;
+  isProductInCart: (productId: string) => boolean;
+  getCartItem: (productId: string) => CartItem | undefined;
   addToCart: (item: CartItem) => boolean;
   removeFromCart: (productId: string) => void;
   updateCartItem: (productId: string, item: Partial<CartItem>) => void;
@@ -43,7 +45,29 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
     if (savedCart) {
       try {
-        setCart(JSON.parse(savedCart));
+        const parsed = JSON.parse(savedCart);
+        if (parsed && Array.isArray(parsed.items)) {
+          // Ensure uniqueness on load as well
+          const uniqueMap = new Map<string, CartItem>();
+          parsed.items.forEach((it: CartItem) => {
+            const key = String(it.productId || it.id || '').trim().toLowerCase();
+            if (key) {
+              if (uniqueMap.has(key)) {
+                // keep the latest or combine
+                const existing = uniqueMap.get(key)!;
+                uniqueMap.set(key, { ...existing, ...it });
+              } else {
+                uniqueMap.set(key, it);
+              }
+            }
+          });
+          const uniqueItems = Array.from(uniqueMap.values());
+          setCart({
+            items: uniqueItems,
+            total: calculateTotal(uniqueItems),
+            itemCount: uniqueItems.length,
+          });
+        }
       } catch (error) {
         console.error('Failed to parse cart from localStorage:', error);
       }
@@ -124,7 +148,31 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     return `ADD TO ${truncatedName.toUpperCase()}`;
   };
 
-  // Add to cart with Shop Selection Enforcement
+  // Check if a product is already in the cart (by productId, id, or code)
+  const isProductInCart = (productIdOrCode: string): boolean => {
+    if (!productIdOrCode) return false;
+    const targetKey = String(productIdOrCode).trim().toLowerCase();
+    return cart.items.some((item) => {
+      const pId = String(item.productId || '').trim().toLowerCase();
+      const id = String(item.id || '').trim().toLowerCase();
+      const code = String((item as any).code || (item as any).productCode || '').trim().toLowerCase();
+      return pId === targetKey || id === targetKey || code === targetKey || id.startsWith(`${targetKey}_`);
+    });
+  };
+
+  // Get existing cart item for a product
+  const getCartItem = (productIdOrCode: string): CartItem | undefined => {
+    if (!productIdOrCode) return undefined;
+    const targetKey = String(productIdOrCode).trim().toLowerCase();
+    return cart.items.find((item) => {
+      const pId = String(item.productId || '').trim().toLowerCase();
+      const id = String(item.id || '').trim().toLowerCase();
+      const code = String((item as any).code || (item as any).productCode || '').trim().toLowerCase();
+      return pId === targetKey || id === targetKey || code === targetKey || id.startsWith(`${targetKey}_`);
+    });
+  };
+
+  // Add or Update Cart Item — Guarantees product uniqueness in cart
   const addToCart = (newItem: CartItem): boolean => {
     if (!selectedShop) {
       // Close all other product popups before opening PIN shop modal
@@ -147,29 +195,41 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     }
 
     setCart((prevCart) => {
-      const getComboKey = (it: any) => {
-        if (it.id && typeof it.id === 'string' && it.id.includes('_')) return it.id;
-        const pId = it.productId || it.id || '';
-        const color = it.selectedColor ? it.selectedColor.trim().toLowerCase() : '';
-        const size = it.selectedSize ? it.selectedSize.trim().toLowerCase() : '';
-        const note = it.notes ? it.notes.trim().toLowerCase() : '';
-        return `${pId}_${color}_${size}_${note}`;
-      };
+      const targetProdId = String(newItem.productId || newItem.id || '').trim().toLowerCase();
+      const cleanId = newItem.productId || newItem.id;
 
-      const targetKey = getComboKey(newItem);
-      const itemWithId = { ...newItem, id: targetKey };
+      const existingIndex = prevCart.items.findIndex((item) => {
+        const pId = String(item.productId || '').trim().toLowerCase();
+        const id = String(item.id || '').trim().toLowerCase();
+        const code = String((item as any).code || (item as any).productCode || '').trim().toLowerCase();
+        return pId === targetProdId || id === targetProdId || code === targetProdId || id.startsWith(`${targetProdId}_`);
+      });
 
-      const existingIndex = prevCart.items.findIndex((item) => getComboKey(item) === targetKey);
-
-      let updatedItems;
+      let updatedItems: CartItem[];
       if (existingIndex > -1) {
+        // Update existing unique item
         updatedItems = prevCart.items.map((item, idx) =>
           idx === existingIndex
-            ? { ...item, quantity: item.quantity + newItem.quantity }
+            ? {
+                ...item,
+                ...newItem,
+                id: item.id || cleanId,
+                productId: item.productId || cleanId,
+                quantity: newItem.quantity,
+                notes: newItem.notes,
+                selectedColor: newItem.selectedColor,
+                selectedSize: newItem.selectedSize,
+              }
             : item
         );
       } else {
-        updatedItems = [...prevCart.items, itemWithId];
+        // Append new unique product
+        const itemWithCleanId = {
+          ...newItem,
+          id: cleanId,
+          productId: cleanId,
+        };
+        updatedItems = [...prevCart.items, itemWithCleanId];
       }
 
       const newCart = {
@@ -188,18 +248,13 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const removeFromCart = (cartItemId: string) => {
     setCart((prevCart) => {
-      const getComboKey = (it: any) => {
-        if (it.id && typeof it.id === 'string' && it.id.includes('_')) return it.id;
-        const pId = it.productId || it.id || '';
-        const color = it.selectedColor ? it.selectedColor.trim().toLowerCase() : '';
-        const size = it.selectedSize ? it.selectedSize.trim().toLowerCase() : '';
-        const note = it.notes ? it.notes.trim().toLowerCase() : '';
-        return `${pId}_${color}_${size}_${note}`;
-      };
-
-      const updatedItems = prevCart.items.filter(
-        (item) => item.id !== cartItemId && getComboKey(item) !== cartItemId && (item.productId || item.id) !== cartItemId
-      );
+      const targetKey = String(cartItemId).trim().toLowerCase();
+      const updatedItems = prevCart.items.filter((item) => {
+        const pId = String(item.productId || '').trim().toLowerCase();
+        const id = String(item.id || '').trim().toLowerCase();
+        const code = String((item as any).code || (item as any).productCode || '').trim().toLowerCase();
+        return id !== targetKey && pId !== targetKey && code !== targetKey && !id.startsWith(`${targetKey}_`);
+      });
       const newCart = {
         items: updatedItems,
         total: calculateTotal(updatedItems),
@@ -213,17 +268,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const updateCartItem = (cartItemId: string, updates: Partial<CartItem>) => {
     setCart((prevCart) => {
-      const getComboKey = (it: any) => {
-        if (it.id && typeof it.id === 'string' && it.id.includes('_')) return it.id;
-        const pId = it.productId || it.id || '';
-        const color = it.selectedColor ? it.selectedColor.trim().toLowerCase() : '';
-        const size = it.selectedSize ? it.selectedSize.trim().toLowerCase() : '';
-        const note = it.notes ? it.notes.trim().toLowerCase() : '';
-        return `${pId}_${color}_${size}_${note}`;
-      };
-
+      const targetKey = String(cartItemId).trim().toLowerCase();
       const updatedItems = prevCart.items.map((item) => {
-        const matches = item.id === cartItemId || getComboKey(item) === cartItemId;
+        const pId = String(item.productId || '').trim().toLowerCase();
+        const id = String(item.id || '').trim().toLowerCase();
+        const code = String((item as any).code || (item as any).productCode || '').trim().toLowerCase();
+        const matches = id === targetKey || pId === targetKey || code === targetKey || id.startsWith(`${targetKey}_`);
         return matches ? { ...item, ...updates } : item;
       });
       const newCart = {
@@ -357,6 +407,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         selectedShop,
         setSelectedShop,
         getAddToCartButtonLabel,
+        isProductInCart,
+        getCartItem,
         addToCart,
         removeFromCart,
         updateCartItem,
