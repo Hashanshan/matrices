@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCart } from '@/lib/contexts/cart-context';
 import { useAuth } from '@/lib/contexts/auth-context';
@@ -15,6 +15,7 @@ import Swal from 'sweetalert2';
 import useSWR from 'swr';
 import { resolveApiUrl, getAuthToken } from '@/lib/utils';
 import { offlineDB } from '@/lib/offline/indexed-db';
+import { getOfflineProducts } from '@/lib/hooks/use-products';
 
 interface ProductItem {
   id: string;
@@ -29,16 +30,33 @@ const productsFetcher = async (url: string) => {
   const mode = typeof window !== 'undefined' ? (localStorage.getItem('matrices_data_mode') as string) : 'online';
   const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
 
-  const getOfflineProducts = async () => {
-    const rawProducts = await offlineDB.getAll<any>('products').catch(() => []);
-    const mtxProducts = rawProducts.filter((p: any) =>
-      /^MTX-/i.test(p.productId || p.id || '')
-    );
-    return { success: true, data: mtxProducts };
+  const urlObj = new URL(url, 'http://localhost');
+  const searchParam = urlObj.searchParams.get('search') || '';
+  const mtxOnly = urlObj.searchParams.get('mtxOnly') === 'true';
+
+  const getOffline = async () => {
+    try {
+      const res = await getOfflineProducts({
+        search: searchParam,
+        limit: 200,
+      });
+      let prods = res.data || [];
+      if (mtxOnly) {
+        const mtx = prods.filter((p: any) => /^MTX-/i.test(p.productId || p.id || p.code || ''));
+        if (mtx.length > 0) prods = mtx;
+      }
+      return { success: true, data: prods };
+    } catch {
+      const rawProducts = await offlineDB.getAll<any>('products').catch(() => []);
+      const mtxProducts = rawProducts.filter((p: any) =>
+        /^MTX-/i.test(p.productId || p.id || '')
+      );
+      return { success: true, data: mtxProducts.length > 0 ? mtxProducts : rawProducts };
+    }
   };
 
   if (mode === 'offline' || isOffline) {
-    return await getOfflineProducts();
+    return await getOffline();
   }
 
   const token = getAuthToken();
@@ -48,9 +66,9 @@ const productsFetcher = async (url: string) => {
       headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     });
     if (!res.ok) throw new Error('Failed to fetch products');
-    return res.json();
+    return await res.json();
   } catch {
-    return await getOfflineProducts();
+    return await getOffline();
   }
 };
 
@@ -109,9 +127,35 @@ export default function CartPage() {
     image: p.image || p.imageUrl || p.variants?.colors?.[0]?.image || p.variants?.images?.[0] || '',
   }));
 
-  const mtxFilteredProducts = rawProductsList.filter(p =>
-    /^MTX-/i.test(p.productId) || /^MTX-/i.test(p.id)
-  );
+  const mtxFilteredProducts = useMemo(() => {
+    const query = productSearch.trim().toLowerCase();
+    const queryClean = query.replace(/[^a-zA-Z0-9]/g, '');
+
+    let list = rawProductsList;
+
+    // Filter for MTX prefix if any MTX products exist in data
+    const hasMtx = list.some(p => /^MTX-/i.test(p.productId || p.id || ''));
+    if (hasMtx) {
+      list = list.filter(p => /^MTX-/i.test(p.productId || p.id || ''));
+    }
+
+    // Client-side search filtering (responsive instantaneous fallback)
+    if (query) {
+      list = list.filter(p => {
+        const pId = String(p.productId || p.id || '').toLowerCase();
+        const pName = String(p.name || '').toLowerCase();
+        const pIdClean = pId.replace(/[^a-zA-Z0-9]/g, '');
+
+        return (
+          pId.includes(query) ||
+          pName.includes(query) ||
+          (queryClean.length >= 2 && pIdClean.includes(queryClean))
+        );
+      });
+    }
+
+    return list;
+  }, [rawProductsList, productSearch]);
 
   // Focus modal search input on open
   useEffect(() => {
