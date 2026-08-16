@@ -290,7 +290,7 @@ export default function ShopClient({ params }: { params?: Promise<{ shopId: stri
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
                 {/* <BackButton label="Shops" /> */}
 
-                <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none w-full sm:w-auto max-w-full shrink-0">
+                {/* <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none w-full sm:w-auto max-w-full shrink-0">
                   <Link
                     href="/settings/orders"
                     className="text-xs font-black text-[#0f172a] uppercase bg-white/60 hover:bg-white border border-white/60 px-3.5 py-2.5 rounded-full shadow-xs transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0"
@@ -309,7 +309,7 @@ export default function ShopClient({ params }: { params?: Promise<{ shopId: stri
                   >
                     <ShieldCheck size={14} /> SECURITY
                   </Link>
-                </div>
+                </div> */}
               </div>
 
               <div className="bg-white/40 backdrop-blur-2xl border border-white/60 rounded-[2rem] sm:rounded-[2.5rem] p-5 sm:p-8 shadow-[0_20px_50px_rgba(0,0,0,0.06)] mb-6 overflow-hidden">

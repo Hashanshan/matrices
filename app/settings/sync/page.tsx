@@ -109,9 +109,9 @@ export default function SyncSettingsPage() {
 
   const formattedDate = lastSyncedAt || dbMeta?.lastSyncedAt
     ? new Date(lastSyncedAt || dbMeta!.lastSyncedAt).toLocaleString(undefined, {
-        dateStyle: 'medium',
-        timeStyle: 'short',
-      })
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    })
     : 'Never Synced';
 
   const totalUnpushed = pendingQueueCount + failedQueueCount;
@@ -162,7 +162,7 @@ export default function SyncSettingsPage() {
               </div>
 
               {/* Navigation Shortcuts */}
-              <div className="flex items-center gap-2 overflow-x-auto pb-1">
+              {/* <div className="flex items-center gap-2 overflow-x-auto pb-1">
                 <Link
                   href="/settings/shops"
                   className="text-xs font-black text-[#0f172a] uppercase bg-white/60 hover:bg-white border border-white/60 px-4 py-2.5 rounded-full shadow-xs transition-all flex items-center gap-1.5 whitespace-nowrap"
@@ -181,7 +181,7 @@ export default function SyncSettingsPage() {
                 >
                   <ShieldCheck size={14} /> SECURITY
                 </Link>
-              </div>
+              </div> */}
             </div>
 
             {/* Offline Status Warning Bar */}
@@ -201,7 +201,7 @@ export default function SyncSettingsPage() {
 
             {/* Top Action Cards: Push Changes, Download Catalog, & Delete Sync Data */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              
+
               {/* CARD 1: PUSH LOCAL CHANGES */}
               <div className="bg-gradient-to-br from-[#0f172a] to-[#1e293b] text-white rounded-[2.5rem] p-6 sm:p-8 shadow-2xl relative overflow-hidden border border-white/20 flex flex-col justify-between">
                 <div className="absolute right-0 top-0 translate-x-12 -translate-y-12 w-64 h-64 bg-emerald-500/20 rounded-full blur-3xl pointer-events-none" />
@@ -243,13 +243,12 @@ export default function SyncSettingsPage() {
                       whileTap={{ scale: isPushing || isOffline || totalUnpushed === 0 ? 1 : 0.98 }}
                       onClick={() => pushChanges()}
                       disabled={isPushing || isOffline || totalUnpushed === 0}
-                      className={`flex-1 px-6 py-4 rounded-full font-black text-xs sm:text-sm uppercase tracking-wider shadow-xl transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                        isOffline || totalUnpushed === 0
+                      className={`flex-1 px-6 py-4 rounded-full font-black text-xs sm:text-sm uppercase tracking-wider shadow-xl transition-all flex items-center justify-center gap-2 cursor-pointer ${isOffline || totalUnpushed === 0
                           ? 'bg-white/10 text-gray-400 border border-white/10 cursor-not-allowed'
                           : isPushing
-                          ? 'bg-accent/40 text-white cursor-wait border border-accent/50'
-                          : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-500/30 border border-emerald-400'
-                      }`}
+                            ? 'bg-accent/40 text-white cursor-wait border border-accent/50'
+                            : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-500/30 border border-emerald-400'
+                        }`}
                     >
                       <UploadCloud size={18} className={isPushing ? 'animate-bounce' : ''} />
                       {isPushing ? 'PUSHING QUEUE...' : 'PUSH LOCAL CHANGES NOW'}
@@ -320,13 +319,12 @@ export default function SyncSettingsPage() {
                     whileTap={{ scale: isSyncing || isOffline || totalUnpushed > 0 ? 1 : 0.98 }}
                     onClick={() => triggerSync()}
                     disabled={isSyncing || isOffline || totalUnpushed > 0}
-                    className={`w-full px-6 py-4 rounded-full font-black text-xs sm:text-sm uppercase tracking-wider shadow-xl transition-all flex items-center justify-center gap-3 cursor-pointer ${
-                      isOffline || totalUnpushed > 0
+                    className={`w-full px-6 py-4 rounded-full font-black text-xs sm:text-sm uppercase tracking-wider shadow-xl transition-all flex items-center justify-center gap-3 cursor-pointer ${isOffline || totalUnpushed > 0
                         ? 'bg-gray-200 text-gray-400 border border-gray-300 cursor-not-allowed'
                         : isSyncing
-                        ? 'bg-blue-600/30 text-blue-900 border border-blue-400 cursor-wait'
-                        : 'bg-[#0f172a] hover:bg-[#1e293b] text-white shadow-slate-900/20'
-                    }`}
+                          ? 'bg-blue-600/30 text-blue-900 border border-blue-400 cursor-wait'
+                          : 'bg-[#0f172a] hover:bg-[#1e293b] text-white shadow-slate-900/20'
+                      }`}
                   >
                     <RefreshCw size={18} className={isSyncing ? 'animate-spin' : ''} />
                     {isSyncing ? `SYNCING (${progress}%)` : 'SYNC ALL DATA NOW'}
@@ -463,15 +461,14 @@ export default function SyncSettingsPage() {
                         return (
                           <tr
                             key={item.id}
-                            className={`transition-colors ${
-                              isFailed
+                            className={`transition-colors ${isFailed
                                 ? 'bg-rose-50/80 hover:bg-rose-100/80'
                                 : isProcessing
-                                ? 'bg-amber-50/80'
-                                : isSuccess
-                                ? 'bg-emerald-50/30'
-                                : 'hover:bg-gray-50/60'
-                            }`}
+                                  ? 'bg-amber-50/80'
+                                  : isSuccess
+                                    ? 'bg-emerald-50/30'
+                                    : 'hover:bg-gray-50/60'
+                              }`}
                           >
                             <td className="py-3.5 px-4 font-mono font-bold text-[#0f172a]">
                               #{item.queueId || '001'}
@@ -479,13 +476,12 @@ export default function SyncSettingsPage() {
 
                             <td className="py-3.5 px-4">
                               <span
-                                className={`px-2.5 py-1 rounded-full text-[0.65rem] font-black uppercase tracking-wider ${
-                                  item.operation === 'CREATE'
+                                className={`px-2.5 py-1 rounded-full text-[0.65rem] font-black uppercase tracking-wider ${item.operation === 'CREATE'
                                     ? 'bg-blue-100 text-blue-800 border border-blue-200'
                                     : item.operation === 'DELETE'
-                                    ? 'bg-rose-100 text-rose-800 border border-rose-200'
-                                    : 'bg-amber-100 text-amber-800 border border-amber-200'
-                                }`}
+                                      ? 'bg-rose-100 text-rose-800 border border-rose-200'
+                                      : 'bg-amber-100 text-amber-800 border border-amber-200'
+                                  }`}
                               >
                                 {item.operation}
                               </span>

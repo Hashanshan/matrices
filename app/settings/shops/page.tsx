@@ -53,10 +53,10 @@ const fetcher = async (url: string) => {
     const search = parseQuery();
     const filtered = search
       ? rawShops.filter((s: any) =>
-          (s.name || '').toLowerCase().includes(search) ||
-          (s.shopId || '').toLowerCase().includes(search) ||
-          (s.phone || '').toLowerCase().includes(search)
-        )
+        (s.name || '').toLowerCase().includes(search) ||
+        (s.shopId || '').toLowerCase().includes(search) ||
+        (s.phone || '').toLowerCase().includes(search)
+      )
       : rawShops;
 
     return {
@@ -447,7 +447,7 @@ export default function ShopsSettingsPage() {
                 </div>
 
                 {/* Right Header Controls: Add Shop Button + Scrollable Nav Links */}
-                <div className="flex items-center gap-2.5 overflow-x-auto pb-2 max-w-full scrollbar-none no-scrollbar">
+                {/* <div className="flex items-center gap-2.5 overflow-x-auto pb-2 max-w-full scrollbar-none no-scrollbar">
                   <button
                     onClick={handleOpenAddModal}
                     className="bg-[#0f172a] hover:bg-[#1e293b] text-white font-black text-xs uppercase tracking-wider px-5 py-3 rounded-full shadow-lg hover:shadow-xl transition-all flex items-center gap-2 cursor-pointer active:scale-95 whitespace-nowrap shrink-0"
@@ -487,8 +487,8 @@ export default function ShopsSettingsPage() {
                     <span className="text-xs font-black text-white bg-[#0f172a] px-4 py-2.5 rounded-full shadow-xs uppercase whitespace-nowrap shrink-0">
                       {totalRecords} {totalRecords === 1 ? 'SHOP' : 'SHOPS'}
                     </span>
-                  </div>
-                </div>
+                  </div> */}
+              </div>
 
               {/* Search Bar */}
               <div className="mb-6 flex items-center justify-between gap-4">

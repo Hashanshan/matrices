@@ -260,7 +260,7 @@ export default function SettingsInvoicesPage() {
                 </div>
 
                 {/* Top Mobile Scrollable Navigation */}
-                <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none w-full sm:w-auto max-w-full shrink-0">
+                {/* <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none w-full sm:w-auto max-w-full shrink-0">
 
                   <Link
                     href="/settings/shops"
@@ -283,7 +283,7 @@ export default function SettingsInvoicesPage() {
                   <span className="text-xs font-black text-white bg-[#0f172a] px-4 py-2.5 rounded-full shadow-xs uppercase whitespace-nowrap shrink-0">
                     {totalOrders} {totalOrders === 1 ? 'INVOICE' : 'INVOICES'}
                   </span>
-                </div>
+                </div> */}
               </div>
 
               {/* Filter & Search Bar */}

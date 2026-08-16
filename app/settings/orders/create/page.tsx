@@ -526,182 +526,164 @@ function CreateOrderContent() {
           </div>
         ) : (
           <div className="bg-white/80 backdrop-blur-2xl border border-white/90 rounded-[2.5rem] p-6 sm:p-8 shadow-[0_20px_50px_rgba(0,0,0,0.08)]">
-          
-          {/* Header */}
-          <div className="flex items-center justify-between gap-4 mb-6 pb-6 border-b border-gray-100">
-            <div className="flex items-center gap-3">
-              <Link
-                href="/settings/orders"
-                className="p-2.5 bg-gray-100 hover:bg-gray-200 text-[#0f172a] rounded-full transition-all cursor-pointer"
-              >
-                <ArrowLeft size={18} />
-              </Link>
-              <div>
-                <h1 className="text-xl sm:text-2xl font-black text-[#0f172a] uppercase tracking-tight">
-                  {editId ? 'EDIT DRAFT ORDER' : 'CREATE NEW ORDER'}
-                </h1>
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-                  Offline-First Local Order Creation
-                </p>
-              </div>
-            </div>
 
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-black text-amber-900 bg-amber-100 border border-amber-300 px-3.5 py-1.5 rounded-full flex items-center gap-1.5 uppercase">
-                <Clock size={14} className="text-amber-600" /> Local Draft Mode
-              </span>
-            </div>
-          </div>
-
-          <form onSubmit={handleSaveOrder} className="space-y-6">
-            
-            {/* Salesrep & Order Date Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              
-              {/* Auto-Assigned Salesrep Card */}
-              <div className="bg-white border border-slate-200/80 rounded-3xl p-5 shadow-xs space-y-2">
-                <label className="text-xs font-black text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
-                  <User size={14} className="text-blue-600" /> Sales Representative (Auto-Assigned)
-                </label>
-                <div className="flex items-center justify-between bg-slate-50/80 border border-slate-200/70 rounded-2xl p-3.5">
-                  <div>
-                    <p className="text-sm font-black text-[#0f172a] uppercase">{user?.name || 'Logged-in Salesrep'}</p>
-                    <p className="text-xs font-bold text-gray-400">{user?.email || 'salesrep@matrices.com'}</p>
-                  </div>
-                  <span className="text-[10px] font-mono font-black text-emerald-800 bg-emerald-100 px-2.5 py-1 rounded-full uppercase">
-                    Auto Assigned
-                  </span>
+            {/* Header */}
+            <div className="flex items-center justify-between gap-4 mb-6 pb-6 border-b border-gray-100">
+              <div className="flex items-center gap-3">
+                <Link
+                  href="/settings/orders"
+                  className="p-2.5 bg-gray-100 hover:bg-gray-200 text-[#0f172a] rounded-full transition-all cursor-pointer"
+                >
+                  <ArrowLeft size={18} />
+                </Link>
+                <div>
+                  <h1 className="text-xl sm:text-2xl font-black text-[#0f172a] uppercase tracking-tight">
+                    {editId ? 'EDIT DRAFT ORDER' : 'CREATE NEW ORDER'}
+                  </h1>
+                  <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                    Offline-First Local Order Creation
+                  </p>
                 </div>
               </div>
 
-              {/* Order Date Input (Custom rounded style) */}
-              <div className="bg-white border border-slate-200/80 rounded-3xl p-5 shadow-xs space-y-2">
-                <label className="text-xs font-black text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
-                  <Calendar size={14} className="text-blue-600" /> Order Date
-                </label>
-                <input
-                  type="date"
-                  value={orderDate}
-                  onChange={e => setOrderDate(e.target.value)}
-                  className="w-full bg-slate-50/80 border border-slate-200/80 rounded-2xl p-3.5 text-sm font-bold text-[#0f172a] focus:outline-none focus:ring-2 focus:ring-[#0f172a]/20 focus:border-[#0f172a] transition-all"
-                />
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-black text-amber-900 bg-amber-100 border border-amber-300 px-3.5 py-1.5 rounded-full flex items-center gap-1.5 uppercase">
+                  <Clock size={14} className="text-amber-600" /> Local Draft Mode
+                </span>
+              </div>
+            </div>
+
+            <form onSubmit={handleSaveOrder} className="space-y-6">
+
+              {/* Salesrep & Order Date Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+                {/* Auto-Assigned Salesrep Card */}
+                <div className="bg-white border border-slate-200/80 rounded-3xl p-5 shadow-xs space-y-2">
+                  <label className="text-xs font-black text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <User size={14} className="text-blue-600" /> Sales Representative (Auto-Assigned)
+                  </label>
+                  <div className="flex items-center justify-between bg-slate-50/80 border border-slate-200/70 rounded-2xl p-3.5">
+                    <div>
+                      <p className="text-sm font-black text-[#0f172a] uppercase">{user?.name || 'Logged-in Salesrep'}</p>
+                      <p className="text-xs font-bold text-gray-400">{user?.email || 'salesrep@matrices.com'}</p>
+                    </div>
+                    <span className="text-[10px] font-mono font-black text-emerald-800 bg-emerald-100 px-2.5 py-1 rounded-full uppercase">
+                      Auto Assigned
+                    </span>
+                  </div>
+                </div>
+
+                {/* Order Date Input (Custom rounded style) */}
+                <div className="bg-white border border-slate-200/80 rounded-3xl p-5 shadow-xs space-y-2">
+                  <label className="text-xs font-black text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <Calendar size={14} className="text-blue-600" /> Order Date
+                  </label>
+                  <input
+                    type="date"
+                    value={orderDate}
+                    onChange={e => setOrderDate(e.target.value)}
+                    className="w-full bg-slate-50/80 border border-slate-200/80 rounded-2xl p-3.5 text-sm font-bold text-[#0f172a] focus:outline-none focus:ring-2 focus:ring-[#0f172a]/20 focus:border-[#0f172a] transition-all"
+                  />
+                </div>
+
               </div>
 
-            </div>
+              {/* Custom Interactive Shop Selection Dropdown (GORGEOUS ROUNDED BORDERS!) */}
+              <div className="bg-white border border-slate-200/80 rounded-3xl p-5 shadow-xs space-y-3 relative" ref={shopDropdownRef}>
+                <label className="text-xs font-black text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <Store size={14} className="text-blue-600" /> SELECT CUSTOMER SHOP *
+                </label>
 
-            {/* Custom Interactive Shop Selection Dropdown (GORGEOUS ROUNDED BORDERS!) */}
-            <div className="bg-white border border-slate-200/80 rounded-3xl p-5 shadow-xs space-y-3 relative" ref={shopDropdownRef}>
-              <label className="text-xs font-black text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
-                <Store size={14} className="text-blue-600" /> SELECT CUSTOMER SHOP *
-              </label>
-
-              {/* Custom Trigger Button */}
-              <button
-                type="button"
-                onClick={() => setIsShopDropdownOpen(!isShopDropdownOpen)}
-                className="w-full flex items-center justify-between bg-slate-50/80 hover:bg-slate-100/80 border-2 border-slate-200/90 rounded-2xl p-4 text-left transition-all shadow-xs focus:outline-none focus:ring-2 focus:ring-[#0f172a]/20 focus:border-[#0f172a] cursor-pointer"
-              >
-                {selectedShop ? (
-                  <div className="space-y-0.5 truncate">
-                    <p className="text-sm font-black text-[#0f172a] uppercase">{selectedShop.name}</p>
-                    <p className="text-xs font-bold text-gray-400 font-mono">
-                      ID: {selectedShop.shopId} {selectedShop.address ? `• ${selectedShop.address}` : ''}
-                    </p>
-                  </div>
-                ) : (
-                  <span className="text-sm font-black text-gray-500 uppercase">
-                    -- SELECT SHOP ASSIGNED TO YOU --
-                  </span>
-                )}
-                <ChevronDown size={18} className={`text-gray-400 transition-transform ${isShopDropdownOpen ? 'rotate-180' : ''}`} />
-              </button>
-
-              {/* Custom Animated Options Dropdown Panel */}
-              <AnimatePresence>
-                {isShopDropdownOpen && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -8, scale: 0.98 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: -8, scale: 0.98 }}
-                    className="absolute left-5 right-5 top-[95px] z-40 bg-white border-2 border-slate-200 rounded-2xl shadow-2xl overflow-hidden p-2 space-y-2"
-                  >
-                    {/* Search inside shop dropdown if > 3 shops */}
-                    {allShops.length > 3 && (
-                      <div className="relative p-1">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                        <input
-                          type="text"
-                          value={shopFilterQuery}
-                          onChange={e => setShopFilterQuery(e.target.value)}
-                          placeholder="Filter shops..."
-                          className="w-full pl-10 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-[#0f172a] focus:outline-none focus:ring-2 focus:ring-[#0f172a]/20"
-                        />
-                      </div>
-                    )}
-
-                    <div className="max-h-60 overflow-y-auto space-y-1 pr-1">
-                      {filteredShopsList.length === 0 ? (
-                        <div className="p-4 text-center text-xs font-bold text-gray-400 uppercase">
-                          No assigned shops found
-                        </div>
-                      ) : (
-                        filteredShopsList.map(s => (
-                          <div
-                            key={s.shopId}
-                            onClick={() => {
-                              setSelectedShop(s);
-                              setIsShopDropdownOpen(false);
-                            }}
-                            className={`p-3.5 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${
-                              selectedShop?.shopId === s.shopId
-                                ? 'bg-[#0f172a] text-white border-[#0f172a]'
-                                : 'border-transparent hover:bg-slate-100 text-[#0f172a]'
-                            }`}
-                          >
-                            <div className="space-y-0.5">
-                              <p className="text-xs font-black uppercase">{s.name}</p>
-                              <div className="flex items-center gap-2 text-[11px] opacity-75 font-bold">
-                                <span className="font-mono">ID: {s.shopId}</span>
-                                {s.address && <span>• {s.address}</span>}
-                              </div>
-                            </div>
-                            {selectedShop?.shopId === s.shopId && (
-                              <Check size={16} className="text-emerald-400" />
-                            )}
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-            </div>
-
-            {/* Order Items Table Section */}
-            <div className="bg-white border border-slate-200/80 rounded-3xl p-5 shadow-xs space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-black text-[#0f172a] uppercase tracking-wider flex items-center gap-2">
-                  <ShoppingBag size={16} /> ORDER ITEMS ({orderItems.length})
-                </h3>
-
+                {/* Custom Trigger Button */}
                 <button
                   type="button"
-                  onClick={() => {
-                    setSelectedProductForAdd(null);
-                    setProductSearch('');
-                    setIsProductModalOpen(true);
-                  }}
-                  className="bg-[#0f172a] hover:bg-[#1e293b] text-white text-xs font-black uppercase px-4 py-2.5 rounded-full shadow-md transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+                  onClick={() => setIsShopDropdownOpen(!isShopDropdownOpen)}
+                  className="w-full flex items-center justify-between bg-slate-50/80 hover:bg-slate-100/80 border-2 border-slate-200/90 rounded-2xl p-4 text-left transition-all shadow-xs focus:outline-none focus:ring-2 focus:ring-[#0f172a]/20 focus:border-[#0f172a] cursor-pointer"
                 >
-                  <Plus size={14} /> ADD PRODUCT
+                  {selectedShop ? (
+                    <div className="space-y-0.5 truncate">
+                      <p className="text-sm font-black text-[#0f172a] uppercase">{selectedShop.name}</p>
+                      <p className="text-xs font-bold text-gray-400 font-mono">
+                        ID: {selectedShop.shopId} {selectedShop.address ? `• ${selectedShop.address}` : ''}
+                      </p>
+                    </div>
+                  ) : (
+                    <span className="text-sm font-black text-gray-500 uppercase">
+                      -- SELECT SHOP ASSIGNED TO YOU --
+                    </span>
+                  )}
+                  <ChevronDown size={18} className={`text-gray-400 transition-transform ${isShopDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
+
+                {/* Custom Animated Options Dropdown Panel */}
+                <AnimatePresence>
+                  {isShopDropdownOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -8, scale: 0.98 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -8, scale: 0.98 }}
+                      className="absolute left-5 right-5 top-[95px] z-40 bg-white border-2 border-slate-200 rounded-2xl shadow-2xl overflow-hidden p-2 space-y-2"
+                    >
+                      {/* Search inside shop dropdown if > 3 shops */}
+                      {allShops.length > 3 && (
+                        <div className="relative p-1">
+                          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                          <input
+                            type="text"
+                            value={shopFilterQuery}
+                            onChange={e => setShopFilterQuery(e.target.value)}
+                            placeholder="Filter shops..."
+                            className="w-full pl-10 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-[#0f172a] focus:outline-none focus:ring-2 focus:ring-[#0f172a]/20"
+                          />
+                        </div>
+                      )}
+
+                      <div className="max-h-60 overflow-y-auto space-y-1 pr-1">
+                        {filteredShopsList.length === 0 ? (
+                          <div className="p-4 text-center text-xs font-bold text-gray-400 uppercase">
+                            No assigned shops found
+                          </div>
+                        ) : (
+                          filteredShopsList.map(s => (
+                            <div
+                              key={s.shopId}
+                              onClick={() => {
+                                setSelectedShop(s);
+                                setIsShopDropdownOpen(false);
+                              }}
+                              className={`p-3.5 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${selectedShop?.shopId === s.shopId
+                                  ? 'bg-[#0f172a] text-white border-[#0f172a]'
+                                  : 'border-transparent hover:bg-slate-100 text-[#0f172a]'
+                                }`}
+                            >
+                              <div className="space-y-0.5">
+                                <p className="text-xs font-black uppercase">{s.name}</p>
+                                <div className="flex items-center gap-2 text-[11px] opacity-75 font-bold">
+                                  <span className="font-mono">ID: {s.shopId}</span>
+                                  {s.address && <span>• {s.address}</span>}
+                                </div>
+                              </div>
+                              {selectedShop?.shopId === s.shopId && (
+                                <Check size={16} className="text-emerald-400" />
+                              )}
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
               </div>
 
-              {orderItems.length === 0 ? (
-                <div className="py-12 text-center border-2 border-dashed border-slate-200 rounded-2xl">
-                  <ShoppingBag size={36} className="mx-auto text-gray-300 mb-2" />
-                  <p className="text-xs font-black text-gray-400 uppercase">No products added to order yet</p>
+              {/* Order Items Table Section */}
+              <div className="bg-white border border-slate-200/80 rounded-3xl p-5 shadow-xs space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-black text-[#0f172a] uppercase tracking-wider flex items-center gap-2">
+                    <ShoppingBag size={16} /> ORDER ITEMS ({orderItems.length})
+                  </h3>
+
                   <button
                     type="button"
                     onClick={() => {
@@ -709,104 +691,121 @@ function CreateOrderContent() {
                       setProductSearch('');
                       setIsProductModalOpen(true);
                     }}
-                    className="mt-3 text-xs font-black text-blue-600 underline uppercase cursor-pointer"
+                    className="bg-[#0f172a] hover:bg-[#1e293b] text-white text-xs font-black uppercase px-4 py-2.5 rounded-full shadow-md transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
                   >
-                    Click "+ ADD PRODUCT" to search MTX products
+                    <Plus size={14} /> ADD PRODUCT
                   </button>
                 </div>
-              ) : (
-                <div className="divide-y divide-gray-100 overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead>
-                      <tr className="text-gray-400 uppercase font-black tracking-wider text-[10px]">
-                        <th className="py-2.5 px-3">Product Name</th>
-                        <th className="py-2.5 px-3">MTX ID</th>
-                        <th className="py-2.5 px-3">Price</th>
-                        <th className="py-2.5 px-3">Quantity</th>
-                        <th className="py-2.5 px-3">Subtotal</th>
-                        <th className="py-2.5 px-3 text-right">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100 font-bold text-[#0f172a]">
-                      {orderItems.map((item, index) => (
-                        <tr key={index} className="hover:bg-slate-50/60">
-                          <td className="py-3 px-3">
-                            <p className="font-black uppercase">{item.name}</p>
-                            {item.note && <p className="text-[10px] text-blue-600 font-bold mt-0.5">Note: {item.note}</p>}
-                          </td>
-                          <td className="py-3 px-3 font-mono text-gray-500 uppercase font-bold">
-                            {item.productId}
-                          </td>
-                          <td className="py-3 px-3">{formatPrice(item.price)}</td>
-                          <td className="py-3 px-3">
-                            <div className="flex items-center gap-1.5">
-                              <button
-                                type="button"
-                                onClick={() => handleUpdateItemQuantity(index, -1)}
-                                className="w-6 h-6 bg-slate-100 hover:bg-slate-200 rounded-full flex items-center justify-center text-slate-700 font-black cursor-pointer"
-                              >
-                                <Minus size={12} />
-                              </button>
-                              <span className="w-8 text-center font-black">{item.quantity}</span>
-                              <button
-                                type="button"
-                                onClick={() => handleUpdateItemQuantity(index, 1)}
-                                className="w-6 h-6 bg-slate-100 hover:bg-slate-200 rounded-full flex items-center justify-center text-slate-700 font-black cursor-pointer"
-                              >
-                                <Plus size={12} />
-                              </button>
-                            </div>
-                          </td>
-                          <td className="py-3 px-3 font-black">
-                            {formatPrice(item.price * item.quantity)}
-                          </td>
-                          <td className="py-3 px-3 text-right">
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveItem(index)}
-                              className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          </td>
+
+                {orderItems.length === 0 ? (
+                  <div className="py-12 text-center border-2 border-dashed border-slate-200 rounded-2xl">
+                    <ShoppingBag size={36} className="mx-auto text-gray-300 mb-2" />
+                    <p className="text-xs font-black text-gray-400 uppercase">No products added to order yet</p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedProductForAdd(null);
+                        setProductSearch('');
+                        setIsProductModalOpen(true);
+                      }}
+                      className="mt-3 text-xs font-black text-blue-600 underline uppercase cursor-pointer"
+                    >
+                      Click "+ ADD PRODUCT" to search MTX products
+                    </button>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-gray-100 overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead>
+                        <tr className="text-gray-400 uppercase font-black tracking-wider text-[10px]">
+                          <th className="py-2.5 px-3">Product Name</th>
+                          <th className="py-2.5 px-3">MTX ID</th>
+                          <th className="py-2.5 px-3">Price</th>
+                          <th className="py-2.5 px-3">Quantity</th>
+                          <th className="py-2.5 px-3">Subtotal</th>
+                          <th className="py-2.5 px-3 text-right">Action</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100 font-bold text-[#0f172a]">
+                        {orderItems.map((item, index) => (
+                          <tr key={index} className="hover:bg-slate-50/60">
+                            <td className="py-3 px-3">
+                              <p className="font-black uppercase">{item.name}</p>
+                              {item.note && <p className="text-[10px] text-blue-600 font-bold mt-0.5">Note: {item.note}</p>}
+                            </td>
+                            <td className="py-3 px-3 font-mono text-gray-500 uppercase font-bold">
+                              {item.productId}
+                            </td>
+                            <td className="py-3 px-3">{formatPrice(item.price)}</td>
+                            <td className="py-3 px-3">
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateItemQuantity(index, -1)}
+                                  className="w-6 h-6 bg-slate-100 hover:bg-slate-200 rounded-full flex items-center justify-center text-slate-700 font-black cursor-pointer"
+                                >
+                                  <Minus size={12} />
+                                </button>
+                                <span className="w-8 text-center font-black">{item.quantity}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateItemQuantity(index, 1)}
+                                  className="w-6 h-6 bg-slate-100 hover:bg-slate-200 rounded-full flex items-center justify-center text-slate-700 font-black cursor-pointer"
+                                >
+                                  <Plus size={12} />
+                                </button>
+                              </div>
+                            </td>
+                            <td className="py-3 px-3 font-black">
+                              {formatPrice(item.price * item.quantity)}
+                            </td>
+                            <td className="py-3 px-3 text-right">
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveItem(index)}
+                                className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
 
-            {/* Pricing Summary & Discount Card */}
-            <div className="bg-white border border-slate-200/80 rounded-3xl p-5 shadow-xs space-y-4">
-              <h3 className="text-sm font-black text-[#0f172a] uppercase tracking-wider flex items-center gap-2">
-                <Percent size={16} /> ORDER SUMMARY
-              </h3>
+              {/* Pricing Summary & Discount Card */}
+              <div className="bg-white border border-slate-200/80 rounded-3xl p-5 shadow-xs space-y-4">
+                <h3 className="text-sm font-black text-[#0f172a] uppercase tracking-wider flex items-center gap-2">
+                  <Percent size={16} /> ORDER SUMMARY
+                </h3>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                
-                {/* Notes Input */}
-                <div className="space-y-2">
-                  <label className="text-xs font-black text-gray-400 uppercase tracking-wider">
-                    Special Notes / Instructions
-                  </label>
-                  <textarea
-                    rows={3}
-                    value={notes}
-                    onChange={e => setNotes(e.target.value)}
-                    placeholder="Enter order notes or special instructions..."
-                    className="w-full bg-slate-50/80 border border-slate-200 rounded-2xl p-3.5 text-xs font-bold text-[#0f172a] focus:outline-none focus:ring-2 focus:ring-[#0f172a]/20"
-                  />
-                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
-                {/* Totals Breakdown */}
-                <div className="bg-slate-50/80 border border-slate-200 rounded-2xl p-4 space-y-3">
-                  <div className="flex justify-between text-xs font-bold text-gray-600 uppercase">
-                    <span>Subtotal ({orderItems.reduce((acc, i) => acc + i.quantity, 0)} units):</span>
-                    <span className="font-black text-[#0f172a]">{formatPrice(calculateSubtotal())}</span>
+                  {/* Notes Input */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-black text-gray-400 uppercase tracking-wider">
+                      Special Notes / Instructions
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={notes}
+                      onChange={e => setNotes(e.target.value)}
+                      placeholder="Enter order notes or special instructions..."
+                      className="w-full bg-slate-50/80 border border-slate-200 rounded-2xl p-3.5 text-xs font-bold text-[#0f172a] focus:outline-none focus:ring-2 focus:ring-[#0f172a]/20"
+                    />
                   </div>
 
-                  <div className="flex items-center justify-between text-xs font-bold text-gray-600 uppercase">
+                  {/* Totals Breakdown */}
+                  <div className="bg-slate-50/80 border border-slate-200 rounded-2xl p-4 space-y-3">
+                    <div className="flex justify-between text-xs font-bold text-gray-600 uppercase">
+                      <span>Subtotal ({orderItems.reduce((acc, i) => acc + i.quantity, 0)} units):</span>
+                      <span className="font-black text-[#0f172a]">{formatPrice(calculateSubtotal())}</span>
+                    </div>
+
+                    {/* <div className="flex items-center justify-between text-xs font-bold text-gray-600 uppercase">
                     <span>Discount (%):</span>
                     <input
                       type="number"
@@ -816,45 +815,45 @@ function CreateOrderContent() {
                       onChange={e => setDiscount(Math.min(100, Math.max(0, parseFloat(e.target.value) || 0)))}
                       className="w-20 bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 text-right font-black text-[#0f172a]"
                     />
-                  </div>
+                  </div> */}
 
-                  {discount > 0 && (
-                    <div className="flex justify-between text-xs font-extrabold text-emerald-600 uppercase">
-                      <span>Discount Amount ({discount}%):</span>
-                      <span>-{formatPrice(calculateDiscountAmount())}</span>
+                    {discount > 0 && (
+                      <div className="flex justify-between text-xs font-extrabold text-emerald-600 uppercase">
+                        <span>Discount Amount ({discount}%):</span>
+                        <span>-{formatPrice(calculateDiscountAmount())}</span>
+                      </div>
+                    )}
+
+                    <div className="pt-2 border-t border-slate-200 flex justify-between text-base font-black text-[#0f172a] uppercase">
+                      <span>Grand Total:</span>
+                      <span className="text-lg text-emerald-700">{formatPrice(calculateTotal())}</span>
                     </div>
-                  )}
-
-                  <div className="pt-2 border-t border-slate-200 flex justify-between text-base font-black text-[#0f172a] uppercase">
-                    <span>Grand Total:</span>
-                    <span className="text-lg text-emerald-700">{formatPrice(calculateTotal())}</span>
                   </div>
+
                 </div>
-
               </div>
-            </div>
 
-            {/* Form Actions */}
-            <div className="flex items-center justify-end gap-3 pt-2">
-              <Link
-                href="/settings/orders"
-                className="px-6 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs uppercase rounded-full transition-all"
-              >
-                CANCEL
-              </Link>
+              {/* Form Actions */}
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <Link
+                  href="/settings/orders"
+                  className="px-6 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs uppercase rounded-full transition-all"
+                >
+                  CANCEL
+                </Link>
 
-              <button
-                type="submit"
-                disabled={isSubmitting || orderItems.length === 0 || !selectedShop}
-                className="px-8 py-3.5 bg-[#0f172a] hover:bg-[#1e293b] disabled:opacity-50 text-white font-black text-xs uppercase tracking-wider rounded-full shadow-lg hover:shadow-xl transition-all flex items-center gap-2 cursor-pointer active:scale-95"
-              >
-                <Save size={16} /> {editId ? 'UPDATE LOCAL ORDER' : 'SAVE ORDER (LOCAL DB)'}
-              </button>
-            </div>
+                <button
+                  type="submit"
+                  disabled={isSubmitting || orderItems.length === 0 || !selectedShop}
+                  className="px-8 py-3.5 bg-[#0f172a] hover:bg-[#1e293b] disabled:opacity-50 text-white font-black text-xs uppercase tracking-wider rounded-full shadow-lg hover:shadow-xl transition-all flex items-center gap-2 cursor-pointer active:scale-95"
+                >
+                  <Save size={16} /> {editId ? 'UPDATE LOCAL ORDER' : 'SAVE ORDER (LOCAL DB)'}
+                </button>
+              </div>
 
-          </form>
+            </form>
 
-        </div>
+          </div>
         )}
       </main>
 

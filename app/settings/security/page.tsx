@@ -21,7 +21,7 @@ export default function SecuritySettingsPage() {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  
+
   // Security PIN state
   const [newPin, setNewPin] = useState('');
 
@@ -190,12 +190,12 @@ export default function SecuritySettingsPage() {
                   </p>
                 </div>
 
-                <Link
+                {/* <Link
                   href="/settings/wishlist"
                   className="inline-flex items-center gap-2 bg-white/60 hover:bg-white text-[#0f172a] px-6 py-3.5 rounded-full font-black text-xs uppercase tracking-wider border border-white/60 shadow-md transition-all self-start sm:self-auto"
                 >
                   <Heart size={16} fill="#ef4444" className="text-red-500" /> GO TO MY WISHLIST
-                </Link>
+                </Link> */}
               </div>
 
               {/* Navigation Tabs (iPad OS Pill Buttons) */}
@@ -213,11 +213,10 @@ export default function SecuritySettingsPage() {
                         setFormMsg(null);
                         setActiveTab(tab.id as any);
                       }}
-                      className={`flex items-center gap-2 px-7 py-3.5 rounded-full font-black text-xs sm:text-sm transition-all uppercase ${
-                        isActive
+                      className={`flex items-center gap-2 px-7 py-3.5 rounded-full font-black text-xs sm:text-sm transition-all uppercase ${isActive
                           ? 'bg-[#0f172a] text-white shadow-lg'
                           : 'text-gray-600 hover:bg-white/50 hover:text-[#0f172a]'
-                      }`}
+                        }`}
                     >
                       <Icon size={18} />
                       {tab.label}
@@ -228,9 +227,8 @@ export default function SecuritySettingsPage() {
 
               {/* Form Message Notification */}
               {formMsg && (
-                <div className={`p-4 rounded-2xl mb-6 font-bold text-sm flex items-center gap-3 uppercase ${
-                  formMsg.type === 'success' ? 'bg-green-500/10 text-green-700 border border-green-500/30' : 'bg-red-500/10 text-red-700 border border-red-500/30'
-                }`}>
+                <div className={`p-4 rounded-2xl mb-6 font-bold text-sm flex items-center gap-3 uppercase ${formMsg.type === 'success' ? 'bg-green-500/10 text-green-700 border border-green-500/30' : 'bg-red-500/10 text-red-700 border border-red-500/30'
+                  }`}>
                   {formMsg.type === 'success' ? <Check size={20} /> : <ShieldAlert size={20} />}
                   {formMsg.text}
                 </div>

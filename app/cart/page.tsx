@@ -315,7 +315,7 @@ export default function CartPage() {
 
       <main className="min-h-screen bg-[#f8f9fc] pb-16">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-          
+
           {/* Header Bar */}
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-[2rem] border border-gray-100 shadow-xs">
             <div>
@@ -427,7 +427,7 @@ export default function CartPage() {
             </motion.div>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              
+
               {/* Left Side: Cart Items List */}
               <div className="lg:col-span-2 space-y-4">
                 <div className="flex items-center justify-between px-2">
@@ -558,7 +558,7 @@ export default function CartPage() {
                       <span className="font-black text-[#0f172a]">{formatPrice(subtotal)}</span>
                     </div>
 
-                    <div className="flex items-center justify-between">
+                    {/* <div className="flex items-center justify-between">
                       <span>Discount (%):</span>
                       <input
                         type="number"
@@ -568,7 +568,7 @@ export default function CartPage() {
                         onChange={(e) => setDiscount(Math.min(100, Math.max(0, parseFloat(e.target.value) || 0)))}
                         className="w-20 bg-gray-50 border border-gray-300 rounded-xl px-2.5 py-1 text-right font-black text-[#0f172a]"
                       />
-                    </div>
+                    </div> */}
 
                     {discount > 0 && (
                       <div className="flex justify-between text-emerald-600 font-extrabold">
