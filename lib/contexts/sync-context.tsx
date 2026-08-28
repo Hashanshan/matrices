@@ -51,6 +51,12 @@ interface SyncContextType {
   downloadReport: (format: 'pdf' | 'csv' | 'json', userName?: string) => void;
   checkPermissions: () => Promise<void>;
   refreshQueue: () => Promise<void>;
+
+  // Background Sync & Modal Visibility controls
+  isSyncModalOpen: boolean;
+  openSyncModal: () => void;
+  closeSyncModal: () => void;
+  setIsSyncModalOpen: (open: boolean) => void;
 }
 
 const SyncContext = createContext<SyncContextType | undefined>(undefined);
@@ -64,6 +70,10 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
   const [meta, setMeta] = useState<SyncMetadata | null>(null);
   const [isOffline, setIsOffline] = useState(false);
   const [showPinModal, setShowPinModal] = useState(false);
+  const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
+
+  const openSyncModal = useCallback(() => setIsSyncModalOpen(true), []);
+  const closeSyncModal = useCallback(() => setIsSyncModalOpen(false), []);
   
   // Queue state
   const [queueItems, setQueueItems] = useState<SyncQueueItem[]>([]);
@@ -374,6 +384,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     }
 
     setIsSyncing(true);
+    setIsSyncModalOpen(true);
     setProgress(5);
     setSyncStatusText('Requesting storage permission...');
 
@@ -930,7 +941,10 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
   }, [meta]);
 
   const triggerSync = useCallback(async (syncMode: 'full' | 'resume' = 'full'): Promise<boolean> => {
-    if (isSyncing) return false;
+    if (isSyncing) {
+      setIsSyncModalOpen(true);
+      return true;
+    }
     if (typeof window !== 'undefined' && !navigator.onLine) {
       Swal.fire({
         icon: 'warning',
@@ -1022,6 +1036,10 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         downloadReport,
         checkPermissions,
         refreshQueue,
+        isSyncModalOpen,
+        openSyncModal,
+        closeSyncModal,
+        setIsSyncModalOpen,
       }}
     >
       {children}

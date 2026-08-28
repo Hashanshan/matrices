@@ -26,7 +26,7 @@ interface HeaderProps {
 export default function Header({ searchQuery = '', onSearchChange, showSearch = true }: HeaderProps) {
   const { user, logout } = useAuth();
   const { cart, selectedShop } = useCart();
-  const { triggerSync } = useSync();
+  const { triggerSync, isSyncing, progress, openSyncModal } = useSync();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement>(null);
@@ -124,6 +124,20 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
 
           {/* ───── Right Actions ───── */}
           <div className="flex items-center gap-3 md:gap-6">
+            {/* Live Background Sync Indicator */}
+            {isSyncing && (
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => openSyncModal()}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-500/10 hover:bg-sky-500/20 text-sky-600 dark:text-sky-400 border border-sky-500/30 rounded-full font-bold text-xs cursor-pointer shadow-xs transition-all"
+                title={`Catalogue syncing (${progress}%) - Click to view progress`}
+              >
+                <RefreshCw size={13} className="animate-spin text-sky-500" />
+                <span className="hidden sm:inline font-mono">{progress}%</span>
+              </motion.button>
+            )}
+
             {/* Cart */}
             <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }}>
               <Link href="/cart">

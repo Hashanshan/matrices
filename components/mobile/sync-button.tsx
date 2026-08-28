@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { RefreshCw, CheckCircle2, WifiOff } from 'lucide-react';
 
 export default function SyncButton() {
-  const { isSyncing, progress, lastSyncedAt, isOffline, triggerSync } = useSync();
+  const { isSyncing, progress, lastSyncedAt, isOffline, triggerSync, openSyncModal } = useSync();
 
   const formatLastSync = (isoString: string | null) => {
     if (!isoString) return 'Not Synced';
@@ -21,22 +21,30 @@ export default function SyncButton() {
   return (
     <div className="relative inline-flex items-center">
       <motion.button
-        whileHover={{ scale: isSyncing ? 1 : 1.05 }}
-        whileTap={{ scale: isSyncing ? 1 : 0.95 }}
-        onClick={() => triggerSync()}
-        disabled={isSyncing || isOffline}
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+        onClick={() => {
+          if (isSyncing) {
+            openSyncModal();
+          } else {
+            triggerSync();
+          }
+        }}
+        disabled={isOffline}
         title={
           isOffline
             ? 'Offline Mode - Connect to network to sync data'
+            : isSyncing
+            ? `Syncing (${progress}%) - Click to view progress`
             : lastSyncedAt
             ? `Last synced at ${new Date(lastSyncedAt).toLocaleString()}`
             : 'Click to sync catalogue data for offline use'
         }
-        className={`relative flex items-center gap-2 px-3.5 py-2 rounded-2xl font-bold text-xs shadow-md transition-all border ${
+        className={`relative flex items-center gap-2 px-3.5 py-2 rounded-2xl font-bold text-xs shadow-md transition-all border cursor-pointer ${
           isOffline
             ? 'bg-amber-500/10 text-amber-600 border-amber-500/30 cursor-not-allowed'
             : isSyncing
-            ? 'bg-accent/15 text-accent border-accent/40 cursor-wait'
+            ? 'bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-500/40 hover:bg-sky-500/25'
             : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 border-emerald-500/30'
         }`}
       >

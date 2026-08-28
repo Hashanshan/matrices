@@ -24,7 +24,8 @@ export default function SyncSettingsPage() {
   const {
     isSyncing, progress, syncStatusText, lastSyncedAt, isOffline, meta, isIncompleteSync,
     triggerSync, resumeSync, queueItems, pendingQueueCount, failedQueueCount, isPushing, pushStatusText,
-    pushChanges, retryFailedPush, deleteSyncData, deleteQueueItem, clearAllQueue, downloadReport
+    pushChanges, retryFailedPush, deleteSyncData, deleteQueueItem, clearAllQueue, downloadReport,
+    openSyncModal
   } = useSync();
 
   const [showPinModal, setShowPinModal] = useState(true);
@@ -445,38 +446,51 @@ export default function SyncSettingsPage() {
                     )}
 
                     <motion.button
-                      whileHover={{ scale: isSyncing || isOffline || totalUnpushed > 0 ? 1 : 1.02 }}
-                      whileTap={{ scale: isSyncing || isOffline || totalUnpushed > 0 ? 1 : 0.98 }}
+                      whileHover={{ scale: isOffline || totalUnpushed > 0 ? 1 : 1.02 }}
+                      whileTap={{ scale: isOffline || totalUnpushed > 0 ? 1 : 0.98 }}
                       onClick={async () => {
-                        await triggerSync('full');
-                        await refreshStats();
+                        if (isSyncing) {
+                          openSyncModal();
+                        } else {
+                          await triggerSync('full');
+                          await refreshStats();
+                        }
                       }}
-                      disabled={isSyncing || isOffline || totalUnpushed > 0}
+                      disabled={isOffline || totalUnpushed > 0}
                       className={`w-full px-6 py-4 rounded-full font-black text-xs sm:text-sm uppercase tracking-wider shadow-xl transition-all flex items-center justify-center gap-3 cursor-pointer ${
                         isOffline || totalUnpushed > 0
                           ? 'bg-gray-200 text-gray-400 border border-gray-300 cursor-not-allowed'
                           : isSyncing
-                          ? 'bg-blue-600/30 text-blue-900 border border-blue-400 cursor-wait'
+                          ? 'bg-sky-600 hover:bg-sky-700 text-white shadow-sky-600/30'
                           : 'bg-[#0f172a] hover:bg-[#1e293b] text-white shadow-slate-900/20'
                       }`}
                     >
                       <RefreshCw size={18} className={isSyncing ? 'animate-spin' : ''} />
-                      {isSyncing ? `SYNCING (${progress}%)` : (isIncompleteSync || dbMeta?.isIncomplete ? '🔄 RESYNC ALL FROM SCRATCH' : 'SYNC ALL DATA NOW')}
+                      {isSyncing
+                        ? `SYNCING IN BACKGROUND (${progress}%) — VIEW POPUP`
+                        : (isIncompleteSync || dbMeta?.isIncomplete ? '🔄 RESYNC ALL FROM SCRATCH' : 'SYNC ALL DATA NOW')}
                     </motion.button>
                   </div>
 
                   {isSyncing && (
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between text-xs font-bold text-gray-600">
-                        <span>{syncStatusText}</span>
-                        <span>{progress}%</span>
+                    <div className="p-3.5 bg-sky-50 border border-sky-200 rounded-2xl space-y-2">
+                      <div className="flex justify-between items-center text-xs font-black uppercase text-sky-900">
+                        <span className="truncate pr-2">{syncStatusText}</span>
+                        <span className="text-sky-700 font-mono">{progress}%</span>
                       </div>
-                      <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
+                      <div className="w-full bg-sky-100 h-2 rounded-full overflow-hidden">
                         <div
-                          className="bg-blue-600 h-full transition-all duration-300 rounded-full"
+                          className="bg-sky-600 h-full transition-all duration-300 rounded-full"
                           style={{ width: `${progress}%` }}
                         />
                       </div>
+                      <button
+                        type="button"
+                        onClick={() => openSyncModal()}
+                        className="w-full text-center text-[0.7rem] font-black uppercase tracking-wider text-sky-700 hover:text-sky-900 underline pt-0.5 cursor-pointer"
+                      >
+                        ⚡ Open Full Progress Checklist
+                      </button>
                     </div>
                   )}
                 </div>
