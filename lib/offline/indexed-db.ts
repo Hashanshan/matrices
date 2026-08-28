@@ -18,6 +18,9 @@ export interface SyncMetadata {
   isIncomplete?: boolean;
   incompleteReason?: string;
   pendingImagesCount?: number;
+  syncedUserId?: string;
+  syncedUserEmail?: string;
+  syncedUserName?: string;
 }
 
 export interface ImageMapRecord {
@@ -227,12 +230,35 @@ class OfflineDB {
 
   async clearAllData(): Promise<void> {
     const db = await this.getDB();
-    const stores = ['categories', 'subcategories', 'products', 'wishlist', 'shops', 'orders', 'meta', 'image_map'];
+    const stores = [
+      'categories',
+      'subcategories',
+      'products',
+      'wishlist',
+      'shops',
+      'orders',
+      'meta',
+      'image_map',
+      'secure',
+      'pending_actions',
+      'sync_queue',
+    ];
     return new Promise((resolve, reject) => {
       const existingStores = stores.filter((s) => db.objectStoreNames.contains(s));
       if (existingStores.length === 0) return resolve();
       const tx = db.transaction(existingStores, 'readwrite');
       existingStores.forEach((s) => tx.objectStore(s).clear());
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  async clearSecure(): Promise<void> {
+    const db = await this.getDB();
+    if (!db.objectStoreNames.contains('secure')) return;
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('secure', 'readwrite');
+      tx.objectStore('secure').clear();
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });

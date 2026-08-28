@@ -167,6 +167,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // ── Local PIN check FIRST (synced local DB priority) ─────────────────────
     if (params.pin && !params.password) {
       try {
+        const storedPinUser = await offlineDB.getSecure('pin_user_email');
+        const currentUserEmail = (user?.email || '').toLowerCase().trim();
+
+        // Security check: If PIN belongs to a previous/different user, reject offline verification
+        if (storedPinUser && currentUserEmail && storedPinUser.toLowerCase().trim() !== currentUserEmail) {
+          return { success: false, msg: 'Security PIN was set by another salesrep. Please verify with your password online.' };
+        }
+
         const storedHash = await offlineDB.getSecure('pin_hash');
         if (storedHash) {
           const inputHash = hashPin(params.pin);
@@ -198,15 +206,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (res.ok && data.success) {
         markPinVerified(true);
 
-        // Persist PIN hash offline for future offline access
-        if (params.pin) {
+        // Persist PIN hash offline for future offline access for the current user
+        const pinToSave = params.newPin || params.pin;
+        if (pinToSave) {
           try {
-            await offlineDB.saveSecure('pin_hash', hashPin(params.pin));
-          } catch { /* non-critical */ }
-        }
-        if (params.newPin) {
-          try {
-            await offlineDB.saveSecure('pin_hash', hashPin(params.newPin));
+            await offlineDB.saveSecure('pin_hash', hashPin(pinToSave));
+            if (user?.email) {
+              await offlineDB.saveSecure('pin_user_email', user.email.toLowerCase().trim());
+            }
           } catch { /* non-critical */ }
         }
 
@@ -227,10 +234,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Network error → try offline fallback for PIN-only check
       if (params.pin && !params.password) {
         try {
-          const storedHash = await offlineDB.getSecure('pin_hash');
-          if (storedHash && hashPin(params.pin) === storedHash) {
-            markPinVerified(true);
-            return { success: true, msg: 'PIN verified (offline fallback)' };
+          const storedPinUser = await offlineDB.getSecure('pin_user_email');
+          const currentUserEmail = (user?.email || '').toLowerCase().trim();
+
+          if (!storedPinUser || !currentUserEmail || storedPinUser.toLowerCase().trim() === currentUserEmail) {
+            const storedHash = await offlineDB.getSecure('pin_hash');
+            if (storedHash && hashPin(params.pin) === storedHash) {
+              markPinVerified(true);
+              return { success: true, msg: 'PIN verified (offline fallback)' };
+            }
           }
         } catch { /* ignore */ }
       }

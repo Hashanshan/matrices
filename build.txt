@@ -9,7 +9,7 @@ npm run ipa:build
 
 npm run apk:modern
 npm run apk:legacy
-
+npx tsc --noEmit
 
 sdk.dir=C\:\\Users\\sathi\\AppData\\Local\\Android\\Sdk add this as file
 local.properties

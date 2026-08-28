@@ -324,6 +324,8 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
       if (typeof window !== 'undefined') {
         localStorage.setItem('matrices_data_mode', 'online');
+        localStorage.removeItem('matrices_last_synced_user_email');
+        localStorage.removeItem('matrices_last_synced_user_name');
         window.dispatchEvent(new Event('matrices-data-mode-change'));
         window.dispatchEvent(new Event('matrices-sync-stats-updated'));
       }
@@ -435,9 +437,19 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
               totalImages: allMaps.length,
               imageStorageMB: imageMB,
               isIncomplete: false,
+              syncedUserId: user?.id || (user as any)?._id || (user?.email ? String(user.email) : ''),
+              syncedUserEmail: user?.email || '',
+              syncedUserName: user?.name || '',
             };
 
             await offlineDB.setMeta(newMeta);
+            if (user?.email) {
+              await offlineDB.saveSecure('synced_user_email', user.email.toLowerCase().trim());
+              if (typeof window !== 'undefined') {
+                localStorage.setItem('matrices_last_synced_user_email', user.email);
+                if (user?.name) localStorage.setItem('matrices_last_synced_user_name', user.name);
+              }
+            }
             setMeta(newMeta);
             setLastSyncedAt(newMeta.lastSyncedAt);
 
@@ -475,9 +487,19 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
             totalImages: stats.totalDownloaded > 0 ? stats.totalDownloaded : uniqueImageUrls.length,
             imageStorageMB: imageMB,
             isIncomplete: false,
+            syncedUserId: user?.id || (user as any)?._id || (user?.email ? String(user.email) : ''),
+            syncedUserEmail: user?.email || '',
+            syncedUserName: user?.name || '',
           };
 
           await offlineDB.setMeta(newMeta);
+          if (user?.email) {
+            await offlineDB.saveSecure('synced_user_email', user.email.toLowerCase().trim());
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('matrices_last_synced_user_email', user.email);
+              if (user?.name) localStorage.setItem('matrices_last_synced_user_name', user.name);
+            }
+          }
           setMeta(newMeta);
           setLastSyncedAt(newMeta.lastSyncedAt);
 
@@ -812,9 +834,19 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         totalImages: totalImagesDownloaded > 0 ? totalImagesDownloaded : uniqueImageUrls.length,
         imageStorageMB: imageMB,
         isIncomplete: false,
+        syncedUserId: user?.id || (user as any)?._id || (user?.email ? String(user.email) : ''),
+        syncedUserEmail: user?.email || '',
+        syncedUserName: user?.name || '',
       };
 
       await offlineDB.setMeta(newMeta);
+      if (user?.email) {
+        await offlineDB.saveSecure('synced_user_email', user.email.toLowerCase().trim());
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('matrices_last_synced_user_email', user.email);
+          if (user?.name) localStorage.setItem('matrices_last_synced_user_name', user.name);
+        }
+      }
       setMeta(newMeta);
       setLastSyncedAt(newMeta.lastSyncedAt);
 

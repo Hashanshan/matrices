@@ -10,7 +10,7 @@ import {
   RefreshCw, Database, HardDrive, Image as ImageIcon, Store, FileText,
   Package, Layers, ShieldCheck, Wifi, WifiOff, CheckCircle2, AlertTriangle,
   Smartphone, Globe, Lock, ArrowUpRight, UploadCloud, RotateCcw, Download,
-  Trash2, X, AlertCircle, Eye, FileSpreadsheet, FileCode
+  Trash2, X, AlertCircle, Eye, FileSpreadsheet, FileCode, User
 } from 'lucide-react';
 import Link from 'next/link';
 import Swal from 'sweetalert2';
@@ -258,6 +258,23 @@ export default function SyncSettingsPage() {
                     </span>
                   </div>
                 </div>
+
+                {dbMeta?.syncedUserEmail && (
+                  <>
+                    <div className="hidden sm:block w-px h-10 bg-gray-200" />
+                    <div className="flex items-center gap-3">
+                      <div className="p-3 bg-purple-500/10 text-purple-600 rounded-2xl shrink-0">
+                        <User size={24} />
+                      </div>
+                      <div>
+                        <span className="text-[0.65rem] font-black text-gray-400 uppercase tracking-widest block">SYNCED SALESREP</span>
+                        <span className="text-sm sm:text-base font-black text-[#0f172a] truncate max-w-[180px] block" title={dbMeta.syncedUserEmail}>
+                          {dbMeta.syncedUserName || dbMeta.syncedUserEmail}
+                        </span>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
 
               <button

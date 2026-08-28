@@ -4,10 +4,11 @@ import { useState, useMemo, useEffect } from 'react';
 import Header from '@/components/header';
 import { Search, ChevronRight, ArrowLeft, Heart, ShoppingCart } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useFilters } from '@/lib/hooks/use-products';
 import { useWishlist } from '@/lib/contexts/wishlist-context';
+import { useSync } from '@/lib/contexts/sync-context';
 import SmartImage from '@/components/smart-image';
 import BackButton from '@/components/back-button';
 import { useBackHandler, triggerBack } from '@/lib/utils/back-navigation';
@@ -15,8 +16,21 @@ import { prewarmImageCache } from '@/lib/offline/image-cache';
 
 export default function CategoriesPage({ fallbackData }: { fallbackData?: any } = {}) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const { executeSync, isSyncing } = useSync();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+
+  // Auto-start sync if arriving with startSync param (e.g. after different user login confirmation)
+  useEffect(() => {
+    if (searchParams.get('startSync') === 'true' && !isSyncing) {
+      router.replace('/catalogue');
+      const timer = setTimeout(() => {
+        executeSync('full');
+      }, 400);
+      return () => clearTimeout(timer);
+    }
+  }, [searchParams, isSyncing, executeSync, router]);
 
   // Fetch filters (categories, subcategories) from API with fallbackData
   const { categories, isLoading, isValidating, mutate: mutateFilters } = useFilters({ fallbackData });

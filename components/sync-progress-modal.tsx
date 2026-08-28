@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { RefreshCw, CheckCircle2, AlertCircle, Database, Store, FileText, Image as ImageIcon, ShieldCheck, X } from 'lucide-react';
 
 export default function SyncProgressModal() {
-  const { isSyncing, progress, syncStatusText, lastSyncedAt, meta } = useSync();
+  const { isSyncing, progress, syncStatusText, lastSyncedAt, meta, executeSync } = useSync();
 
   // Prevent closing with Esc key while syncing is in progress
   useEffect(() => {

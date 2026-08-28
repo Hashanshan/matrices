@@ -4,6 +4,10 @@ import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/contexts/auth-context';
 import Image from 'next/image';
+import { offlineDB } from '@/lib/offline/indexed-db';
+import { clearSyncQueue } from '@/lib/offline/pending-sync';
+import { clearMatricesFolder, invalidateImageMemoryMap } from '@/lib/offline/image-cache';
+import { invalidateProductIndex } from '@/lib/offline/offline-search';
 
 function LoginFormContent() {
   const [email, setEmail] = useState('');
@@ -59,13 +63,98 @@ function LoginFormContent() {
           token: data.token
         };
 
+        // 1. Check existing offline sync metadata and previously synced user
+        const existingMeta = await offlineDB.getMeta().catch(() => null);
+        const storedSyncedEmail = (
+          existingMeta?.syncedUserEmail ||
+          (await offlineDB.getSecure('synced_user_email').catch(() => '')) ||
+          (typeof window !== 'undefined' ? localStorage.getItem('matrices_last_synced_user_email') : '') ||
+          ''
+        ).toLowerCase().trim();
+
+        const currentEmail = (data.email || email || '').toLowerCase().trim();
+
+        // Check if there is actual cached data in offline storage
+        const hasOfflineData = Boolean(
+          existingMeta &&
+          (existingMeta.totalProducts > 0 || existingMeta.totalShops > 0 || Boolean(existingMeta.lastSyncedAt))
+        );
+
+        const isDifferentUser = Boolean(
+          hasOfflineData &&
+          storedSyncedEmail &&
+          currentEmail &&
+          storedSyncedEmail !== currentEmail
+        );
+
         login(userObj as any);
 
         localStorage.setItem('token', data.token);
         localStorage.setItem('matrices_login_time', Date.now().toString());
         document.cookie = `token=${data.token}; path=/; max-age=86400; SameSite=Lax`;
 
-        router.push('/catalogue');
+        if (isDifferentUser) {
+          const prevDisplayName = existingMeta?.syncedUserName || storedSyncedEmail;
+          const currentDisplayName = data.name || data.email;
+
+          const SwalModule = await import('sweetalert2');
+          const Swal = SwalModule.default;
+
+          const alertResult = await Swal.fire({
+            icon: 'warning',
+            title: 'Different User Login',
+            html: `
+              <div style="text-align: left; font-size: 13px; line-height: 1.6; color: #1e293b;">
+                <p style="margin-bottom: 8px;">
+                  You are logged in as <strong>${currentDisplayName}</strong> (<span style="color: #0284c7;">${currentEmail}</span>).
+                </p>
+                <div style="background: #fffbeb; border: 1px solid #fde68a; border-left: 4px solid #f59e0b; padding: 10px 12px; border-radius: 8px; margin-bottom: 12px;">
+                  <p style="font-weight: 700; color: #92400e; margin: 0 0 4px 0;">⚠️ Security & Data Isolation Notice</p>
+                  <p style="font-size: 12px; color: #78350f; margin: 0;">
+                    Device cache contains offline data & passcode previously synced for <strong>${prevDisplayName}</strong>.
+                    To protect customer shops and orders, old cached data must be cleared before syncing your assigned catalogue.
+                  </p>
+                </div>
+                <p style="font-weight: 600; color: #0f172a; margin: 0;">
+                  Please clear old cache and download your sync data:
+                </p>
+              </div>
+            `,
+            showCancelButton: true,
+            confirmButtonText: '⚡ Clear Cache & Sync My Data',
+            cancelButtonText: '🧹 Clear Cache & Continue Online',
+            confirmButtonColor: '#059669',
+            cancelButtonColor: '#0f172a',
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+          });
+
+          // Always wipe old user's private data, queue, and passcode so old user's shops are NEVER visible to the new user
+          await offlineDB.clearAllData().catch(() => {});
+          await clearSyncQueue().catch(() => {});
+          await clearMatricesFolder().catch(() => {});
+          if (typeof window !== 'undefined' && 'caches' in window) {
+            try {
+              await caches.delete('matrices-product-images-v1');
+            } catch {}
+          }
+          invalidateImageMemoryMap();
+          invalidateProductIndex();
+
+          localStorage.setItem('matrices_data_mode', 'online');
+          localStorage.removeItem('matrices_last_synced_user_email');
+          localStorage.removeItem('matrices_last_synced_user_name');
+          window.dispatchEvent(new Event('matrices-data-mode-change'));
+          window.dispatchEvent(new Event('matrices-sync-stats-updated'));
+
+          if (alertResult.isConfirmed) {
+            router.push('/catalogue?startSync=true');
+          } else {
+            router.push('/catalogue');
+          }
+        } else {
+          router.push('/catalogue');
+        }
       } else {
         setError(data.msg || 'Login failed. Please try again.');
       }
