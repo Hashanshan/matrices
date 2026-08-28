@@ -83,8 +83,9 @@ function blobToBase64(blob: Blob): Promise<string> {
 
 /**
  * Downloads a single high-resolution image directly from bucket/server and stores it natively/locally
+ * Includes automatic retry on transient network failures for resilient background sync.
  */
-export async function downloadAndSaveImage(url: string): Promise<string | null> {
+export async function downloadAndSaveImage(url: string, retries = 2): Promise<string | null> {
   if (!url || isLocalUri(url)) return url;
 
   // Check in-memory map first (O(1))
@@ -96,71 +97,89 @@ export async function downloadAndSaveImage(url: string): Promise<string | null> 
   const isNative = cap?.isNativePlatform?.() ?? false;
   const targetFetchUrl = resolveApiUrl(url);
 
-  try {
-    const token = getAuthToken();
-    const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const token = getAuthToken();
+      const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
 
-    const response = await fetch(targetFetchUrl, { headers, mode: 'cors', cache: 'no-cache' });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const response = await fetch(targetFetchUrl, { headers, mode: 'cors', cache: 'no-cache' });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
-    const blob = await response.blob();
-    const sizeBytes = blob.size;
+      const blob = await response.blob();
+      const sizeBytes = blob.size;
 
-    if (isNative) {
-      const fsModule = await loadCapacitorFilesystem();
-      if (fsModule?.Filesystem && fsModule?.Directory) {
-        const base64Data = await blobToBase64(blob);
-        const fileName = hashUrl(url);
+      if (isNative) {
+        const fsModule = await loadCapacitorFilesystem();
+        if (fsModule?.Filesystem && fsModule?.Directory) {
+          const base64Data = await blobToBase64(blob);
+          const fileName = hashUrl(url);
 
-        const writeResult = await fsModule.Filesystem.writeFile({
-          path: `Matrices/${fileName}`,
-          data: base64Data,
-          directory: fsModule.Directory.Documents,
-          recursive: true,
-        });
+          const writeResult = await fsModule.Filesystem.writeFile({
+            path: `Matrices/${fileName}`,
+            data: base64Data,
+            directory: fsModule.Directory.Documents,
+            recursive: true,
+          });
 
-        const nativeUri = cap.convertFileSrc ? cap.convertFileSrc(writeResult.uri) : writeResult.uri;
+          const nativeUri = cap.convertFileSrc ? cap.convertFileSrc(writeResult.uri) : writeResult.uri;
 
-        const record: ImageMapRecord = {
-          url,
-          localSrc: nativeUri,
-          sizeBytes,
-          updatedAt: new Date().toISOString(),
-        };
+          const record: ImageMapRecord = {
+            url,
+            localSrc: nativeUri,
+            sizeBytes,
+            updatedAt: new Date().toISOString(),
+          };
 
-        await offlineDB.saveImageMap(record);
-        updateImageMemoryMap(url, nativeUri);
-        return nativeUri;
+          await offlineDB.saveImageMap(record);
+          updateImageMemoryMap(url, nativeUri);
+          return nativeUri;
+        }
+      }
+
+      // Web / Fallback: Save as Data URL in IndexedDB & CacheStorage
+      const base64Data = await blobToBase64(blob);
+      const record: ImageMapRecord = {
+        url,
+        localSrc: base64Data,
+        sizeBytes,
+        updatedAt: new Date().toISOString(),
+      };
+
+      await offlineDB.saveImageMap(record);
+      updateImageMemoryMap(url, base64Data);
+
+      // Also populate CacheStorage as additional HTTP fallback
+      if ('caches' in window) {
+        try {
+          const cache = await caches.open(IMAGE_CACHE_NAME);
+          await cache.put(url, new Response(blob));
+        } catch (e) {
+          console.warn('CacheStorage put warning:', e);
+        }
+      }
+
+      return base64Data;
+    } catch (err) {
+      if (attempt < retries) {
+        // Wait 400ms before retry
+        await new Promise((r) => setTimeout(r, 400));
+      } else {
+        console.warn(`Failed to download image ${url} after ${retries + 1} attempts:`, err);
+        return null;
       }
     }
-
-    // Web / Fallback: Save as Data URL in IndexedDB & CacheStorage
-    const base64Data = await blobToBase64(blob);
-    const record: ImageMapRecord = {
-      url,
-      localSrc: base64Data,
-      sizeBytes,
-      updatedAt: new Date().toISOString(),
-    };
-
-    await offlineDB.saveImageMap(record);
-    updateImageMemoryMap(url, base64Data);
-
-    // Also populate CacheStorage as additional HTTP fallback
-    if ('caches' in window) {
-      try {
-        const cache = await caches.open(IMAGE_CACHE_NAME);
-        await cache.put(url, new Response(blob));
-      } catch (e) {
-        console.warn('CacheStorage put warning:', e);
-      }
-    }
-
-    return base64Data;
-  } catch (err) {
-    console.warn(`Failed to download image ${url}:`, err);
-    return null;
   }
+  return null;
+}
+
+/**
+ * Returns list of image URLs that are not yet downloaded / cached locally
+ */
+export async function getUncachedImageUrls(imageUrls: string[]): Promise<string[]> {
+  if (typeof window === 'undefined') return [];
+  const uniqueUrls = Array.from(new Set(imageUrls.filter(Boolean)));
+  const map = await ensureImageMemoryMap();
+  return uniqueUrls.filter((url) => !map.has(url) && !isLocalUri(url));
 }
 
 /**
@@ -169,12 +188,13 @@ export async function downloadAndSaveImage(url: string): Promise<string | null> 
 export async function cacheProductImages(
   imageUrls: string[],
   onProgress?: (done: number, total: number) => void
-): Promise<{ totalDownloaded: number; totalSizeBytes: number }> {
-  if (typeof window === 'undefined') return { totalDownloaded: 0, totalSizeBytes: 0 };
+): Promise<{ totalDownloaded: number; totalSizeBytes: number; failedCount: number; balanceRemaining: number }> {
+  if (typeof window === 'undefined') return { totalDownloaded: 0, totalSizeBytes: 0, failedCount: 0, balanceRemaining: 0 };
 
   const uniqueUrls = Array.from(new Set(imageUrls.filter(Boolean)));
   let done = 0;
   let totalSizeBytes = 0;
+  let failedCount = 0;
 
   // Pre-load map so per-image checks are synchronous
   const map = await ensureImageMemoryMap();
@@ -198,8 +218,11 @@ export async function cacheProductImages(
           if (res) {
             const record = await offlineDB.getImageMap(url);
             if (record?.sizeBytes) totalSizeBytes += record.sizeBytes;
+          } else {
+            failedCount++;
           }
         } catch (e) {
+          failedCount++;
           console.warn(`Error processing image ${url}`, e);
         } finally {
           done++;
@@ -216,6 +239,8 @@ export async function cacheProductImages(
   return {
     totalDownloaded: allMaps.length,
     totalSizeBytes: grandTotalSize,
+    failedCount,
+    balanceRemaining: failedCount,
   };
 }
 

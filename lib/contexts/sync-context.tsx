@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { offlineDB, SyncMetadata } from '../offline/indexed-db';
-import { cacheProductImages, clearMatricesFolder, prewarmImageCache, invalidateImageMemoryMap } from '../offline/image-cache';
+import { cacheProductImages, clearMatricesFolder, prewarmImageCache, invalidateImageMemoryMap, getUncachedImageUrls } from '../offline/image-cache';
 import { invalidateProductIndex } from '../offline/offline-search';
 import { NativeAdapter } from '../../mobile/bridge/native-adapter';
 import { resolveApiUrl, getAuthToken } from '../utils';
@@ -30,6 +30,7 @@ interface SyncContextType {
   lastSyncedAt: string | null;
   isOffline: boolean;
   meta: SyncMetadata | null;
+  isIncompleteSync: boolean;
   
   // Sync Queue management states
   queueItems: SyncQueueItem[];
@@ -39,7 +40,9 @@ interface SyncContextType {
   pushStatusText: string;
   
   // Functions
-  triggerSync: () => Promise<boolean>;
+  triggerSync: (syncMode?: 'full' | 'resume') => Promise<boolean>;
+  executeSync: (syncMode?: 'full' | 'resume') => Promise<boolean>;
+  resumeSync: () => Promise<boolean>;
   pushChanges: () => Promise<boolean>;
   retryFailedPush: () => Promise<boolean>;
   deleteSyncData: () => Promise<boolean>;
@@ -345,9 +348,10 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
   }, [isSyncing, isPushing, queueItems, pushChanges, refreshQueue]);
 
   /**
-   * Execute Sync (Download fresh catalog from server)
+   * Execute Sync (Download fresh catalog or resume balance from server)
+   * syncMode: 'full' (wipe & clean download) | 'resume' (continue & finish balance without wiping existing data)
    */
-  const executeSync = useCallback(async (): Promise<boolean> => {
+  const executeSync = useCallback(async (syncMode: 'full' | 'resume' = 'full'): Promise<boolean> => {
     // RULE ENFORCEMENT: Check pending queue before proceeding
     const items = await getSyncQueue();
     const pendingOrFailed = items.filter((i) => i.status === 'PENDING' || i.status === 'FAILED');
@@ -371,6 +375,15 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     setProgress(5);
     setSyncStatusText('Requesting storage permission...');
 
+    let wakeLock: any = null;
+    if (typeof navigator !== 'undefined' && 'wakeLock' in (navigator as any)) {
+      try {
+        wakeLock = await (navigator as any).wakeLock.request('screen');
+      } catch (e) {
+        console.warn('WakeLock not supported or denied:', e);
+      }
+    }
+
     try {
       const { storage } = await NativeAdapter.requestAllPermissions();
       if (!storage.granted) {
@@ -379,6 +392,105 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         return false;
       }
 
+      // Check if we can do a fast balance resume (if local products & categories already exist in IndexedDB)
+      if (syncMode === 'resume') {
+        const localProducts = await offlineDB.getAll<any>('products').catch(() => []);
+        const localCats = await offlineDB.getAll<any>('categories').catch(() => []);
+        const localSubcats = await offlineDB.getAll<any>('subcategories').catch(() => []);
+        const localShops = await offlineDB.getAll<any>('shops').catch(() => []);
+        const localOrders = await offlineDB.getAll<any>('orders').catch(() => []);
+
+        if (localProducts.length > 0) {
+          setProgress(50);
+          setSyncStatusText('Scanning offline image cache for balance images...');
+
+          const allImageUrls: string[] = [
+            ...localCats.map((c: any) => c.image),
+            ...localSubcats.map((s: any) => s.image),
+            ...localProducts.map((p: any) => p.imageUrl || p.image),
+            ...localProducts.flatMap((p: any) => p.images || []),
+            ...localShops.map((s: any) => s.imageUrl),
+          ].filter((url): url is string => Boolean(url && typeof url === 'string' && url.trim().length > 0));
+
+          const uniqueImageUrls = Array.from(new Set(allImageUrls));
+          const uncachedUrls = await getUncachedImageUrls(uniqueImageUrls);
+
+          if (uncachedUrls.length === 0) {
+            setProgress(95);
+            setSyncStatusText('All balance images already cached! Finalizing...');
+            await prewarmImageCache().catch(() => {});
+            mutate(() => true, undefined, { revalidate: true });
+
+            const allMaps = await offlineDB.getAllImageMaps();
+            const grandTotalSize = allMaps.reduce((acc, m) => acc + (m.sizeBytes || 0), 0);
+            const imageMB = Number((grandTotalSize / (1024 * 1024)).toFixed(2));
+
+            const newMeta: SyncMetadata = {
+              lastSyncedAt: new Date().toISOString(),
+              totalProducts: localProducts.length,
+              totalCategories: localCats.length,
+              totalSubcategories: localSubcats.length,
+              totalShops: localShops.length,
+              totalOrders: localOrders.length,
+              totalImages: allMaps.length,
+              imageStorageMB: imageMB,
+              isIncomplete: false,
+            };
+
+            await offlineDB.setMeta(newMeta);
+            setMeta(newMeta);
+            setLastSyncedAt(newMeta.lastSyncedAt);
+
+            setProgress(100);
+            setSyncStatusText('Sync Complete! 100% of data & images available offline.');
+
+            window.dispatchEvent(new Event('matrices-data-mode-change'));
+            window.dispatchEvent(new Event('matrices-sync-stats-updated'));
+            return true;
+          }
+
+          setSyncStatusText(`Downloading balance of ${uncachedUrls.length} offline images (Total ${uniqueImageUrls.length})...`);
+          const stats = await cacheProductImages(uniqueImageUrls, (done, total) => {
+            const imageProgress = 50 + Math.floor((done / total) * 45);
+            setProgress(imageProgress);
+            setSyncStatusText(`Downloading balance offline images (${done}/${total})...`);
+          });
+
+          setProgress(96);
+          setSyncStatusText('Finalizing sync & pre-warming local search & image index...');
+
+          invalidateImageMemoryMap();
+          invalidateProductIndex();
+          await prewarmImageCache().catch(() => {});
+          mutate(() => true, undefined, { revalidate: true });
+
+          const imageMB = Number((stats.totalSizeBytes / (1024 * 1024)).toFixed(2));
+          const newMeta: SyncMetadata = {
+            lastSyncedAt: new Date().toISOString(),
+            totalProducts: localProducts.length,
+            totalCategories: localCats.length,
+            totalSubcategories: localSubcats.length,
+            totalShops: localShops.length,
+            totalOrders: localOrders.length,
+            totalImages: stats.totalDownloaded > 0 ? stats.totalDownloaded : uniqueImageUrls.length,
+            imageStorageMB: imageMB,
+            isIncomplete: false,
+          };
+
+          await offlineDB.setMeta(newMeta);
+          setMeta(newMeta);
+          setLastSyncedAt(newMeta.lastSyncedAt);
+
+          setProgress(100);
+          setSyncStatusText('Sync Complete! 100% of data & images available offline.');
+
+          window.dispatchEvent(new Event('matrices-data-mode-change'));
+          window.dispatchEvent(new Event('matrices-sync-stats-updated'));
+          return true;
+        }
+      }
+
+      // Full fresh sync execution
       const token = getAuthToken();
       const headers = {
         Authorization: token ? `Bearer ${token}` : '',
@@ -640,10 +752,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
       const mergedOrders = [...localOrdersToPreserve, ...remoteOrdersFormatted];
 
-      // Delete all old sync data
-      await offlineDB.clearAllData();
-      await clearMatricesFolder();
-
+      // Save fresh data into IndexedDB tables
       await offlineDB.saveBatch('categories', formattedCategories);
       await offlineDB.saveBatch('subcategories', formattedSubcategories);
       await offlineDB.saveBatch('products', formattedProducts);
@@ -702,6 +811,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         totalOrders: formattedOrders.length,
         totalImages: totalImagesDownloaded > 0 ? totalImagesDownloaded : uniqueImageUrls.length,
         imageStorageMB: imageMB,
+        isIncomplete: false,
       };
 
       await offlineDB.setMeta(newMeta);
@@ -717,14 +827,77 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       return true;
     } catch (err: any) {
       console.error('Error during data sync:', err);
-      setSyncStatusText(`Sync Failed: ${err.message || 'Server connection error'}`);
+      const errMsg = err?.message || 'Server connection or network interrupted';
+      setSyncStatusText(`Sync Interrupted: ${errMsg}`);
+
+      // CRITICAL REQUIREMENT: Do NOT force into offline mode if sync fails midway!
+      // Keep app in online mode so user can continue using live data
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('matrices_data_mode', 'online');
+        window.dispatchEvent(new Event('matrices-data-mode-change'));
+        window.dispatchEvent(new Event('matrices-sync-stats-updated'));
+      }
+
+      // Mark metadata as incomplete with reason
+      const rawProducts = await offlineDB.getAll<any>('products').catch(() => []);
+      if (rawProducts.length > 0) {
+        const incompleteMeta: SyncMetadata = {
+          lastSyncedAt: meta?.lastSyncedAt || '',
+          totalProducts: rawProducts.length,
+          totalCategories: (await offlineDB.getAll('categories').catch(() => [])).length,
+          totalSubcategories: (await offlineDB.getAll('subcategories').catch(() => [])).length,
+          totalShops: (await offlineDB.getAll('shops').catch(() => [])).length,
+          totalOrders: (await offlineDB.getAll('orders').catch(() => [])).length,
+          totalImages: meta?.totalImages || 0,
+          imageStorageMB: meta?.imageStorageMB || 0,
+          isIncomplete: true,
+          incompleteReason: errMsg,
+        };
+        await offlineDB.setMeta(incompleteMeta);
+        setMeta(incompleteMeta);
+      }
+
+      // Interactive Swal dialog allowing user to resume balance sync or resync all
+      Swal.fire({
+        icon: 'error',
+        title: 'Sync Interrupted',
+        html: `
+          <div style="text-align: left; font-size: 13px;" class="space-y-3">
+            <p style="color: #dc2626; font-weight: 700;">${errMsg}</p>
+            <div style="background: #f1f5f9; padding: 12px; border-radius: 8px; border-left: 4px solid #0284c7;">
+              <p style="font-weight: 600; color: #0f172a;">🌐 Online Mode Maintained</p>
+              <p style="font-size: 12px; color: #475569; margin-top: 4px;">App was not switched to offline mode and remains online. You can continue the balance sync or resync all anytime.</p>
+            </div>
+          </div>
+        `,
+        showDenyButton: true,
+        showCancelButton: true,
+        confirmButtonText: '⚡ Continue & Finish Balance Sync',
+        denyButtonText: '🔄 Resync All',
+        cancelButtonText: 'Stay in Online Mode',
+        confirmButtonColor: '#059669',
+        denyButtonColor: '#0f172a',
+        cancelButtonColor: '#64748b',
+      }).then((res) => {
+        if (res.isConfirmed) {
+          executeSync('resume');
+        } else if (res.isDenied) {
+          executeSync('full');
+        }
+      });
+
       return false;
     } finally {
+      if (wakeLock) {
+        try {
+          await wakeLock.release();
+        } catch {}
+      }
       setTimeout(() => setIsSyncing(false), 1800);
     }
-  }, []);
+  }, [meta]);
 
-  const triggerSync = useCallback(async (): Promise<boolean> => {
+  const triggerSync = useCallback(async (syncMode: 'full' | 'resume' = 'full'): Promise<boolean> => {
     if (isSyncing) return false;
     if (typeof window !== 'undefined' && !navigator.onLine) {
       Swal.fire({
@@ -743,12 +916,16 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       });
     }
 
-    return executeSync();
+    return executeSync(syncMode);
   }, [isSyncing, isPinVerified, executeSync]);
+
+  const resumeSync = useCallback(async (): Promise<boolean> => {
+    return triggerSync('resume');
+  }, [triggerSync]);
 
   const handlePinSuccess = useCallback(() => {
     setShowPinModal(false);
-    executeSync().then((ok) => afterPinResolve.current?.(ok));
+    executeSync('full').then((ok) => afterPinResolve.current?.(ok));
     afterPinResolve.current = null;
   }, [executeSync]);
 
@@ -785,6 +962,8 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     [queueItems, user]
   );
 
+  const isIncompleteSync = Boolean(meta?.isIncomplete);
+
   return (
     <SyncContext.Provider
       value={{
@@ -794,12 +973,15 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         lastSyncedAt,
         isOffline,
         meta,
+        isIncompleteSync,
         queueItems,
         pendingQueueCount,
         failedQueueCount,
         isPushing,
         pushStatusText,
         triggerSync,
+        executeSync,
+        resumeSync,
         pushChanges,
         retryFailedPush,
         deleteSyncData,

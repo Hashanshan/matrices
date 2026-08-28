@@ -152,21 +152,58 @@ export default function SyncProgressModal() {
             })}
           </div>
 
-          {/* Action Footer Button (Enabled ONLY when sync is complete or error) */}
+          {/* Action Footer Button */}
           <div className="pt-2">
-            {isComplete || isError ? (
+            {isComplete ? (
               <motion.button
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 onClick={() => {
                   window.location.reload();
                 }}
-                className={`w-full py-4 rounded-full font-black text-xs uppercase tracking-wider text-white shadow-xl transition-all cursor-pointer ${
-                  isError ? 'bg-rose-600 hover:bg-rose-700' : 'bg-[#0f172a] hover:bg-[#1e293b]'
-                }`}
+                className="w-full py-4 rounded-full font-black text-xs uppercase tracking-wider text-white shadow-xl transition-all cursor-pointer bg-[#0f172a] hover:bg-[#1e293b]"
               >
-                {isError ? 'CLOSE & RETRY SYNC' : 'SYNC FINISHED - CONTINUE'}
+                SYNC FINISHED - CONTINUE
               </motion.button>
+            ) : isError ? (
+              <div className="space-y-2">
+                <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-[0.7rem] font-bold text-amber-900 text-center uppercase">
+                  🌐 Online Mode Maintained — You are NOT locked offline
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      executeSync('resume');
+                    }}
+                    className="py-3 px-4 rounded-full font-black text-xs uppercase tracking-wider text-white bg-emerald-600 hover:bg-emerald-700 shadow-md transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    ⚡ Finish Balance Sync
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      executeSync('full');
+                    }}
+                    className="py-3 px-4 rounded-full font-black text-xs uppercase tracking-wider text-white bg-[#0f172a] hover:bg-[#1e293b] shadow-md transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    🔄 Resync All
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (typeof window !== 'undefined') {
+                      localStorage.setItem('matrices_data_mode', 'online');
+                      window.dispatchEvent(new Event('matrices-data-mode-change'));
+                    }
+                    window.location.reload();
+                  }}
+                  className="w-full py-2.5 rounded-full font-bold text-xs uppercase tracking-wider text-gray-500 hover:text-gray-800 bg-gray-100 hover:bg-gray-200 transition-all cursor-pointer"
+                >
+                  Stay in Online Mode
+                </button>
+              </div>
             ) : (
               <div className="w-full py-4 bg-gray-200 text-gray-400 rounded-full font-black text-xs uppercase tracking-wider text-center cursor-not-allowed select-none">
                 SYNCING IN PROGRESS... PLEASE WAIT

@@ -32,17 +32,18 @@ export function DataModeProvider({ children }: { children: React.ReactNode }) {
   const evaluateDataMode = useCallback(async (isInitial = false) => {
     try {
       const meta = await offlineDB.getMeta().catch(() => null);
-      const rawProducts = await offlineDB.getAll<any>('products').catch(() => []);
-      const synced = !!((meta && meta.totalProducts > 0) || rawProducts.length > 0);
-      setHasSyncedData(synced);
+      // ONLY consider synced if a complete, valid sync finished successfully without being marked incomplete
+      const isFullySynced = Boolean(meta && meta.totalProducts > 0 && !meta.isIncomplete && meta.lastSyncedAt);
+      setHasSyncedData(isFullySynced);
 
-      // If valid synced data exists -> automatically enforce OFFLINE mode (cannot change to online)
-      const targetMode: DataMode = synced ? 'offline' : 'online';
+      // If valid full synced data exists -> enforce OFFLINE mode; otherwise KEEP ONLINE MODE
+      const storedPref = localStorage.getItem(STORAGE_KEY) as DataMode | null;
+      const targetMode: DataMode = isFullySynced ? 'offline' : (storedPref === 'online' ? 'online' : 'online');
       setDataModeState(targetMode);
       localStorage.setItem(STORAGE_KEY, targetMode);
 
       // Check if sync data is older than 1 week (7 days)
-      if (synced && meta?.lastSyncedAt) {
+      if (isFullySynced && meta?.lastSyncedAt) {
         const syncTime = new Date(meta.lastSyncedAt).getTime();
         const diffMs = Date.now() - syncTime;
         const days = Math.floor(diffMs / (24 * 60 * 60 * 1000));

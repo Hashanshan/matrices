@@ -15,6 +15,9 @@ export interface SyncMetadata {
   totalOrders: number;
   totalImages: number;
   imageStorageMB: number;
+  isIncomplete?: boolean;
+  incompleteReason?: string;
+  pendingImagesCount?: number;
 }
 
 export interface ImageMapRecord {

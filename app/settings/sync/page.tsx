@@ -22,8 +22,8 @@ import { SyncQueueItem } from '@/lib/offline/pending-sync';
 export default function SyncSettingsPage() {
   const { isPinVerified, resetPinVerification, user } = useAuth();
   const {
-    isSyncing, progress, syncStatusText, lastSyncedAt, isOffline, meta, triggerSync,
-    queueItems, pendingQueueCount, failedQueueCount, isPushing, pushStatusText,
+    isSyncing, progress, syncStatusText, lastSyncedAt, isOffline, meta, isIncompleteSync,
+    triggerSync, resumeSync, queueItems, pendingQueueCount, failedQueueCount, isPushing, pushStatusText,
     pushChanges, retryFailedPush, deleteSyncData, deleteQueueItem, clearAllQueue, downloadReport
   } = useSync();
 
@@ -354,26 +354,40 @@ export default function SyncSettingsPage() {
                 </div>
               </div>
 
-              {/* CARD 2: DOWNLOAD FULL CATALOG (SYNC) */}
+              {/* CARD 2: DOWNLOAD FULL CATALOG (SYNC) & RESUME BALANCE */}
               <div className="bg-white/80 backdrop-blur-2xl rounded-[2.5rem] p-6 sm:p-8 border border-white/80 shadow-2xl flex flex-col justify-between relative overflow-hidden">
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <span className="px-3.5 py-1 rounded-full text-[0.65rem] font-black uppercase tracking-wider bg-blue-500/10 text-blue-700 border border-blue-300/40 flex items-center gap-1.5">
-                      <Download size={13} /> DOWNLOAD FRESH CATALOG
+                      <Download size={13} /> CATALOG SYNC ENGINE
                     </span>
                     <span className="text-xs font-mono font-bold text-gray-500">
-                      SYNC MODE: <span className="text-blue-600 font-black">FULL REPLACE</span>
+                      STATUS: <span className={isIncompleteSync || dbMeta?.isIncomplete ? 'text-amber-600 font-black' : 'text-emerald-600 font-black'}>
+                        {isIncompleteSync || dbMeta?.isIncomplete ? 'INCOMPLETE / ONLINE' : (dbMeta?.lastSyncedAt ? 'READY OFFLINE' : 'ONLINE MODE')}
+                      </span>
                     </span>
                   </div>
 
                   <div>
                     <h2 className="text-xl sm:text-2xl font-black text-[#0f172a] uppercase tracking-wide">
-                      DOWNLOAD LATEST SERVER CATALOG
+                      CATALOGUE & OFFLINE DATA SYNC
                     </h2>
                     <p className="text-gray-500 text-xs sm:text-sm font-medium mt-1">
-                      Fetches fresh products, categories, assigned salesrep shops, orders, and images. Overwrites local database and image cache with latest server dataset.
+                      Fetches fresh products, categories, assigned salesrep shops, orders, and images. Supports resilient resume to finish remaining balance without wiping existing data.
                     </p>
                   </div>
+
+                  {isIncompleteSync || dbMeta?.isIncomplete ? (
+                    <div className="p-3.5 bg-amber-50 border-2 border-amber-300 rounded-2xl text-amber-900 text-xs space-y-1">
+                      <div className="flex items-center gap-2 font-black uppercase">
+                        <AlertTriangle size={16} className="text-amber-600 shrink-0" />
+                        <span>INCOMPLETE SYNC DETECTED (ONLINE MODE ACTIVE)</span>
+                      </div>
+                      <p className="text-[0.75rem] text-amber-800">
+                        {dbMeta?.incompleteReason || 'Previous sync was interrupted. The app remains in Online Mode. You can continue the balance sync or resync all.'}
+                      </p>
+                    </div>
+                  ) : null}
 
                   {totalUnpushed > 0 ? (
                     <div className="p-3.5 bg-amber-50 border-2 border-amber-300 rounded-2xl flex items-start gap-3 text-amber-900 text-xs font-medium">
@@ -390,24 +404,49 @@ export default function SyncSettingsPage() {
                 </div>
 
                 <div className="pt-6 mt-6 border-t border-gray-100 space-y-3">
-                  <motion.button
-                    whileHover={{ scale: isSyncing || isOffline || totalUnpushed > 0 ? 1 : 1.02 }}
-                    whileTap={{ scale: isSyncing || isOffline || totalUnpushed > 0 ? 1 : 0.98 }}
-                    onClick={async () => {
-                      await triggerSync();
-                      await refreshStats();
-                    }}
-                    disabled={isSyncing || isOffline || totalUnpushed > 0}
-                    className={`w-full px-6 py-4 rounded-full font-black text-xs sm:text-sm uppercase tracking-wider shadow-xl transition-all flex items-center justify-center gap-3 cursor-pointer ${isOffline || totalUnpushed > 0
-                        ? 'bg-gray-200 text-gray-400 border border-gray-300 cursor-not-allowed'
-                        : isSyncing
+                  <div className="flex flex-col gap-2.5">
+                    {(isIncompleteSync || dbMeta?.isIncomplete) && (
+                      <motion.button
+                        whileHover={{ scale: isSyncing || isOffline || totalUnpushed > 0 ? 1 : 1.02 }}
+                        whileTap={{ scale: isSyncing || isOffline || totalUnpushed > 0 ? 1 : 0.98 }}
+                        onClick={async () => {
+                          await resumeSync();
+                          await refreshStats();
+                        }}
+                        disabled={isSyncing || isOffline || totalUnpushed > 0}
+                        className={`w-full px-6 py-3.5 rounded-full font-black text-xs sm:text-sm uppercase tracking-wider shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                          isOffline || totalUnpushed > 0
+                            ? 'bg-gray-200 text-gray-400 border border-gray-300 cursor-not-allowed'
+                            : isSyncing
+                            ? 'bg-emerald-600/30 text-emerald-900 border border-emerald-400 cursor-wait'
+                            : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20'
+                        }`}
+                      >
+                        <RefreshCw size={16} className={isSyncing ? 'animate-spin' : ''} />
+                        ⚡ CONTINUE & FINISH BALANCE SYNC
+                      </motion.button>
+                    )}
+
+                    <motion.button
+                      whileHover={{ scale: isSyncing || isOffline || totalUnpushed > 0 ? 1 : 1.02 }}
+                      whileTap={{ scale: isSyncing || isOffline || totalUnpushed > 0 ? 1 : 0.98 }}
+                      onClick={async () => {
+                        await triggerSync('full');
+                        await refreshStats();
+                      }}
+                      disabled={isSyncing || isOffline || totalUnpushed > 0}
+                      className={`w-full px-6 py-4 rounded-full font-black text-xs sm:text-sm uppercase tracking-wider shadow-xl transition-all flex items-center justify-center gap-3 cursor-pointer ${
+                        isOffline || totalUnpushed > 0
+                          ? 'bg-gray-200 text-gray-400 border border-gray-300 cursor-not-allowed'
+                          : isSyncing
                           ? 'bg-blue-600/30 text-blue-900 border border-blue-400 cursor-wait'
                           : 'bg-[#0f172a] hover:bg-[#1e293b] text-white shadow-slate-900/20'
                       }`}
-                  >
-                    <RefreshCw size={18} className={isSyncing ? 'animate-spin' : ''} />
-                    {isSyncing ? `SYNCING (${progress}%)` : 'SYNC ALL DATA NOW'}
-                  </motion.button>
+                    >
+                      <RefreshCw size={18} className={isSyncing ? 'animate-spin' : ''} />
+                      {isSyncing ? `SYNCING (${progress}%)` : (isIncompleteSync || dbMeta?.isIncomplete ? '🔄 RESYNC ALL FROM SCRATCH' : 'SYNC ALL DATA NOW')}
+                    </motion.button>
+                  </div>
 
                   {isSyncing && (
                     <div className="space-y-1.5">
