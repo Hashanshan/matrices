@@ -393,7 +393,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       operation: 'CREATE',
       entity: 'Order',
       entityId: orderId,
-      endpoint: '/api/orders',
+      endpoint: '/api/orders/create',
       method: 'POST',
       payload: order,
       title: `Placed Order #${orderId}`,

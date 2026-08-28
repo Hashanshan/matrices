@@ -485,47 +485,47 @@ export default function ShopsSettingsPage() {
                 </div>
 
                 {/* Right Header Controls: Add Shop Button + Scrollable Nav Links */}
-                {/* <div className="flex items-center gap-2.5 overflow-x-auto pb-2 max-w-full scrollbar-none no-scrollbar">
+                <div className="flex items-center gap-2.5 overflow-x-auto pb-2 max-w-full scrollbar-none no-scrollbar">
                   <button
                     onClick={handleOpenAddModal}
                     className="bg-[#0f172a] hover:bg-[#1e293b] text-white font-black text-xs uppercase tracking-wider px-5 py-3 rounded-full shadow-lg hover:shadow-xl transition-all flex items-center gap-2 cursor-pointer active:scale-95 whitespace-nowrap shrink-0"
                   >
                     <Plus size={16} /> ADD NEW SHOP
                   </button>
-                    <Link
-                      href="/settings/sync"
-                      className="text-xs font-black text-[#0f172a] uppercase bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 px-3.5 py-2.5 rounded-full shadow-xs transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0"
-                    >
-                      <RefreshCw size={14} className="text-emerald-600" /> SYNC
-                    </Link>
-                    <Link
-                      href="/settings/orders"
-                      className="text-xs font-black text-[#0f172a] uppercase bg-white/60 hover:bg-white border border-white/60 px-3.5 py-2.5 rounded-full shadow-xs transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0"
-                    >
-                      <FileText size={14} /> ORDERS
-                    </Link>
-                    <Link
-                      href="/settings/invoices"
-                      className="text-xs font-black text-[#0f172a] uppercase bg-white/60 hover:bg-white border border-white/60 px-3.5 py-2.5 rounded-full shadow-xs transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0"
-                    >
-                      <FileText size={14} /> INVOICES
-                    </Link>
-                    <Link
-                      href="/settings/wishlist"
-                      className="text-xs font-black text-[#0f172a] uppercase bg-white/60 hover:bg-white border border-white/60 px-3.5 py-2.5 rounded-full shadow-xs transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0"
-                    >
-                      <Heart size={14} fill="#ef4444" className="text-red-500" /> WISHLIST
-                    </Link>
-                    <Link
-                      href="/settings/security"
-                      className="text-xs font-black text-[#0f172a] uppercase bg-white/60 hover:bg-white border border-white/60 px-3.5 py-2.5 rounded-full shadow-xs transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0"
-                    >
-                      <ShieldCheck size={14} /> SECURITY
-                    </Link>
-                    <span className="text-xs font-black text-white bg-[#0f172a] px-4 py-2.5 rounded-full shadow-xs uppercase whitespace-nowrap shrink-0">
-                      {totalRecords} {totalRecords === 1 ? 'SHOP' : 'SHOPS'}
-                    </span>
-                  </div> */}
+                  {/* <Link
+                    href="/settings/sync"
+                    className="text-xs font-black text-[#0f172a] uppercase bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 px-3.5 py-2.5 rounded-full shadow-xs transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0"
+                  >
+                    <RefreshCw size={14} className="text-emerald-600" /> SYNC
+                  </Link> */}
+                  {/* <Link
+                    href="/settings/orders"
+                    className="text-xs font-black text-[#0f172a] uppercase bg-white/60 hover:bg-white border border-white/60 px-3.5 py-2.5 rounded-full shadow-xs transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0"
+                  >
+                    <FileText size={14} /> ORDERS
+                  </Link> */}
+                  {/* <Link
+                    href="/settings/invoices"
+                    className="text-xs font-black text-[#0f172a] uppercase bg-white/60 hover:bg-white border border-white/60 px-3.5 py-2.5 rounded-full shadow-xs transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0"
+                  >
+                    <FileText size={14} /> INVOICES
+                  </Link> */}
+                  {/* <Link
+                    href="/settings/wishlist"
+                    className="text-xs font-black text-[#0f172a] uppercase bg-white/60 hover:bg-white border border-white/60 px-3.5 py-2.5 rounded-full shadow-xs transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0"
+                  >
+                    <Heart size={14} fill="#ef4444" className="text-red-500" /> WISHLIST
+                  </Link> */}
+                  {/* <Link
+                    href="/settings/security"
+                    className="text-xs font-black text-[#0f172a] uppercase bg-white/60 hover:bg-white border border-white/60 px-3.5 py-2.5 rounded-full shadow-xs transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0"
+                  >
+                    <ShieldCheck size={14} /> SECURITY
+                  </Link> */}
+                  <span className="text-xs font-black text-white bg-[#0f172a] px-4 py-2.5 rounded-full shadow-xs uppercase whitespace-nowrap shrink-0">
+                    {totalRecords} {totalRecords === 1 ? 'SHOP' : 'SHOPS'}
+                  </span>
+                </div>
               </div>
 
               {/* Search Bar */}

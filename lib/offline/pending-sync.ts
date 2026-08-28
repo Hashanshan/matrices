@@ -170,6 +170,53 @@ export interface PushProcessProgressCallback {
 }
 
 /**
+ * Auto-heals temporary shop IDs in a sync queue item payload using local IndexedDB shops.
+ */
+async function autoHealShopIdInItem(item: SyncQueueItem): Promise<boolean> {
+  let mutated = false;
+  try {
+    const localShops = await offlineDB.getAll<any>('shops').catch(() => []);
+    if (!localShops || localShops.length === 0) return false;
+
+    // Check payload.shop.shopId
+    const currentShopId = item.payload?.shop?.shopId || item.payload?.shopId;
+    const isTempId = currentShopId && (String(currentShopId).startsWith('TMP_') || String(currentShopId).startsWith('LOCAL_'));
+    const shopName = item.payload?.shop?.name || '';
+
+    if (isTempId || (item.entity === 'Order' && currentShopId)) {
+      // Find matching server shop from local DB
+      const matched = localShops.find((s: any) => {
+        const sId = String(s.shopId || s.id || '');
+        const isServerShop = sId && !sId.startsWith('TMP_') && !sId.startsWith('LOCAL_');
+        if (!isServerShop) return false;
+
+        // Match by old tempId or ID
+        if (s.tempId && String(s.tempId) === String(currentShopId)) return true;
+        if (s.oldId && String(s.oldId) === String(currentShopId)) return true;
+        // Match by shop name
+        if (shopName && s.name && String(s.name).trim().toLowerCase() === String(shopName).trim().toLowerCase()) return true;
+
+        return false;
+      });
+
+      if (matched && matched.shopId) {
+        if (item.payload?.shop && item.payload.shop.shopId !== matched.shopId) {
+          item.payload.shop.shopId = matched.shopId;
+          mutated = true;
+        }
+        if (item.payload?.shopId && item.payload.shopId !== matched.shopId) {
+          item.payload.shopId = matched.shopId;
+          mutated = true;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Error during autoHealShopIdInItem:', err);
+  }
+  return mutated;
+}
+
+/**
  * Process queue sequentially FIFO:
  * 1. Executes oldest non-SUCCESS item first.
  * 2. Never sends multiple requests in parallel.
@@ -188,40 +235,49 @@ export async function processSyncQueueSequential(
     throw new Error('Device is offline. Please connect to internet to push changes.');
   }
 
-  const queue = await getSyncQueue();
+  const initialQueue = await getSyncQueue();
   // Filter for items that need pushing (PENDING or FAILED)
-  const pendingItems = queue.filter((item) => item.status === 'PENDING' || item.status === 'FAILED');
+  const pendingList = initialQueue.filter((item) => item.status === 'PENDING' || item.status === 'FAILED');
 
-  if (pendingItems.length === 0) {
+  if (pendingList.length === 0) {
     return { totalProcessed: 0, successCount: 0, failedCount: 0 };
   }
 
   const token = getAuthToken();
   let successCount = 0;
+  const totalItemsCount = pendingList.length;
 
-  for (let i = 0; i < pendingItems.length; i++) {
-    const item = pendingItems[i];
-    
+  for (let i = 0; i < totalItemsCount; i++) {
+    // ALWAYS reload fresh queue from IndexedDB to pick up mapped IDs from previous steps
+    const freshQueue = await getSyncQueue();
+    const targetItem = freshQueue.find((q) => q.id === pendingList[i].id) || pendingList[i];
+
+    // Auto-heal any temporary shop IDs if shop was previously synced
+    const wasHealed = await autoHealShopIdInItem(targetItem);
+    if (wasHealed) {
+      await updateSyncQueueItem(targetItem);
+    }
+
     // Mark item as PROCESSING
-    item.status = 'PROCESSING';
-    await updateSyncQueueItem(item);
-    onProgress?.(i + 1, pendingItems.length, item, 'PROCESSING', `Sending ${item.operation} ${item.entity} (${item.entityId})...`);
+    targetItem.status = 'PROCESSING';
+    await updateSyncQueueItem(targetItem);
+    onProgress?.(i + 1, totalItemsCount, targetItem, 'PROCESSING', `Sending ${targetItem.operation} ${targetItem.entity} (${targetItem.entityId})...`);
 
     try {
-      const targetUrl = resolveApiUrl(item.endpoint);
+      const targetUrl = resolveApiUrl(targetItem.endpoint);
       const res = await fetch(targetUrl, {
-        method: item.method,
+        method: targetItem.method,
         headers: {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: item.payload ? JSON.stringify(item.payload) : undefined,
+        body: targetItem.payload ? JSON.stringify(targetItem.payload) : undefined,
       });
 
       const resJson = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        let serverError = resJson.message || resJson.error || resJson.reason || (typeof resJson === 'string' ? resJson : '');
+        let serverError = resJson.msg || resJson.message || resJson.error || resJson.reason || (typeof resJson === 'string' ? resJson : '');
         
         // Clean error message
         if (!serverError || serverError.includes('<!DOCTYPE')) {
@@ -232,48 +288,48 @@ export async function processSyncQueueSequential(
       }
 
       // Handle shop creation/update ID mapping and bucket imageUrl update
-      const isShopOp = item.endpoint.includes('/shops') || item.entity === 'Customer' || item.entity === 'Shop';
+      const isShopOp = targetItem.endpoint.includes('/shops') || targetItem.entity === 'Customer' || targetItem.entity === 'Shop';
       const serverShop = resJson.shop || resJson.data;
       const realShopId = serverShop?.shopId || resJson.shopId;
-      const oldTempShopId = item.entityId || item.payload?.shopId;
+      const oldTempShopId = targetItem.entityId || targetItem.payload?.shopId;
       if (isShopOp) {
         await resolveShopIdMapping(oldTempShopId, realShopId || oldTempShopId, serverShop);
       }
 
       // Handle order sync status update if an order was created
-      const isOrderCreate = item.endpoint.includes('/orders/create') || item.entity === 'Order';
+      const isOrderCreate = targetItem.endpoint.includes('/orders/create') || targetItem.entity === 'Order';
       if (isOrderCreate) {
-        await markOrderSyncedSuccess(item.entityId, resJson.order);
+        await markOrderSyncedSuccess(targetItem.entityId, resJson.order);
       }
 
       // Success! Mark item as SUCCESS
-      item.status = 'SUCCESS';
-      item.errorMessage = undefined;
-      await updateSyncQueueItem(item);
+      targetItem.status = 'SUCCESS';
+      targetItem.errorMessage = undefined;
+      await updateSyncQueueItem(targetItem);
       successCount++;
-      onProgress?.(i + 1, pendingItems.length, item, 'SUCCESS', `Successfully pushed ${item.title}`);
+      onProgress?.(i + 1, totalItemsCount, targetItem, 'SUCCESS', `Successfully pushed ${targetItem.title}`);
     } catch (err: any) {
       const reason = err?.message || 'Network submission error';
-      item.status = 'FAILED';
-      item.errorMessage = reason;
-      item.retryCount = (item.retryCount || 0) + 1;
-      await updateSyncQueueItem(item);
+      targetItem.status = 'FAILED';
+      targetItem.errorMessage = reason;
+      targetItem.retryCount = (targetItem.retryCount || 0) + 1;
+      await updateSyncQueueItem(targetItem);
 
-      onProgress?.(i + 1, pendingItems.length, item, 'FAILED', reason);
+      onProgress?.(i + 1, totalItemsCount, targetItem, 'FAILED', reason);
 
       // CRITICAL REQUIREMENT: Stop processing immediately on first failure
       return {
         totalProcessed: i + 1,
         successCount,
         failedCount: 1,
-        stoppedAt: item,
+        stoppedAt: targetItem,
         errorReason: reason,
       };
     }
   }
 
   return {
-    totalProcessed: pendingItems.length,
+    totalProcessed: totalItemsCount,
     successCount,
     failedCount: 0,
   };
@@ -307,6 +363,7 @@ export async function retrySyncQueue(
   for (const item of failedItems) {
     item.status = 'PENDING';
     item.errorMessage = undefined;
+    await autoHealShopIdInItem(item);
     await updateSyncQueueItem(item);
   }
 
@@ -474,38 +531,79 @@ export function downloadFailureReportPDF(userName: string, queue: SyncQueueItem[
  */
 async function resolveShopIdMapping(oldTempId: string, realShopId: string, serverShopData?: any) {
   try {
-    // 1. Update remaining items in IndexedDB sync_queue if ID changed
-    if (oldTempId && realShopId && oldTempId !== realShopId) {
-      const queue = await offlineDB.getAll<SyncQueueItem>('sync_queue');
-      for (const item of queue) {
-        if (item.payload && item.payload.shop && item.payload.shop.shopId === oldTempId) {
-          item.payload.shop.shopId = realShopId;
-          await updateSyncQueueItem(item);
+    if (!oldTempId || !realShopId || oldTempId === realShopId) {
+      // Still update bucket imageUrl / phones if present
+      if (realShopId && serverShopData) {
+        const localShops = await offlineDB.getAll<any>('shops').catch(() => []);
+        const targetShop = localShops.find((s: any) => String(s.shopId || s.id) === String(realShopId));
+        if (targetShop) {
+          const updatedShop = {
+            ...targetShop,
+            ...(serverShopData?.imageUrl ? { imageUrl: serverShopData.imageUrl } : {}),
+            ...(serverShopData?.phones ? { phones: serverShopData.phones } : {}),
+            ...(serverShopData?.phone ? { phone: serverShopData.phone } : {})
+          };
+          await offlineDB.upsert('shops', updatedShop);
         }
       }
+      return;
+    }
 
-      // 2. Update local orders in IndexedDB orders store
-      const localOrders = await offlineDB.getAll<any>('orders');
-      for (const ord of localOrders) {
-        if (ord.shop && ord.shop.shopId === oldTempId) {
-          ord.shop.shopId = realShopId;
-          await offlineDB.upsert('orders', ord);
-        }
+    // 1. Update remaining items in IndexedDB sync_queue and pending_actions
+    const queue = await offlineDB.getAll<SyncQueueItem>('sync_queue').catch(() => []);
+    for (const item of queue) {
+      let modified = false;
+      if (item.payload?.shop?.shopId === oldTempId) {
+        item.payload.shop.shopId = realShopId;
+        modified = true;
+      }
+      if (item.payload?.shopId === oldTempId) {
+        item.payload.shopId = realShopId;
+        modified = true;
+      }
+      if (item.entityId === oldTempId) {
+        item.entityId = realShopId;
+        modified = true;
+      }
+      if (item.endpoint && item.endpoint.includes(oldTempId)) {
+        item.endpoint = item.endpoint.replace(oldTempId, realShopId);
+        modified = true;
+      }
+      if (modified) {
+        await updateSyncQueueItem(item);
       }
     }
 
-    // 3. Update local shop in IndexedDB shops store with real ID and bucket imageUrl
-    const localShops = await offlineDB.getAll<any>('shops');
-    const lookupId = oldTempId || realShopId;
-    const targetShop = localShops.find((s: any) => String(s.shopId || s.id) === String(lookupId));
-    if (targetShop) {
-      if (oldTempId && realShopId && oldTempId !== realShopId) {
-        await offlineDB.deleteById('shops', oldTempId);
+    // 2. Update local orders in IndexedDB orders store
+    const localOrders = await offlineDB.getAll<any>('orders').catch(() => []);
+    for (const ord of localOrders) {
+      let ordMod = false;
+      if (ord.shop && ord.shop.shopId === oldTempId) {
+        ord.shop.shopId = realShopId;
+        ordMod = true;
       }
+      if (ord.shopId === oldTempId) {
+        ord.shopId = realShopId;
+        ordMod = true;
+      }
+      if (ordMod) {
+        await offlineDB.upsert('orders', ord);
+      }
+    }
+
+    // 3. Update local shop in IndexedDB shops store with real ID, tempId pointer and bucket imageUrl
+    const localShops = await offlineDB.getAll<any>('shops').catch(() => []);
+    const lookupId = oldTempId || realShopId;
+    const targetShop = localShops.find((s: any) => String(s.shopId || s.id) === String(lookupId) || String(s.tempId) === String(lookupId));
+
+    if (targetShop) {
+      await offlineDB.deleteById('shops', oldTempId);
       const updatedShop = {
         ...targetShop,
-        id: realShopId || targetShop.id,
-        shopId: realShopId || targetShop.shopId,
+        id: realShopId,
+        shopId: realShopId,
+        tempId: oldTempId,
+        oldId: oldTempId,
         ...(serverShopData?.imageUrl ? { imageUrl: serverShopData.imageUrl } : {}),
         ...(serverShopData?.phones ? { phones: serverShopData.phones } : {}),
         ...(serverShopData?.phone ? { phone: serverShopData.phone } : {})
