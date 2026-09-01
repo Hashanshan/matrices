@@ -3,41 +3,39 @@ import path from 'path';
 import fs from 'fs/promises';
 import { createReadStream } from 'fs';
 import { Readable } from 'stream';
+import { findUpdateFile, getVersionManifest } from '@/lib/updates/server-paths';
 
-export const dynamic = 'force-static';
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  const versionFilePath = path.join(process.cwd(), 'updates', 'version.json');
-  let apkFileName = 'matrices-latest.apk';
+  const manifest = await getVersionManifest();
+  const targetApkName = manifest.apkFileName ? path.basename(manifest.apkFileName) : 'matrices-latest.apk';
 
-  try {
-    const fileData = await fs.readFile(versionFilePath, 'utf8');
-    const parsed = JSON.parse(fileData);
-    if (parsed.apkFileName) {
-      apkFileName = path.basename(parsed.apkFileName);
-    }
-  } catch (err) {
-    console.warn('[Updates API] Could not read version.json for APK filename, using default.', err);
+  // Attempt to find the specific configured APK or fallback to any latest APK
+  let filePath = findUpdateFile(targetApkName) || findUpdateFile('matrices-latest.apk');
+
+  if (!filePath) {
+    console.error(`[Updates API] APK file not found for "${targetApkName}". Working dir: ${process.cwd()}`);
+    return new NextResponse('APK file not found on server', { status: 404 });
   }
-
-  const filePath = path.join(process.cwd(), 'updates', apkFileName);
 
   try {
     const stats = await fs.stat(filePath);
     const nodeStream = createReadStream(filePath);
     const webStream = Readable.toWeb(nodeStream) as ReadableStream<Uint8Array>;
+    const downloadFileName = path.basename(filePath);
 
     return new NextResponse(webStream, {
       status: 200,
       headers: {
         'Content-Type': 'application/vnd.android.package-archive',
         'Content-Length': stats.size.toString(),
-        'Content-Disposition': `attachment; filename="${apkFileName}"`,
+        'Content-Disposition': `attachment; filename="${downloadFileName}"`,
         'Cache-Control': 'no-cache, no-store, must-revalidate',
       },
     });
   } catch (error) {
-    console.error(`[Updates API] APK file not found at: ${filePath}`, error);
-    return new NextResponse('APK file not found on server', { status: 404 });
+    console.error(`[Updates API] Error streaming APK from ${filePath}:`, error);
+    return new NextResponse('Error reading APK file', { status: 500 });
   }
 }

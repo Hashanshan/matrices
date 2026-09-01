@@ -80,7 +80,7 @@ export default function RootLayout({
                   <DataModeProvider>
                     {/* <DataModeBanner /> */}
                     <HardwareBackButtonHandler />
-                    <AppUpdateModal />
+                    {/* <AppUpdateModal /> */}
                     <AuthGuard>
                       {children}
                       {process.env.NODE_ENV === 'production' && <Analytics />}

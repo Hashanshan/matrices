@@ -3,25 +3,18 @@ import path from 'path';
 import fs from 'fs/promises';
 import { createReadStream } from 'fs';
 import { Readable } from 'stream';
+import { findUpdateFile, getVersionManifest } from '@/lib/updates/server-paths';
 
-export const dynamic = 'force-static';
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl?.searchParams;
-  let fileName = searchParams?.get('file') || 'app-latest.zip';
+  let fileName = searchParams?.get('file');
 
-  // If no file param, check version.json for the latest bundleFileName
-  if (!searchParams?.get('file')) {
-    try {
-      const versionFilePath = path.join(process.cwd(), 'updates', 'version.json');
-      const fileData = await fs.readFile(versionFilePath, 'utf8');
-      const parsed = JSON.parse(fileData);
-      if (parsed.bundleFileName) {
-        fileName = parsed.bundleFileName;
-      }
-    } catch {
-      // Use fallback
-    }
+  // If no file param, check version manifest for the latest bundleFileName
+  if (!fileName) {
+    const manifest = await getVersionManifest();
+    fileName = manifest.bundleFileName || `app-v${manifest.version}.zip`;
   }
 
   // Prevent directory traversal attacks
@@ -30,7 +23,12 @@ export async function GET(request: NextRequest) {
     return new NextResponse('Invalid bundle file format', { status: 400 });
   }
 
-  const filePath = path.join(process.cwd(), 'updates', sanitizedFileName);
+  const filePath = findUpdateFile(sanitizedFileName);
+
+  if (!filePath) {
+    console.error(`[Updates API] Bundle not found for: ${sanitizedFileName}. Working dir: ${process.cwd()}`);
+    return new NextResponse('Bundle file not found on server', { status: 404 });
+  }
 
   try {
     const stats = await fs.stat(filePath);
@@ -47,7 +45,7 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error(`[Updates API] Bundle not found at: ${filePath}`, error);
+    console.error(`[Updates API] Error reading bundle from ${filePath}:`, error);
     return new NextResponse('Bundle file not found on server', { status: 404 });
   }
 }
