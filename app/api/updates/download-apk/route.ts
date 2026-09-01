@@ -5,9 +5,14 @@ import { createReadStream } from 'fs';
 import { Readable } from 'stream';
 import { findUpdateFile, getVersionManifest } from '@/lib/updates/server-paths';
 
-export const dynamic = 'force-static';
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
+  // During static mobile export, avoid embedding multi-megabyte APKs into the mobile web bundle
+  if (process.env.NEXT_EXPORT === 'true') {
+    return NextResponse.json({ message: 'Static export stub' });
+  }
+
   const manifest = await getVersionManifest();
 
   // If a remote bucket URL is configured, redirect directly to Cloudinary bucket

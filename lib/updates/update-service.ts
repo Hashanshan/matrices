@@ -68,38 +68,56 @@ class UpdateService {
    */
   async checkForUpdates(): Promise<UpdateStatus> {
     const frontEndUrl = (process.env.NEXT_PUBLIC_FRONT_END_URL || 'https://matrices.devcodz.com').replace(/\/$/, '');
-    const versionEndpoint = `${frontEndUrl}/api/updates/version`;
+    const backendUrl = (process.env.NEXT_PUBLIC_API_URL || 'https://magnum-backend.vercel.app').replace(/\/$/, '');
+    let manifest: UpdateManifest | null = null;
 
+    // 1. Try Next.js frontend update endpoint
     try {
-      const res = await fetch(versionEndpoint, {
+      const res = await fetch(`${frontEndUrl}/api/updates/version`, {
         method: 'GET',
         headers: { 'Cache-Control': 'no-cache' },
       });
-
-      if (!res.ok) {
-        throw new Error(`Server returned HTTP ${res.status}`);
+      if (res.ok) {
+        manifest = await res.json();
       }
+    } catch {
+      // Continue to backend fallback
+    }
 
-      const manifest: UpdateManifest = await res.json();
-      const currentVersion = await this.getCurrentVersion();
+    // 2. If no valid manifest from frontend, try backend API endpoint
+    if (!manifest || !manifest.apkUrl) {
+      try {
+        const bRes = await fetch(`${backendUrl}/api/updates/version`, {
+          method: 'GET',
+          headers: { 'Cache-Control': 'no-cache' },
+        });
+        if (bRes.ok) {
+          const bData = await bRes.json();
+          manifest = { ...(manifest || {}), ...bData };
+        }
+      } catch {
+        // Backend offline
+      }
+    }
 
-      const isWebUpdate = this.isNewerVersion(currentVersion, manifest.version);
-
-      return {
-        hasUpdate: isWebUpdate,
-        isWebUpdate,
-        isApkUpdate: false, // Set to true if native version bump is required
-        manifest,
-        currentVersion,
-      };
-    } catch (error) {
-      console.warn('[UpdateService] Check for updates failed:', error);
+    if (!manifest) {
       return {
         hasUpdate: false,
         isWebUpdate: false,
         isApkUpdate: false,
       };
     }
+
+    const currentVersion = await this.getCurrentVersion();
+    const isWebUpdate = this.isNewerVersion(currentVersion, manifest.version);
+
+    return {
+      hasUpdate: isWebUpdate,
+      isWebUpdate,
+      isApkUpdate: false,
+      manifest,
+      currentVersion,
+    };
   }
 
   /**

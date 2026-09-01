@@ -36,10 +36,13 @@ export default function UpdatesSettingsPage() {
 
   const frontEndUrl = (process.env.NEXT_PUBLIC_FRONT_END_URL || 'https://matrices.devcodz.com').replace(/\/$/, '');
   const fallbackApkUrl = `${frontEndUrl}/api/updates/download-apk`;
-  const finalApkDownloadUrl = manifest?.apkUrl || fallbackApkUrl;
+  const finalApkDownloadUrl =
+    manifest?.apkUrl && manifest.apkUrl.startsWith('http') && !manifest.apkUrl.includes('localhost')
+      ? manifest.apkUrl
+      : fallbackApkUrl;
 
   const formatReleaseDate = (dateStr?: string) => {
-    if (!dateStr) return 'Recently';
+    if (!dateStr) return 'Latest Release';
     try {
       const d = new Date(dateStr);
       if (isNaN(d.getTime())) return dateStr;
@@ -197,7 +200,7 @@ export default function UpdatesSettingsPage() {
                 <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800/80">
                   <span className="text-xs font-medium text-slate-400 block mb-1">Release Date</span>
                   <span className="text-sm font-bold text-slate-800 dark:text-slate-100">
-                    {formatReleaseDate(manifest?.publishedAt || manifest?.apkUpdatedAt)}
+                    {formatReleaseDate(manifest?.apkUpdatedAt || manifest?.publishedAt)}
                   </span>
                 </div>
 
@@ -206,11 +209,9 @@ export default function UpdatesSettingsPage() {
                   <span className="text-sm font-bold text-slate-800 dark:text-slate-100">
                     v{manifest?.apkVersion || manifest?.version || '1.2.0'}
                   </span>
-                  {manifest?.apkFileSizeMb && (
-                    <span className="text-[11px] text-slate-400 block font-normal">
-                      {manifest.apkFileSizeMb}
-                    </span>
-                  )}
+                  <span className="text-[11px] text-slate-400 block font-normal">
+                    {manifest?.apkFileSizeMb || '23.48 MB'}
+                  </span>
                 </div>
               </div>
 
@@ -308,12 +309,10 @@ export default function UpdatesSettingsPage() {
                     <span>File Name</span>
                     <span className="font-mono text-white">{manifest?.apkFileName || 'matrices-latest.apk'}</span>
                   </div>
-                  {manifest?.apkFileSizeMb && (
-                    <div className="flex justify-between items-center text-xs py-1.5 border-b border-white/10 text-slate-300">
-                      <span>File Size</span>
-                      <span className="font-semibold text-white">{manifest.apkFileSizeMb}</span>
-                    </div>
-                  )}
+                  <div className="flex justify-between items-center text-xs py-1.5 border-b border-white/10 text-slate-300">
+                    <span>File Size</span>
+                    <span className="font-semibold text-white">{manifest?.apkFileSizeMb || '23.48 MB'}</span>
+                  </div>
                   <div className="flex justify-between items-center text-xs py-1.5 border-b border-white/10 text-slate-300">
                     <span>Release Date</span>
                     <span className="font-medium text-blue-300">
@@ -335,6 +334,8 @@ export default function UpdatesSettingsPage() {
                 {/* Direct Download Action Button */}
                 <a
                   href={finalApkDownloadUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   download={manifest?.apkFileName || "matrices-latest.apk"}
                   className="w-full py-3 px-4 rounded-2xl bg-blue-600 hover:bg-blue-500 active:scale-[0.98] text-white font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-600/40 mb-3"
                 >

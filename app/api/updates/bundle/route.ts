@@ -8,6 +8,11 @@ import { findUpdateFile, getVersionManifest } from '@/lib/updates/server-paths';
 export const dynamic = 'force-static';
 
 export async function GET(request: NextRequest) {
+  // During static mobile export, avoid embedding heavy zip bundles into the mobile web bundle
+  if (process.env.NEXT_EXPORT === 'true') {
+    return NextResponse.json({ message: 'Static export stub' });
+  }
+
   const searchParams = request?.nextUrl?.searchParams;
   let fileName = searchParams?.get('file');
 

@@ -52,10 +52,10 @@ async function buildApk() {
 
   const gradleTask =
     flavor === 'legacy'
-      ? 'assembleLegacyDebug'
+      ? 'clean assembleLegacyDebug'
       : flavor === 'all'
-      ? 'assembleDebug'
-      : 'assembleModernDebug';
+      ? 'clean assembleDebug'
+      : 'clean assembleModernDebug';
 
   execSync(`gradlew.bat ${gradleTask}`, {
     cwd: androidDir,
