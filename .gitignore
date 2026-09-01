@@ -37,3 +37,4 @@ __v0_jsx-dev-runtime.ts
 .snowflake/
 .v0-trash/
 .vercel/
+!updates/*.apk
