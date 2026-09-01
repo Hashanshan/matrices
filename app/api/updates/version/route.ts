@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getVersionManifest } from '@/lib/updates/server-paths';
 
-export const dynamic = 'force-dynamic';
+export const dynamic = 'force-static';
 
 async function buildUpdateResponse() {
   const frontEndUrl = (process.env.NEXT_PUBLIC_FRONT_END_URL || 'https://matrices.devcodz.com').replace(/\/$/, '');
@@ -26,23 +26,6 @@ async function buildUpdateResponse() {
 }
 
 export async function GET() {
-  const responseData = await buildUpdateResponse();
-  return NextResponse.json(responseData, {
-    headers: {
-      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-      'Content-Type': 'application/json',
-    },
-  });
-}
-
-export async function POST(req: Request) {
-  try {
-    const body = await req.json().catch(() => ({}));
-    console.log('[Updates API] Incoming update check from device:', body);
-  } catch {
-    // Ignore body parse errors
-  }
-
   const responseData = await buildUpdateResponse();
   return NextResponse.json(responseData, {
     headers: {

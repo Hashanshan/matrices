@@ -17,6 +17,8 @@ export interface CatalogueProduct {
   sellPrice: number;
   price: number;
   description: string;
+  updatedAt?: string;
+  createdAt?: string;
 }
 
 export interface ProductsResponse {
@@ -225,9 +227,15 @@ export async function getOfflineProducts(options: {
         const subB = String(b.subcategoryName || b.subcategories || '');
         if (subA !== subB) return subA.localeCompare(subB);
         return String(a.name || '').localeCompare(String(b.name || ''));
+      } else if (s === 'newest' || s === 'newest-first' || s === 'latest' || s === 'updatedat' || s === 'default' || !s) {
+        const timeA = a.updatedAt ? new Date(a.updatedAt).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+        const timeB = b.updatedAt ? new Date(b.updatedAt).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+        return timeB - timeA;
       }
 
-      return 0;
+      const timeA = a.updatedAt ? new Date(a.updatedAt).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+      const timeB = b.updatedAt ? new Date(b.updatedAt).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+      return timeB - timeA;
     });
   }
 
@@ -243,8 +251,18 @@ export async function getOfflineProducts(options: {
       return (a: any, b: any) => String(b.name || '').localeCompare(String(a.name || ''));
     } else if (s === 'rating') {
       return (a: any, b: any) => (b.rating || 0) - (a.rating || 0);
+    } else if (s === 'newest' || s === 'newest-first' || s === 'latest' || s === 'updatedat' || s === 'default' || !s) {
+      return (a: any, b: any) => {
+        const timeA = a.updatedAt ? new Date(a.updatedAt).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+        const timeB = b.updatedAt ? new Date(b.updatedAt).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+        return timeB - timeA;
+      };
     }
-    return () => 0;
+    return (a: any, b: any) => {
+      const timeA = a.updatedAt ? new Date(a.updatedAt).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+      const timeB = b.updatedAt ? new Date(b.updatedAt).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+      return timeB - timeA;
+    };
   };
 
   const sortFn = getSortComparator(options.sort || '');

@@ -32,6 +32,8 @@ export interface ProductItem {
   image?: string;
   imageUrl?: string;
   images?: string[];
+  updatedAt?: string;
+  createdAt?: string;
   [key: string]: unknown;
 }
 
@@ -228,8 +230,13 @@ export async function searchOfflineProducts(
         return ((b.product.sellPrice || b.product.price || 0) - (a.product.sellPrice || a.product.price || 0));
       case 'name':
         return (a.product.name || '').localeCompare(b.product.name || '');
-      default:
-        return 0;
+      case 'newest':
+      case 'default':
+      default: {
+        const timeA = a.product.updatedAt ? new Date(a.product.updatedAt).getTime() : (a.product.createdAt ? new Date(a.product.createdAt).getTime() : 0);
+        const timeB = b.product.updatedAt ? new Date(b.product.updatedAt).getTime() : (b.product.createdAt ? new Date(b.product.createdAt).getTime() : 0);
+        return timeB - timeA;
+      }
     }
   });
 

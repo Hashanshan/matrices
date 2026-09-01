@@ -5,10 +5,10 @@ import { createReadStream } from 'fs';
 import { Readable } from 'stream';
 import { findUpdateFile, getVersionManifest } from '@/lib/updates/server-paths';
 
-export const dynamic = 'force-dynamic';
+export const dynamic = 'force-static';
 
 export async function GET(request: NextRequest) {
-  const searchParams = request.nextUrl?.searchParams;
+  const searchParams = request?.nextUrl?.searchParams;
   let fileName = searchParams?.get('file');
 
   // If no file param, check version manifest for the latest bundleFileName

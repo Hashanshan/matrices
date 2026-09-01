@@ -9,7 +9,6 @@ import { resolveApiUrl, getAuthToken } from '../utils';
 import SyncProgressModal from '@/components/sync-progress-modal';
 import PinModal from '@/components/pin-modal';
 import { useAuth } from './auth-context';
-import { mutate } from 'swr';
 import {
   SyncQueueItem,
   getSyncQueue,
@@ -431,12 +430,12 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
           if (uncachedUrls.length === 0) {
             setProgress(95);
             setSyncStatusText('All balance images already cached! Finalizing...');
+            invalidateImageMemoryMap();
+            invalidateProductIndex();
             await prewarmImageCache().catch(() => {});
-            mutate(() => true, undefined, { revalidate: true });
 
-            const allMaps = await offlineDB.getAllImageMaps();
-            const grandTotalSize = allMaps.reduce((acc, m) => acc + (m.sizeBytes || 0), 0);
-            const imageMB = Number((grandTotalSize / (1024 * 1024)).toFixed(2));
+            const summary = await offlineDB.getImageStorageSummary();
+            const imageMB = Number((summary.totalBytes / (1024 * 1024)).toFixed(2));
 
             const newMeta: SyncMetadata = {
               lastSyncedAt: new Date().toISOString(),
@@ -445,7 +444,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
               totalSubcategories: localSubcats.length,
               totalShops: localShops.length,
               totalOrders: localOrders.length,
-              totalImages: allMaps.length,
+              totalImages: summary.count,
               imageStorageMB: imageMB,
               isIncomplete: false,
               syncedUserId: user?.id || (user as any)?._id || (user?.email ? String(user.email) : ''),
@@ -485,9 +484,9 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
           invalidateImageMemoryMap();
           invalidateProductIndex();
           await prewarmImageCache().catch(() => {});
-          mutate(() => true, undefined, { revalidate: true });
 
-          const imageMB = Number((stats.totalSizeBytes / (1024 * 1024)).toFixed(2));
+          const summary = await offlineDB.getImageStorageSummary();
+          const imageMB = Number((summary.totalBytes / (1024 * 1024)).toFixed(2));
           const newMeta: SyncMetadata = {
             lastSyncedAt: new Date().toISOString(),
             totalProducts: localProducts.length,
@@ -495,7 +494,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
             totalSubcategories: localSubcats.length,
             totalShops: localShops.length,
             totalOrders: localOrders.length,
-            totalImages: stats.totalDownloaded > 0 ? stats.totalDownloaded : uniqueImageUrls.length,
+            totalImages: summary.count > 0 ? summary.count : (stats.totalDownloaded > 0 ? stats.totalDownloaded : uniqueImageUrls.length),
             imageStorageMB: imageMB,
             isIncomplete: false,
             syncedUserId: user?.id || (user as any)?._id || (user?.email ? String(user.email) : ''),
@@ -707,6 +706,9 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         const img = p.image || p.imageUrl || (Array.isArray(p.images) && p.images[0] ? p.images[0] : '');
         const priceVal = Number(p.sellPrice || p.price || 0);
 
+        const updatedAtVal = p.updatedAt || p.updated_at || p.createdAt || p.created_at || '';
+        const createdAtVal = p.createdAt || p.created_at || '';
+
         return {
           id: String(p._id || p.id || p.productId || `prod_${idx}`),
           productId: String(p.productId || p._id || p.id || `prod_${idx}`),
@@ -726,7 +728,16 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
           image: img,
           imageUrl: img,
           images: p.images || (img ? [img] : []),
+          updatedAt: updatedAtVal,
+          createdAt: createdAtVal,
         };
+      });
+
+      // Sort products newest first by MongoDB document product.updatedAt (latest to oldest)
+      formattedProducts.sort((a: any, b: any) => {
+        const timeA = a.updatedAt ? new Date(a.updatedAt).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+        const timeB = b.updatedAt ? new Date(b.updatedAt).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+        return timeB - timeA;
       });
 
       const formattedShops = shops.map((s: any, idx: number) => {
@@ -793,6 +804,33 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       await offlineDB.saveBatch('orders', mergedOrders);
       await offlineDB.saveBatch('wishlist', formattedWishlist);
 
+      // Checkpoint 1: Immediate catalog persistence so sync status is never lost even if image caching is interrupted
+      const initialMeta: SyncMetadata = {
+        lastSyncedAt: new Date().toISOString(),
+        totalProducts: formattedProducts.length,
+        totalCategories: formattedCategories.length,
+        totalSubcategories: formattedSubcategories.length,
+        totalShops: formattedShops.length,
+        totalOrders: formattedOrders.length,
+        totalImages: 0,
+        imageStorageMB: 0,
+        isIncomplete: false,
+        syncedUserId: user?.id || (user as any)?._id || (user?.email ? String(user.email) : ''),
+        syncedUserEmail: user?.email || '',
+        syncedUserName: user?.name || '',
+      };
+
+      await offlineDB.setMeta(initialMeta);
+      if (user?.email) {
+        await offlineDB.saveSecure('synced_user_email', user.email.toLowerCase().trim());
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('matrices_last_synced_user_email', user.email);
+          if (user?.name) localStorage.setItem('matrices_last_synced_user_name', user.name);
+        }
+      }
+      setMeta(initialMeta);
+      setLastSyncedAt(initialMeta.lastSyncedAt);
+
       setProgress(80);
       setSyncStatusText('Preparing full offline image download...');
 
@@ -831,33 +869,15 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       invalidateProductIndex();
       await prewarmImageCache().catch(() => {});
 
-      // Trigger global SWR cache invalidation so all UI pages immediately re-query fresh LocalDB data
-      mutate(() => true, undefined, { revalidate: true });
-
-      const imageMB = Number((totalSizeBytesDownloaded / (1024 * 1024)).toFixed(2));
+      const summary = await offlineDB.getImageStorageSummary();
+      const finalImageMB = Number((summary.totalBytes / (1024 * 1024)).toFixed(2));
       const newMeta: SyncMetadata = {
-        lastSyncedAt: new Date().toISOString(),
-        totalProducts: formattedProducts.length,
-        totalCategories: formattedCategories.length,
-        totalSubcategories: formattedSubcategories.length,
-        totalShops: formattedShops.length,
-        totalOrders: formattedOrders.length,
-        totalImages: totalImagesDownloaded > 0 ? totalImagesDownloaded : uniqueImageUrls.length,
-        imageStorageMB: imageMB,
-        isIncomplete: false,
-        syncedUserId: user?.id || (user as any)?._id || (user?.email ? String(user.email) : ''),
-        syncedUserEmail: user?.email || '',
-        syncedUserName: user?.name || '',
+        ...initialMeta,
+        totalImages: summary.count > 0 ? summary.count : (totalImagesDownloaded > 0 ? totalImagesDownloaded : uniqueImageUrls.length),
+        imageStorageMB: finalImageMB,
       };
 
       await offlineDB.setMeta(newMeta);
-      if (user?.email) {
-        await offlineDB.saveSecure('synced_user_email', user.email.toLowerCase().trim());
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('matrices_last_synced_user_email', user.email);
-          if (user?.name) localStorage.setItem('matrices_last_synced_user_name', user.name);
-        }
-      }
       setMeta(newMeta);
       setLastSyncedAt(newMeta.lastSyncedAt);
 
@@ -881,16 +901,16 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         window.dispatchEvent(new Event('matrices-sync-stats-updated'));
       }
 
-      // Mark metadata as incomplete with reason
-      const rawProducts = await offlineDB.getAll<any>('products').catch(() => []);
-      if (rawProducts.length > 0) {
+      // Mark metadata as incomplete with reason using lightweight counts
+      const productsCount = await offlineDB.getCount('products').catch(() => 0);
+      if (productsCount > 0) {
         const incompleteMeta: SyncMetadata = {
           lastSyncedAt: meta?.lastSyncedAt || '',
-          totalProducts: rawProducts.length,
-          totalCategories: (await offlineDB.getAll('categories').catch(() => [])).length,
-          totalSubcategories: (await offlineDB.getAll('subcategories').catch(() => [])).length,
-          totalShops: (await offlineDB.getAll('shops').catch(() => [])).length,
-          totalOrders: (await offlineDB.getAll('orders').catch(() => [])).length,
+          totalProducts: productsCount,
+          totalCategories: await offlineDB.getCount('categories').catch(() => 0),
+          totalSubcategories: await offlineDB.getCount('subcategories').catch(() => 0),
+          totalShops: await offlineDB.getCount('shops').catch(() => 0),
+          totalOrders: await offlineDB.getCount('orders').catch(() => 0),
           totalImages: meta?.totalImages || 0,
           imageStorageMB: meta?.imageStorageMB || 0,
           isIncomplete: true,

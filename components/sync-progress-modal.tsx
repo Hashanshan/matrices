@@ -187,7 +187,10 @@ export default function SyncProgressModal() {
                     animate={{ opacity: 1, y: 0 }}
                     onClick={() => {
                       closeSyncModal();
-                      window.location.reload();
+                      if (typeof window !== 'undefined') {
+                        window.dispatchEvent(new Event('matrices-sync-stats-updated'));
+                        window.dispatchEvent(new Event('matrices-data-mode-change'));
+                      }
                     }}
                     className="w-full py-4 rounded-full font-black text-xs uppercase tracking-wider text-white shadow-xl transition-all cursor-pointer bg-[#0f172a] hover:bg-[#1e293b]"
                   >

@@ -111,12 +111,13 @@ export async function downloadAndSaveImage(url: string, retries = 2): Promise<st
       if (isNative) {
         const fsModule = await loadCapacitorFilesystem();
         if (fsModule?.Filesystem && fsModule?.Directory) {
-          const base64Data = await blobToBase64(blob);
+          const rawBase64 = await blobToBase64(blob);
+          const cleanBase64 = rawBase64.includes(',') ? rawBase64.split(',')[1] : rawBase64;
           const fileName = hashUrl(url);
 
           const writeResult = await fsModule.Filesystem.writeFile({
             path: `Matrices/${fileName}`,
-            data: base64Data,
+            data: cleanBase64,
             directory: fsModule.Directory.Documents,
             recursive: true,
           });
@@ -136,29 +137,31 @@ export async function downloadAndSaveImage(url: string, retries = 2): Promise<st
         }
       }
 
-      // Web / Fallback: Save as Data URL in IndexedDB & CacheStorage
-      const base64Data = await blobToBase64(blob);
-      const record: ImageMapRecord = {
-        url,
-        localSrc: base64Data,
-        sizeBytes,
-        updatedAt: new Date().toISOString(),
-      };
-
-      await offlineDB.saveImageMap(record);
-      updateImageMemoryMap(url, base64Data);
-
-      // Also populate CacheStorage as additional HTTP fallback
+      // Web / Browser mode: Store in CacheStorage (disk-backed binary) and session Object URL
       if ('caches' in window) {
         try {
           const cache = await caches.open(IMAGE_CACHE_NAME);
-          await cache.put(url, new Response(blob));
+          await cache.put(url, new Response(blob.slice(0), {
+            headers: { 'Content-Type': blob.type || 'image/jpeg' },
+          }));
         } catch (e) {
           console.warn('CacheStorage put warning:', e);
         }
       }
 
-      return base64Data;
+      // In IndexedDB, store metadata with clean sizeBytes. Object URL is created for zero-overhead in-memory pointer.
+      const objectUrl = URL.createObjectURL(blob);
+      const record: ImageMapRecord = {
+        url,
+        localSrc: objectUrl,
+        sizeBytes,
+        updatedAt: new Date().toISOString(),
+      };
+
+      await offlineDB.saveImageMap(record);
+      updateImageMemoryMap(url, objectUrl);
+
+      return objectUrl;
     } catch (err) {
       if (attempt < retries) {
         // Wait 400ms before retry
@@ -208,7 +211,8 @@ export async function cacheProductImages(
     onProgress?.(done, uniqueUrls.length);
   }
 
-  const CONCURRENCY = 12;
+  // Safe concurrency limit (4) to prevent memory saturation and native bridge congestion
+  const CONCURRENCY = 4;
   for (let i = 0; i < uncachedUrls.length; i += CONCURRENCY) {
     const chunk = uncachedUrls.slice(i, i + CONCURRENCY);
     await Promise.all(
@@ -232,13 +236,12 @@ export async function cacheProductImages(
     );
   }
 
-  // Calculate overall storage stats from all stored images in LocalDB
-  const allMaps = await offlineDB.getAllImageMaps();
-  const grandTotalSize = allMaps.reduce((acc, m) => acc + (m.sizeBytes || 0), 0);
+  // Calculate overall storage stats from all stored images using streaming cursor (O(1) memory)
+  const summary = await offlineDB.getImageStorageSummary();
 
   return {
-    totalDownloaded: allMaps.length,
-    totalSizeBytes: grandTotalSize,
+    totalDownloaded: summary.count,
+    totalSizeBytes: summary.totalBytes,
     failedCount,
     balanceRemaining: failedCount,
   };
@@ -250,7 +253,7 @@ export async function cacheProductImages(
  */
 export async function getCachedImageUrl(url: string): Promise<string> {
   if (typeof window === 'undefined' || !url) return url;
-  if (isLocalUri(url)) return url;
+  if (isLocalUri(url) && !url.startsWith('blob:')) return url;
 
   try {
     // 1. In-memory map (0ms instant)
@@ -260,12 +263,12 @@ export async function getCachedImageUrl(url: string): Promise<string> {
 
     // 2. Fast single-key IndexedDB lookup (1ms)
     const record = await offlineDB.getImageMap(url).catch(() => null);
-    if (record?.localSrc) {
+    if (record?.localSrc && !record.localSrc.startsWith('blob:')) {
       updateImageMemoryMap(url, record.localSrc);
       return record.localSrc;
     }
 
-    // 3. CacheStorage fallback
+    // 3. CacheStorage fallback (Web / session recovery)
     if ('caches' in window) {
       const cache = await caches.open(IMAGE_CACHE_NAME);
       const match = await cache.match(url);
@@ -275,6 +278,12 @@ export async function getCachedImageUrl(url: string): Promise<string> {
         updateImageMemoryMap(url, objUrl);
         return objUrl;
       }
+    }
+
+    // 4. If record exists with localSrc
+    if (record?.localSrc) {
+      updateImageMemoryMap(url, record.localSrc);
+      return record.localSrc;
     }
   } catch (e) {
     console.warn(`Error resolving cached image for ${url}`, e);
