@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getVersionManifest } from '@/lib/updates/server-paths';
 
-export const dynamic = 'force-dynamic';
+export const dynamic = 'force-static';
 
 async function buildUpdateResponse() {
   const frontEndUrl = (process.env.NEXT_PUBLIC_FRONT_END_URL || 'https://matrices.devcodz.com').replace(/\/$/, '');

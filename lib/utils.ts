@@ -15,7 +15,8 @@ export function resolveApiUrl(path: string): string {
   }
 
   if (path.startsWith('/api/products/filters')) {
-    return `${BACKEND_URL}/api/catelogue/products/filters`;
+    const query = path.replace('/api/products/filters', '');
+    return `${BACKEND_URL}/api/catelogue/products/filters${query}`;
   }
   if (path.startsWith('/api/products')) {
     const query = path.replace('/api/products', '');
@@ -26,7 +27,8 @@ export function resolveApiUrl(path: string): string {
     return `${BACKEND_URL}/api/catelogue/wishlist${subPath}`;
   }
   if (path.startsWith('/api/sync/all')) {
-    return `${BACKEND_URL}/api/catelogue/sync/all`;
+    const subPath = path.replace('/api/sync/all', '');
+    return `${BACKEND_URL}/api/catelogue/sync/all${subPath}`;
   }
   if (path.startsWith('/api/shops')) {
     const subPath = path.replace('/api/shops', '');
@@ -37,10 +39,12 @@ export function resolveApiUrl(path: string): string {
     return `${BACKEND_URL}/api/catelogue/orders${subPath}`;
   }
   if (path.startsWith('/api/auth/profile')) {
-    return `${BACKEND_URL}/api/catelogue/auth/profile`;
+    const subPath = path.replace('/api/auth/profile', '');
+    return `${BACKEND_URL}/api/catelogue/auth/profile${subPath}`;
   }
   if (path.startsWith('/api/auth/verify-pin')) {
-    return `${BACKEND_URL}/api/catelogue/auth/verify-pin`;
+    const subPath = path.replace('/api/auth/verify-pin', '');
+    return `${BACKEND_URL}/api/catelogue/auth/verify-pin${subPath}`;
   }
   if (path.startsWith('/api/')) {
     return `${BACKEND_URL}${path}`;

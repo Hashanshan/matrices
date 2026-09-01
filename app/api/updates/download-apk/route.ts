@@ -5,7 +5,7 @@ import { createReadStream } from 'fs';
 import { Readable } from 'stream';
 import { findUpdateFile, getVersionManifest } from '@/lib/updates/server-paths';
 
-export const dynamic = 'force-dynamic';
+export const dynamic = 'force-static';
 
 export async function GET() {
   // During static mobile export, avoid embedding multi-megabyte APKs into the mobile web bundle
