@@ -30,6 +30,7 @@ function CategorySection({
   toggleSection,
   accurateCount,
   gridClass,
+  timeFilter,
   onGlobalLoadMore,
 }: {
   category: string;
@@ -39,6 +40,7 @@ function CategorySection({
   toggleSection: (cat: string) => void;
   accurateCount: number;
   gridClass: string;
+  timeFilter?: string;
   onGlobalLoadMore?: () => void;
 }) {
   const [visibleCount, setVisibleCount] = useState(20);
@@ -87,18 +89,32 @@ function CategorySection({
       try {
         const isOffline = dataMode === 'offline' || (typeof navigator !== 'undefined' && !navigator.onLine);
         if (isOffline) {
-          // Fetch from IndexedDB
+          // Fetch from IndexedDB with timeFilter
           const offlineRes = await getOfflineProducts({
             category: category,
+            timeFilter: timeFilter,
             limit: 100,
           });
           if (offlineRes && offlineRes.data && offlineRes.data.length > 0) {
             setExtraCategoryProducts(prev => [...prev, ...offlineRes.data]);
             setVisibleCount(prev => prev + 20);
           } else {
-            // Also try fallback direct query from offlineDB products store
+            // Also try fallback direct query from offlineDB products store with timeFilter
             const allRaw = await offlineDB.getAll<any>('products').catch(() => []);
+            let timeCutoff = 0;
+            if (timeFilter && timeFilter !== 'all' && timeFilter !== 'null') {
+              const now = Date.now();
+              if (timeFilter === '1week' || timeFilter === '1w' || timeFilter === '7d') timeCutoff = now - 7 * 24 * 60 * 60 * 1000;
+              else if (timeFilter === '2week' || timeFilter === '2w' || timeFilter === '14d') timeCutoff = now - 14 * 24 * 60 * 60 * 1000;
+              else if (timeFilter === '3week' || timeFilter === '3w' || timeFilter === '21d') timeCutoff = now - 21 * 24 * 60 * 60 * 1000;
+            }
+
             const catMatches = allRaw.filter((p: any) => {
+              if (p.isDeleted) return false;
+              if (timeCutoff > 0) {
+                const pTime = p.updatedAt ? new Date(p.updatedAt).getTime() : (p.createdAt ? new Date(p.createdAt).getTime() : 0);
+                if (pTime < timeCutoff) return false;
+              }
               const pCat = String(p.category || p.categoryName || p.categories || '').trim().toUpperCase();
               return pCat === category.toUpperCase();
             });
@@ -108,9 +124,10 @@ function CategorySection({
             }
           }
         } else {
-          // Fetch from Online API endpoint
+          // Fetch from Online API endpoint with timeFilter
           const token = getAuthToken();
-          const targetUrl = resolveApiUrl(`/api/products?category=${encodeURIComponent(category)}&limit=50&page=${Math.floor(combinedProducts.length / 50) + 1}`);
+          const timeParam = timeFilter && timeFilter !== 'all' && timeFilter !== 'null' ? `&timeFilter=${encodeURIComponent(timeFilter)}` : '';
+          const targetUrl = resolveApiUrl(`/api/products?category=${encodeURIComponent(category)}${timeParam}&limit=50&page=${Math.floor(combinedProducts.length / 50) + 1}`);
           const res = await fetch(targetUrl, {
             headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) }
           });
@@ -214,7 +231,6 @@ interface ProductGalleryProps {
 }
 
 export default function ProductGallery({ searchQuery, initialCategory, initialSubcategory, onFilterChange }: ProductGalleryProps) {
-  const { categories: apiCategories, priceRange: apiPriceRange, mutate: mutateFilters } = useFilters();
   const searchParams = useSearchParams();
 
   const [filters, setFilters] = useState<FilterState>(() => {
@@ -238,6 +254,10 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
       timeFilter: (urlTime as any) || saved.timeFilter || 'all',
       gridSize: saved.gridSize || 4,
     };
+  });
+
+  const { categories: apiCategories, priceRange: apiPriceRange, mutate: mutateFilters } = useFilters({
+    timeFilter: filters.timeFilter,
   });
 
   // Persist filters to sessionStorage whenever state changes
@@ -885,6 +905,7 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
                     toggleSection={toggleSection}
                     accurateCount={accurateCount}
                     gridClass={gridClass}
+                    timeFilter={filters.timeFilter}
                     onGlobalLoadMore={loadMore}
                   />
                 );

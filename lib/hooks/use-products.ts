@@ -346,7 +346,15 @@ export async function getOfflineProducts(options: {
     ];
   }
 
-  const totalCount = raw.length > 0 ? raw.length : filtered.length;
+  const hasFilterActive = Boolean(
+    (options.category && (Array.isArray(options.category) ? options.category.length > 0 : Boolean(options.category))) ||
+    (options.subcategory && (Array.isArray(options.subcategory) ? options.subcategory.length > 0 : Boolean(options.subcategory))) ||
+    Boolean(options.search) ||
+    Boolean(options.productId) ||
+    (options.timeFilter && options.timeFilter !== 'all' && options.timeFilter !== 'null')
+  );
+
+  const totalCount = hasFilterActive ? filtered.length : (raw.length > 0 ? raw.length : filtered.length);
   const page = options.page || 1;
   const limit = options.limit || 5000;
   const startIndex = (page - 1) * limit;
@@ -378,7 +386,7 @@ export async function getOfflineProducts(options: {
 }
 
 /** Shape IndexedDB categories into FiltersResponse format (matching backend aggregation) */
-async function getOfflineFilters(): Promise<FiltersResponse> {
+export async function getOfflineFilters(timeFilter?: string): Promise<FiltersResponse> {
   const [dbCategories, dbSubcategories, dbProducts, dbWishlist] = await Promise.all([
     offlineDB.getAll<any>('categories').catch(() => []),
     offlineDB.getAll<any>('subcategories').catch(() => []),
@@ -394,13 +402,34 @@ async function getOfflineFilters(): Promise<FiltersResponse> {
     };
   }
 
-  // 1. Calculate dynamic min and max price range across all products
+  let cutoff = 0;
+  if (timeFilter && timeFilter !== 'all' && timeFilter !== 'null') {
+    const now = Date.now();
+    if (timeFilter === '1week' || timeFilter === '1w' || timeFilter === '7d') {
+      cutoff = now - 7 * 24 * 60 * 60 * 1000;
+    } else if (timeFilter === '2week' || timeFilter === '2w' || timeFilter === '14d') {
+      cutoff = now - 14 * 24 * 60 * 60 * 1000;
+    } else if (timeFilter === '3week' || timeFilter === '3w' || timeFilter === '21d') {
+      cutoff = now - 21 * 24 * 60 * 60 * 1000;
+    }
+  }
+
+  const activeProducts = dbProducts.filter((p: any) => {
+    if (p.isDeleted) return false;
+    if (cutoff > 0) {
+      const pTime = p.updatedAt ? new Date(p.updatedAt).getTime() : (p.createdAt ? new Date(p.createdAt).getTime() : 0);
+      if (pTime < cutoff) return false;
+    }
+    return true;
+  });
+
+  // 1. Calculate dynamic min and max price range across active filtered products
   let minPrice = 0;
   let maxPrice = 60125;
-  if (dbProducts.length > 0) {
+  if (activeProducts.length > 0) {
     let minP = Infinity;
     let maxP = -Infinity;
-    for (const p of dbProducts) {
+    for (const p of activeProducts) {
       const val = Number(p.sellPrice || p.price || 0);
       if (val > 0) {
         if (val < minP) minP = val;
@@ -411,7 +440,7 @@ async function getOfflineFilters(): Promise<FiltersResponse> {
     if (maxP !== -Infinity) maxPrice = Math.ceil(maxP);
   }
 
-  // 2. Build Category & Subcategory Aggregation Map directly from dbProducts
+  // 2. Build Category & Subcategory Aggregation Map directly from activeProducts
   const catMap = new Map<string, {
     name: string;
     image: string;
@@ -419,7 +448,7 @@ async function getOfflineFilters(): Promise<FiltersResponse> {
     subcats: Map<string, { name: string; image: string; count: number }>;
   }>();
 
-  for (const p of dbProducts) {
+  for (const p of activeProducts) {
     const rawCat = (p.categoryName || p.categories || p.category || (typeof p.category === 'object' ? p.category?.name : '') || '').trim();
     if (!rawCat) continue;
     const catName = rawCat.toUpperCase();
@@ -460,8 +489,8 @@ async function getOfflineFilters(): Promise<FiltersResponse> {
     }
   }
 
-  // Incorporate dbCategories store records if not already in catMap
-  if (dbCategories.length > 0) {
+  // Incorporate dbCategories store records only when NO timeFilter is active
+  if (cutoff === 0 && dbCategories.length > 0) {
     for (const c of dbCategories) {
       const cName = (c.name || c.categoryName || '').trim().toUpperCase();
       if (cName && !catMap.has(cName)) {
@@ -590,7 +619,7 @@ const fetcher = async <T = any>(url: string): Promise<T> => {
   if (isProducts || isProductsFilters) {
     try {
       if (isProductsFilters) {
-        const localFilters = await getOfflineFilters();
+        const localFilters = await getOfflineFilters(parseOptions().timeFilter);
         if (localFilters.categories.length > 0) {
           return localFilters as unknown as T;
         }
@@ -605,14 +634,14 @@ const fetcher = async <T = any>(url: string): Promise<T> => {
     }
 
     if (isOfflineNetwork) {
-      if (isProductsFilters) return getOfflineFilters() as unknown as T;
+      if (isProductsFilters) return getOfflineFilters(parseOptions().timeFilter) as unknown as T;
       if (isProducts) return getOfflineProducts(parseOptions()) as unknown as T;
     }
   }
 
   // ── No network → final IDB fallback ──────────────────────────────────────────
   if (isOfflineNetwork) {
-    if (isProductsFilters) return getOfflineFilters() as unknown as T;
+    if (isProductsFilters) return getOfflineFilters(parseOptions().timeFilter) as unknown as T;
     if (isProducts) return getOfflineProducts(parseOptions()) as unknown as T;
     return { success: false } as unknown as T;
   }
@@ -862,10 +891,11 @@ export interface FiltersResponse {
   priceRange: { min: number; max: number };
 }
 
-export function useFilters(options: { fallbackData?: FiltersResponse } = {}) {
-  const { fallbackData } = options;
+export function useFilters(options: { timeFilter?: string; fallbackData?: FiltersResponse } = {}) {
+  const { timeFilter, fallbackData } = options;
   const { dataMode } = useDataMode();
-  const key = `/api/products/filters?_mode=${dataMode}`;
+  const timeQuery = timeFilter && timeFilter !== 'all' && timeFilter !== 'null' ? `&timeFilter=${encodeURIComponent(timeFilter)}` : '';
+  const key = `/api/products/filters?_mode=${dataMode}${timeQuery}`;
 
   const { data, error, isLoading, isValidating, mutate } = useSWR<FiltersResponse>(key, fetcher, {
     fallbackData: fallbackData && fallbackData.categories && fallbackData.categories.length > 0 ? fallbackData : undefined,

@@ -278,7 +278,7 @@ export async function searchOfflineProducts(
 /**
  * Get all unique categories with subcategory counts from the offline product index.
  */
-export async function getOfflineCatalogSummary(): Promise<{
+export async function getOfflineCatalogSummary(timeFilter?: string): Promise<{
   categories: Array<{
     name: string;
     image: string;
@@ -288,6 +288,18 @@ export async function getOfflineCatalogSummary(): Promise<{
 }> {
   const allProducts = await getProductIndex();
 
+  let timeCutoff = 0;
+  if (timeFilter && timeFilter !== 'all' && timeFilter !== 'null') {
+    const now = Date.now();
+    if (timeFilter === '1week' || timeFilter === '1w' || timeFilter === '7d') {
+      timeCutoff = now - 7 * 24 * 60 * 60 * 1000;
+    } else if (timeFilter === '2week' || timeFilter === '2w' || timeFilter === '14d') {
+      timeCutoff = now - 14 * 24 * 60 * 60 * 1000;
+    } else if (timeFilter === '3week' || timeFilter === '3w' || timeFilter === '21d') {
+      timeCutoff = now - 21 * 24 * 60 * 60 * 1000;
+    }
+  }
+
   const catMap = new Map<string, {
     image: string;
     count: number;
@@ -295,6 +307,11 @@ export async function getOfflineCatalogSummary(): Promise<{
   }>();
 
   for (const p of allProducts) {
+    if (timeCutoff > 0) {
+      const pTime = p.updatedAt ? new Date(p.updatedAt).getTime() : (p.createdAt ? new Date(p.createdAt).getTime() : 0);
+      if (pTime < timeCutoff) continue;
+    }
+
     const catName = (p.categoryName || p.categories || 'Uncategorized').trim();
     const subName = (p.subcategoryName || p.subcategories || '').trim();
     const img = p.image || p.imageUrl || '';
