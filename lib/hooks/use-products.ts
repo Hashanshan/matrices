@@ -41,6 +41,7 @@ export async function getOfflineProducts(options: {
   subcategory?: string | string[];
   search?: string;
   productId?: string;
+  timeFilter?: string;
   page?: number;
   limit?: number;
 }): Promise<ProductsResponse> {
@@ -188,6 +189,26 @@ export async function getOfflineProducts(options: {
 
     return true;
   });
+
+  // Apply time filter (e.g. 1week, 2week, 3week)
+  if (options.timeFilter && options.timeFilter !== 'all' && options.timeFilter !== 'null') {
+    const now = Date.now();
+    let cutoff = 0;
+    if (options.timeFilter === '1week' || options.timeFilter === '1w' || options.timeFilter === '7d') {
+      cutoff = now - 7 * 24 * 60 * 60 * 1000;
+    } else if (options.timeFilter === '2week' || options.timeFilter === '2w' || options.timeFilter === '14d') {
+      cutoff = now - 14 * 24 * 60 * 60 * 1000;
+    } else if (options.timeFilter === '3week' || options.timeFilter === '3w' || options.timeFilter === '21d') {
+      cutoff = now - 21 * 24 * 60 * 60 * 1000;
+    }
+
+    if (cutoff > 0) {
+      filtered = filtered.filter((p: any) => {
+        const pTime = p.updatedAt ? new Date(p.updatedAt).getTime() : (p.createdAt ? new Date(p.createdAt).getTime() : 0);
+        return pTime >= cutoff;
+      });
+    }
+  }
 
   const hasWishlist = wishlistedProdMap.size > 0 || wishlistedSubMap.size > 0 || wishlistedCatMap.size > 0;
 
@@ -551,6 +572,7 @@ const fetcher = async <T = any>(url: string): Promise<T> => {
         subcategory: u.searchParams.get('subcategory') || undefined,
         search: u.searchParams.get('search') || undefined,
         productId: u.searchParams.get('productId') || u.searchParams.get('search') || undefined,
+        timeFilter: u.searchParams.get('timeFilter') || u.searchParams.get('timeRange') || u.searchParams.get('updatedWithin') || undefined,
         page: parseInt(u.searchParams.get('page') || '1', 10),
         limit: parseInt(u.searchParams.get('limit') || '20', 10),
       };
@@ -686,6 +708,7 @@ interface UseProductsOptions {
   subcategory?: string | string[];
   search?: string;
   productId?: string;
+  timeFilter?: string;
   limit?: number;
   initialLimit?: number;
   prioritizeCategory?: string;
@@ -697,7 +720,7 @@ interface UseProductsOptions {
  * Falls back to IndexedDB when offline.
  */
 export function useProducts(options: UseProductsOptions = {}) {
-  const { sort, category, subcategory, search, productId, limit = 20, prioritizeCategory, fallbackData } = options;
+  const { sort, category, subcategory, search, productId, timeFilter, limit = 20, prioritizeCategory, fallbackData } = options;
 
   const buildQuery = (pageIndex: number) => {
     const params = new URLSearchParams();
@@ -713,6 +736,7 @@ export function useProducts(options: UseProductsOptions = {}) {
     if (search) params.set('search', search);
     if (productId && !search) params.set('search', productId);
     if (prioritizeCategory) params.set('prioritizeCategory', prioritizeCategory);
+    if (timeFilter && timeFilter !== 'all') params.set('timeFilter', timeFilter);
     const currentLimit = pageIndex > 0 ? limit : (options.initialLimit || limit);
     params.set('limit', String(currentLimit));
     params.set('page', String(pageIndex + 1));

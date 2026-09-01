@@ -8,6 +8,7 @@ export const DEFAULT_FILTERS: FilterState = {
   subcategories: [],
   priceRange: [0, 40000],
   sortBy: 'newest',
+  timeFilter: 'all',
   gridSize: 4,
 };
 
@@ -38,6 +39,7 @@ export function loadGalleryFilters(): FilterState {
         categories: Array.isArray(parsed.categories) ? parsed.categories : [],
         subcategories: Array.isArray(parsed.subcategories) ? parsed.subcategories : [],
         priceRange: Array.isArray(parsed.priceRange) && parsed.priceRange.length === 2 ? parsed.priceRange : DEFAULT_FILTERS.priceRange,
+        timeFilter: parsed.timeFilter || 'all',
       };
     }
   } catch (err) {
@@ -79,6 +81,9 @@ export function buildFilterQueryParams(filters: Partial<FilterState>, productId?
   if (filters.sortBy && filters.sortBy !== 'newest') {
     params.set('sortBy', filters.sortBy);
   }
+  if (filters.timeFilter && filters.timeFilter !== 'all') {
+    params.set('timeFilter', filters.timeFilter);
+  }
   if (filters.priceRange) {
     if (filters.priceRange[0] > 0) params.set('minPrice', String(filters.priceRange[0]));
     if (filters.priceRange[1] < 40000) params.set('maxPrice', String(filters.priceRange[1]));
@@ -110,6 +115,11 @@ export function parseFiltersFromSearchParams(searchParams: URLSearchParams): Par
   const sortBy = searchParams.get('sortBy') || searchParams.get('sort');
   if (sortBy) {
     result.sortBy = sortBy as any;
+  }
+
+  const timeFilter = searchParams.get('timeFilter') || searchParams.get('timeRange') || searchParams.get('updatedWithin');
+  if (timeFilter) {
+    result.timeFilter = timeFilter as any;
   }
 
   const minPrice = searchParams.get('minPrice');

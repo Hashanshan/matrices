@@ -16,13 +16,14 @@ interface UseViewProductsOptions {
   subcategory?: string | string[];
   search?: string;
   productId?: string;
+  timeFilter?: string;
   prioritizeCategory?: string;
   fallbackData?: any;
   limit?: number;
 }
 
 export function useViewProducts(options: UseViewProductsOptions = {}) {
-  const { sort, category, subcategory, search, productId, prioritizeCategory, fallbackData, limit = 20 } = options;
+  const { sort, category, subcategory, search, productId, timeFilter, prioritizeCategory, fallbackData, limit = 20 } = options;
   const { dataMode } = useDataMode();
 
   const [products, setProducts] = useState<ViewProduct[]>(() => {
@@ -59,11 +60,12 @@ export function useViewProducts(options: UseViewProductsOptions = {}) {
     if (search) params.set('search', search);
     if (productId && !search) params.set('search', productId);
     if (prioritizeCategory) params.set('prioritizeCategory', prioritizeCategory);
+    if (timeFilter && timeFilter !== 'all') params.set('timeFilter', timeFilter);
     params.set('limit', String(pageLimit));
     params.set('page', String(pageIndex));
     params.set('_mode', dataMode);
     return params.toString();
-  }, [sort, category, subcategory, search, productId, prioritizeCategory, dataMode]);
+  }, [sort, category, subcategory, search, productId, prioritizeCategory, timeFilter, dataMode]);
 
   const fetchPage = useCallback(async (pageIndex: number, pageLimit = 20, signal?: AbortSignal): Promise<ProductsResponse | null> => {
     if (fetchingPagesRef.current.has(pageIndex) || loadedPagesRef.current.has(pageIndex)) {
@@ -130,6 +132,7 @@ export function useViewProducts(options: UseViewProductsOptions = {}) {
             search: search || productId,
             productId,
             prioritizeCategory,
+            timeFilter,
             limit: 5000,
           });
 

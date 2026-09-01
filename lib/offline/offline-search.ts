@@ -44,6 +44,7 @@ export interface OfflineSearchOptions {
   categoryName?: string;
   subcategoryName?: string;
   sort?: 'name' | 'price_asc' | 'price_desc' | 'newest' | 'default';
+  timeFilter?: 'all' | '1week' | '2week' | '3week' | string;
   page?: number;
   limit?: number;
 }
@@ -172,6 +173,7 @@ export async function searchOfflineProducts(
     categoryName,
     subcategoryName,
     sort = 'default',
+    timeFilter,
     page = 1,
     limit = 20,
   } = opts;
@@ -180,11 +182,30 @@ export async function searchOfflineProducts(
   const normalizedQuery = query.trim().toLowerCase();
   const queryClean = normalizeStr(normalizedQuery);
 
+  // Calculate cutoff timestamp for timeFilter
+  let timeCutoff = 0;
+  if (timeFilter && timeFilter !== 'all' && timeFilter !== 'null') {
+    const now = Date.now();
+    if (timeFilter === '1week' || timeFilter === '1w' || timeFilter === '7d') {
+      timeCutoff = now - 7 * 24 * 60 * 60 * 1000;
+    } else if (timeFilter === '2week' || timeFilter === '2w' || timeFilter === '14d') {
+      timeCutoff = now - 14 * 24 * 60 * 60 * 1000;
+    } else if (timeFilter === '3week' || timeFilter === '3w' || timeFilter === '21d') {
+      timeCutoff = now - 21 * 24 * 60 * 60 * 1000;
+    }
+  }
+
   // ── Filter ───────────────────────────────────────────────────────────────────
 
   const scored: Array<{ product: ProductItem; score: number }> = [];
 
   for (const product of allProducts) {
+    // Time filter check
+    if (timeCutoff > 0) {
+      const pTime = product.updatedAt ? new Date(product.updatedAt).getTime() : (product.createdAt ? new Date(product.createdAt).getTime() : 0);
+      if (pTime < timeCutoff) continue;
+    }
+
     // Search score (matches get positive score, non-matches get 0 so all products remain available)
     const rawScore = normalizedQuery ? scoreProduct(product, normalizedQuery, queryClean) : 0;
     const score = rawScore < 0 ? 0 : rawScore;

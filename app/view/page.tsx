@@ -10,6 +10,7 @@ function ViewPageContent() {
   const category = searchParams.get('category') || '';
   const subcategory = searchParams.get('subcategory') || '';
   const sortBy = searchParams.get('sortBy') || searchParams.get('sort') || '';
+  const timeFilter = searchParams.get('timeFilter') || searchParams.get('timeRange') || searchParams.get('updatedWithin') || '';
   const search = searchParams.get('search') || searchParams.get('searchQuery') || '';
 
   return (
@@ -20,6 +21,7 @@ function ViewPageContent() {
       initialCategory={category}
       initialSubcategory={subcategory}
       initialSortBy={sortBy}
+      initialTimeFilter={timeFilter}
       initialSearchQuery={search}
     />
   );

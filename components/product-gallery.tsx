@@ -5,7 +5,7 @@ import { Product, FilterState } from '@/lib/types';
 import { useProducts, useFilters, getOfflineProducts } from '@/lib/hooks/use-products';
 import ProductCard from './product-card';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronDown, X, Check, PanelLeftClose, PanelLeftOpen, Filter, SortDesc, LayoutGrid, Loader2, Search } from 'lucide-react';
+import { ChevronDown, X, Check, PanelLeftClose, PanelLeftOpen, Filter, SortDesc, LayoutGrid, Loader2, Search, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { formatPrice } from '@/lib/currency';
 import CustomSelect from './custom-select';
@@ -225,6 +225,7 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
     const urlSearch = searchParams.get('search') || searchQuery;
     const urlMinPrice = searchParams.get('minPrice');
     const urlMaxPrice = searchParams.get('maxPrice');
+    const urlTime = searchParams.get('timeFilter') || searchParams.get('timeRange') || searchParams.get('updatedWithin');
 
     return {
       searchQuery: urlSearch || saved.searchQuery || '',
@@ -234,6 +235,7 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
         ? [urlMinPrice ? parseInt(urlMinPrice) || 0 : 0, urlMaxPrice ? parseInt(urlMaxPrice) || 40000 : 40000]
         : (saved.priceRange || [0, 40000]),
       sortBy: (urlSort as any) || saved.sortBy || 'newest',
+      timeFilter: (urlTime as any) || saved.timeFilter || 'all',
       gridSize: saved.gridSize || 4,
     };
   });
@@ -264,6 +266,7 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
     filters.subcategories.length > 0 ||
     (filters.searchQuery && filters.searchQuery.trim() !== '') ||
     (filters.sortBy && filters.sortBy !== 'newest') ||
+    (filters.timeFilter && filters.timeFilter !== 'all') ||
     filters.priceRange[0] > minP ||
     (filters.priceRange[1] < maxP && maxP > 0 && filters.priceRange[1] !== maxP)
   );
@@ -278,6 +281,7 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
       categories: [],
       subcategories: [],
       sortBy: 'newest',
+      timeFilter: 'all',
       priceRange: [defaultMinP, defaultMaxP],
     });
   };
@@ -317,6 +321,7 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
     exactMatchFound,
   } = useProducts({
     sort: backendSort,
+    timeFilter: filters.timeFilter,
     limit: 20,
     category: filters.categories.length > 0 ? filters.categories : undefined,
     subcategory: filters.subcategories.length > 0 ? filters.subcategories : undefined,
@@ -621,7 +626,7 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
         </div>
 
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
-          <div className="w-full sm:w-56">
+          <div className="w-full sm:w-52">
             <CustomSelect
               value={filters.sortBy}
               onChange={(val) => setFilters((prev) => ({ ...prev, sortBy: val as any }))}
@@ -635,7 +640,21 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
             />
           </div>
 
-          <div className="w-full sm:w-40">
+          <div className="w-full sm:w-48">
+            <CustomSelect
+              value={filters.timeFilter || 'all'}
+              onChange={(val) => setFilters((prev) => ({ ...prev, timeFilter: val as any }))}
+              icon={<Clock size={16} />}
+              options={[
+                { label: 'All Products', value: 'all' },
+                { label: '1 Week (Updated)', value: '1week' },
+                { label: '2 Weeks (Updated)', value: '2week' },
+                { label: '3 Weeks (Updated)', value: '3week' },
+              ]}
+            />
+          </div>
+
+          <div className="w-full sm:w-36">
             <CustomSelect
               value={filters.gridSize.toString()}
               onChange={(val) => setFilters((prev) => ({ ...prev, gridSize: parseInt(val) }))}
@@ -768,6 +787,40 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
                             )}
                           </AnimatePresence>
                         </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Updated Time Filter */}
+                <div className="border-t border-gray-100 pt-5">
+                  <h4 className="font-bold text-[#0f172a] mb-4 text-xs uppercase tracking-widest flex items-center gap-1.5">
+                    <Clock size={14} /> Updated Time
+                  </h4>
+                  <div className="space-y-1.5">
+                    {[
+                      { label: 'All Products', value: 'all' },
+                      { label: 'Last 1 Week', value: '1week' },
+                      { label: 'Last 2 Weeks', value: '2week' },
+                      { label: 'Last 3 Weeks', value: '3week' },
+                    ].map((option) => {
+                      const isSelected = (filters.timeFilter || 'all') === option.value;
+                      return (
+                        <label key={option.value} className="flex items-center gap-3 cursor-pointer py-1 group">
+                          <div className={`w-5 h-5 rounded-full flex items-center justify-center border-2 transition-colors ${isSelected ? 'border-[#0f172a] bg-[#0f172a]' : 'border-gray-300 group-hover:border-[#0f172a]'}`}>
+                            {isSelected && <div className="w-2 h-2 rounded-full bg-white" />}
+                          </div>
+                          <input
+                            type="radio"
+                            name="timeFilter"
+                            checked={isSelected}
+                            onChange={() => setFilters((prev) => ({ ...prev, timeFilter: option.value as any }))}
+                            className="hidden"
+                          />
+                          <span className={`text-[14px] font-semibold transition-colors uppercase ${isSelected ? 'text-[#0f172a]' : 'text-gray-600 group-hover:text-[#0f172a]'}`}>
+                            {option.label}
+                          </span>
+                        </label>
                       );
                     })}
                   </div>

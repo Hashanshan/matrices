@@ -13,6 +13,7 @@ interface ViewPageProps {
   initialCategory?: string;
   initialSubcategory?: string;
   initialSortBy?: string;
+  initialTimeFilter?: string;
   initialSearchQuery?: string;
 }
 
@@ -22,6 +23,7 @@ export default function SingleViewPage({
   initialCategory,
   initialSubcategory,
   initialSortBy,
+  initialTimeFilter,
   initialSearchQuery,
 }: ViewPageProps) {
   const savedFilters = loadGalleryFilters();
@@ -30,6 +32,7 @@ export default function SingleViewPage({
   const activeSubcategory = initialSubcategory || (savedFilters.subcategories.length > 0 ? savedFilters.subcategories[0] : undefined);
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery || savedFilters.searchQuery || '');
   const [sortBy, setSortBy] = useState(initialSortBy || savedFilters.sortBy || 'newest');
+  const [timeFilter, setTimeFilter] = useState(initialTimeFilter || savedFilters.timeFilter || 'all');
 
   const backendSort = sortBy === 'price-low' ? 'price-low'
     : sortBy === 'price-high' ? 'price-high'
@@ -45,6 +48,7 @@ export default function SingleViewPage({
     prioritizeIndex,
   } = useViewProducts({
     sort: backendSort || 'newest',
+    timeFilter: timeFilter || 'all',
     category: activeCategory,
     subcategory: activeSubcategory,
     search: searchQuery || initialProductId,
@@ -57,6 +61,7 @@ export default function SingleViewPage({
     clearGalleryFilters();
     setSearchQuery('');
     setSortBy('newest');
+    setTimeFilter('all');
   };
 
   if (isLoading && products.length === 0) {
@@ -90,6 +95,8 @@ export default function SingleViewPage({
         activeSubcategory={activeSubcategory}
         activeSortBy={sortBy}
         onSortChange={setSortBy}
+        activeTimeFilter={timeFilter}
+        onTimeFilterChange={setTimeFilter}
         onClearFilters={handleClearFilters}
       />
     </>

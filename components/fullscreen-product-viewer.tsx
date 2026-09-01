@@ -2,7 +2,7 @@
 
 import { useState, useRef, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, ChevronRight, ShoppingCart, X, Minus, Plus, Heart, Search, ArrowLeft, Check } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ShoppingCart, X, Minus, Plus, Heart, Search, ArrowLeft, Check, Clock } from 'lucide-react';
 import { useCart } from '@/lib/contexts/cart-context';
 import { useWishlist } from '@/lib/contexts/wishlist-context';
 import { useCallback } from 'react';
@@ -35,6 +35,8 @@ interface FullscreenProductViewerProps {
   activeSubcategory?: string;
   activeSortBy?: string;
   onSortChange?: (sort: string) => void;
+  activeTimeFilter?: string;
+  onTimeFilterChange?: (time: string) => void;
   onClearFilters?: () => void;
 }
 
@@ -52,6 +54,8 @@ export default function FullscreenProductViewer({
   activeSubcategory,
   activeSortBy,
   onSortChange,
+  activeTimeFilter = 'all',
+  onTimeFilterChange,
   onClearFilters
 }: FullscreenProductViewerProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -70,13 +74,18 @@ export default function FullscreenProductViewer({
   const { addToCart, isProductInCart, getCartItem, getAddToCartButtonLabel, cart } = useCart();
   const { isProductWishlisted, toggleProductWishlist } = useWishlist();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [timeFilterOpen, setTimeFilterOpen] = useState(false);
 
-  // Handle in-page viewer back events (closing search, modal, or menu)
+  // Handle in-page viewer back events (closing search, modal, menu, or time filter)
   useBackHandler(() => {
     if (searchOpen) {
       setSearchOpen(false);
       setViewerSearchQuery('');
       onSearch('');
+      return true;
+    }
+    if (timeFilterOpen) {
+      setTimeFilterOpen(false);
       return true;
     }
     if (isModalOpen) {
@@ -88,7 +97,7 @@ export default function FullscreenProductViewer({
       return true;
     }
     return false;
-  }, searchOpen || isModalOpen || menuOpen);
+  }, searchOpen || timeFilterOpen || isModalOpen || menuOpen);
 
   const hasSetInitialIndex = useRef(false);
 
@@ -588,6 +597,74 @@ export default function FullscreenProductViewer({
                     className={currentProduct && isProductWishlisted(currentProduct.productId || currentProduct.id) ? 'text-red-500' : ''}
                   />
                 </motion.button>
+
+                {/* Time Filter Button & Popover */}
+                {onTimeFilterChange && (
+                  <div className="relative">
+                    <motion.button
+                      onClick={() => {
+                        setMenuOpen(false);
+                        setTimeFilterOpen(!timeFilterOpen);
+                      }}
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.95 }}
+                      className={`p-3.5 rounded-full backdrop-blur-2xl transition-all shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] border border-white/60 flex items-center gap-1.5 ${
+                        activeTimeFilter && activeTimeFilter !== 'all'
+                          ? 'bg-[#0f172a] text-white'
+                          : 'bg-white/30 hover:bg-white/60 text-[#0f172a]'
+                      }`}
+                      title="Filter by Updated Time"
+                    >
+                      <Clock size={20} />
+                      {activeTimeFilter && activeTimeFilter !== 'all' && (
+                        <span className="text-xs font-black uppercase">
+                          {activeTimeFilter === '1week' ? '1W' : activeTimeFilter === '2week' ? '2W' : activeTimeFilter === '3week' ? '3W' : ''}
+                        </span>
+                      )}
+                    </motion.button>
+
+                    <AnimatePresence>
+                      {timeFilterOpen && (
+                        <motion.div
+                          initial={{ opacity: 0, scale: 0.9, y: -20, originX: 1, originY: 0 }}
+                          animate={{ opacity: 1, scale: 1, y: 0 }}
+                          exit={{ opacity: 0, scale: 0.9, y: -20 }}
+                          className="absolute rounded-[1rem] top-16 right-0 bg-white/70 backdrop-blur-2xl border border-white/60 shadow-[0_8px_32px_0_rgba(31,38,135,0.15)] p-3 w-56 flex flex-col gap-1.5 overflow-hidden z-30"
+                        >
+                          <div className="px-3 py-1 text-[11px] font-black uppercase tracking-widest text-[#0f172a]/60 border-b border-black/5 pb-2 mb-1">
+                            Updated Time Limit
+                          </div>
+                          {[
+                            { value: 'all', label: 'All Products' },
+                            { value: '1week', label: 'Updated in 1 Week' },
+                            { value: '2week', label: 'Updated in 2 Weeks' },
+                            { value: '3week', label: 'Updated in 3 Weeks' },
+                          ].map((opt) => {
+                            const isSelected = activeTimeFilter === opt.value;
+                            return (
+                              <button
+                                key={opt.value}
+                                onClick={() => {
+                                  onTimeFilterChange(opt.value);
+                                  setCurrentIndex(0);
+                                  setTimeFilterOpen(false);
+                                }}
+                                className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wide transition-all ${
+                                  isSelected
+                                    ? 'bg-[#0f172a] text-white shadow-md'
+                                    : 'text-gray-800 hover:bg-black/5'
+                                }`}
+                              >
+                                <span>{opt.label}</span>
+                                {isSelected && <Check size={14} className="text-white" />}
+                              </button>
+                            );
+                          })}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                )}
 
                 {/* {onClearFilters && Boolean(activeCategory || activeSubcategory || (activeSortBy && activeSortBy !== 'newest' && activeSortBy !== 'view') || (viewerSearchQuery && viewerSearchQuery.trim() !== '')) && (
                   <motion.button
