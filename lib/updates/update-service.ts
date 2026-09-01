@@ -13,6 +13,9 @@ export interface UpdateManifest {
   mandatory: boolean;
   releaseNotes?: string;
   publishedAt?: string;
+  apkFileName?: string;
+  apkFileSizeMb?: string;
+  apkUpdatedAt?: string;
 }
 
 export interface UpdateStatus {

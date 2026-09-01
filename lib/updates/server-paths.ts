@@ -8,6 +8,7 @@ export interface ManifestData {
   bundleFileName?: string;
   checksum?: string;
   apkFileName?: string;
+  apkUrl?: string;
   apkVersion?: string;
   apkVersionCode?: number;
   mandatory?: boolean;

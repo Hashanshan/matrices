@@ -9,6 +9,12 @@ export const dynamic = 'force-static';
 
 export async function GET() {
   const manifest = await getVersionManifest();
+
+  // If a remote bucket URL is configured, redirect directly to Cloudinary bucket
+  if (manifest.apkUrl && (manifest.apkUrl.startsWith('http://') || manifest.apkUrl.startsWith('https://'))) {
+    return NextResponse.redirect(manifest.apkUrl, 307);
+  }
+
   const targetApkName = manifest.apkFileName ? path.basename(manifest.apkFileName) : 'matrices-latest.apk';
 
   // Attempt to find the specific configured APK or fallback to any latest APK
