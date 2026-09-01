@@ -38,6 +38,7 @@ import { SyncProvider } from '@/lib/contexts/sync-context'
 import { DataModeProvider } from '@/lib/contexts/data-mode-context'
 import DataModeBanner from '@/components/mobile/data-mode-banner'
 import HardwareBackButtonHandler from '@/components/hardware-back-button-handler'
+import AppUpdateModal from '@/components/mobile/app-update-modal'
 
 export default function RootLayout({
   children,
@@ -79,6 +80,7 @@ export default function RootLayout({
                   <DataModeProvider>
                     {/* <DataModeBanner /> */}
                     <HardwareBackButtonHandler />
+                    <AppUpdateModal />
                     <AuthGuard>
                       {children}
                       {process.env.NODE_ENV === 'production' && <Analytics />}

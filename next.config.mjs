@@ -1,6 +1,8 @@
+const isMobileExport = process.env.NEXT_EXPORT === 'true' || process.env.CAPACITOR_BUILD === 'true';
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'export',
+  ...(isMobileExport ? { output: 'export' } : {}),
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -10,3 +12,4 @@ const nextConfig = {
 }
 
 export default nextConfig
+

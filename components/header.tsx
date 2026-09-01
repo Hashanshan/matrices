@@ -8,7 +8,8 @@ import { Input } from '@/components/ui/input';
 import {
   Menu, X, ShoppingCart as CartIcon, LogOut,
   Heart, ShieldCheck, Store, FileText, RefreshCw, ShoppingBag,
-  Home, BookOpen, Grid
+  Home, BookOpen, Grid,
+  Download
 } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -69,6 +70,7 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
     { href: '/settings/shops', label: 'My Shops', icon: Store, iconClass: '' },
     { href: '/settings/invoices', label: 'My Invoices', icon: FileText, iconClass: '' },
     { href: '/settings/sync', label: 'Data Sync & Storage', icon: RefreshCw, iconClass: 'text-emerald-600' },
+    { href: '/settings/updates', label: 'App Updates & APK', icon: Download, iconClass: 'text-blue-600' },
     { href: '/settings/security', label: 'Security Settings', icon: ShieldCheck, iconClass: '' },
   ];
 

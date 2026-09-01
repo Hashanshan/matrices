@@ -16,6 +16,11 @@
     },
     "Filesystem": {
       "permissions": ["publicStorage"]
+    },
+    "CapacitorUpdater": {
+      "autoUpdate": false,
+      "statsUrl": "",
+      "updateUrl": "https://matrices.devcodz.com/api/updates/version"
     }
   }
 }
