@@ -25,12 +25,17 @@ interface HeaderProps {
 }
 
 export default function Header({ searchQuery = '', onSearchChange, showSearch = true }: HeaderProps) {
-  const { user, logout } = useAuth();
+  const { user, isLoggedIn, logout } = useAuth();
   const { cart, selectedShop } = useCart();
   const { triggerSync, isSyncing, progress, openSyncModal } = useSync();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement>(null);
+
+  const displayName = user?.name || (typeof window !== 'undefined' ? (localStorage.getItem('matrices_last_synced_user_name') || '') : '') || user?.email?.split('@')[0] || 'Salesrep';
+  const displayEmail = user?.email || (typeof window !== 'undefined' ? (localStorage.getItem('matrices_last_synced_user_email') || '') : '') || '';
+  const initialLetter = (displayName || displayEmail || 'U').charAt(0).toUpperCase();
+  const showProfile = Boolean(user || isLoggedIn || (typeof window !== 'undefined' && (localStorage.getItem('token') || localStorage.getItem('user'))));
 
   // Close profile menu when clicking outside
   useEffect(() => {
@@ -164,7 +169,7 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
             </motion.div>
 
             {/* Profile Avatar + Dropdown */}
-            {user && (
+            {showProfile && (
               <div className="relative hidden lg:block" ref={profileMenuRef}>
                 <motion.button
                   whileHover={{ scale: 1.1 }}
@@ -177,7 +182,7 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
                   title="Profile & Settings"
                 >
                   <div className="w-9 h-9 bg-[#0f172a] text-white rounded-full flex items-center justify-center font-black text-sm shadow-md border border-white/40">
-                    {user.name.charAt(0).toUpperCase()}
+                    {initialLetter}
                   </div>
                 </motion.button>
 
@@ -190,8 +195,8 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
                       className="absolute right-0 mt-4 w-72 max-h-[calc(100vh-5rem)] overflow-y-auto bg-white/95 backdrop-blur-2xl border border-white/80 rounded-[2.5rem] shadow-[0_20px_60px_rgba(0,0,0,0.2)] p-6 space-y-3 z-50 scrollbar-none"
                     >
                       <div className="pb-3 border-b border-gray-200/60">
-                        <p className="text-base font-black text-[#0f172a] uppercase">{user.name}</p>
-                        <p className="text-xs text-gray-500 font-bold truncate mt-0.5">{user.email}</p>
+                        <p className="text-base font-black text-[#0f172a] uppercase">{displayName}</p>
+                        {displayEmail && <p className="text-xs text-gray-500 font-bold truncate mt-0.5">{displayEmail}</p>}
                       </div>
 
                       {profileLinks.map((item) => {
@@ -309,13 +314,13 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
                       )}
 
                       {/* Divider & profile links if logged-in */}
-                      {user && (
+                      {showProfile && (
                         <>
                           <div className="pt-1 border-t border-gray-200/60">
                             <p className="text-[0.6rem] font-black text-gray-400 uppercase tracking-widest px-1 mb-3 mt-2">Account</p>
                             <div className="pb-2 px-1">
-                              <p className="text-sm font-black text-[#0f172a] uppercase leading-tight">{user.name}</p>
-                              <p className="text-xs text-gray-500 font-bold truncate">{user.email}</p>
+                              <p className="text-sm font-black text-[#0f172a] uppercase leading-tight">{displayName}</p>
+                              {displayEmail && <p className="text-xs text-gray-500 font-bold truncate">{displayEmail}</p>}
                             </div>
                           </div>
 

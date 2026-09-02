@@ -42,7 +42,6 @@ export function isSessionExpired(): boolean {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(() => {
     if (typeof window !== 'undefined') {
-      const savedUser = localStorage.getItem('user');
       const loginTimeStr = localStorage.getItem('matrices_login_time');
       if (loginTimeStr) {
         const elapsed = Date.now() - Number(loginTimeStr);
@@ -50,6 +49,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return null; // Expired
         }
       }
+      const savedUser = localStorage.getItem('user') || localStorage.getItem('matrices_user');
       if (savedUser) {
         try {
           return JSON.parse(savedUser);
@@ -57,13 +57,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           console.error('Failed to parse user from localStorage:', error);
         }
       }
+      const syncedEmail = localStorage.getItem('matrices_last_synced_user_email');
+      const syncedName = localStorage.getItem('matrices_last_synced_user_name');
+      if (syncedEmail || syncedName) {
+        return {
+          id: syncedEmail || 'user',
+          name: syncedName || syncedEmail?.split('@')[0] || 'Salesrep',
+          email: syncedEmail || '',
+          phone: '',
+          address: '',
+          city: '',
+          zipCode: '',
+        };
+      }
     }
     return null;
   });
 
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
-      const savedUser = localStorage.getItem('user');
+      const savedUser = localStorage.getItem('user') || localStorage.getItem('matrices_user');
       const savedToken = localStorage.getItem('token');
       const loginTimeStr = localStorage.getItem('matrices_login_time');
       if (loginTimeStr) {
@@ -71,6 +84,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (elapsed >= SESSION_DURATION_MS) {
           // Clean up expired session stored items immediately
           localStorage.removeItem('user');
+          localStorage.removeItem('matrices_user');
           localStorage.removeItem('token');
           localStorage.removeItem('matrices_login_time');
           document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
@@ -105,10 +119,132 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoggedIn(false);
     markPinVerified(false);
     localStorage.removeItem('user');
+    localStorage.removeItem('matrices_user');
     localStorage.removeItem('token');
     localStorage.removeItem('matrices_login_time');
     document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('matrices-auth-updated'));
+    }
   };
+
+  const restoreUserSession = async () => {
+    if (typeof window === 'undefined') return;
+    try {
+      const loginTimeStr = localStorage.getItem('matrices_login_time');
+      if (loginTimeStr) {
+        const elapsed = Date.now() - Number(loginTimeStr);
+        if (elapsed >= SESSION_DURATION_MS) {
+          logout();
+          return;
+        }
+      }
+
+      let parsedUser: UserProfile | null = null;
+      const savedUser = localStorage.getItem('user') || localStorage.getItem('matrices_user');
+      if (savedUser) {
+        try {
+          parsedUser = JSON.parse(savedUser);
+        } catch (e) {}
+      }
+
+      const syncedEmail = localStorage.getItem('matrices_last_synced_user_email');
+      const syncedName = localStorage.getItem('matrices_last_synced_user_name');
+
+      if (!parsedUser && (syncedEmail || syncedName)) {
+        parsedUser = {
+          id: syncedEmail || 'user',
+          name: syncedName || syncedEmail?.split('@')[0] || 'Salesrep',
+          email: syncedEmail || '',
+          phone: '',
+          address: '',
+          city: '',
+          zipCode: '',
+        };
+      }
+
+      // If still missing, check offlineDB metadata
+      if (!parsedUser) {
+        try {
+          const meta = await offlineDB.getMeta();
+          if (meta?.syncedUserEmail || meta?.syncedUserName) {
+            parsedUser = {
+              id: meta.syncedUserId || meta.syncedUserEmail || 'user',
+              name: meta.syncedUserName || meta.syncedUserEmail?.split('@')[0] || 'Salesrep',
+              email: meta.syncedUserEmail || '',
+              phone: '',
+              address: '',
+              city: '',
+              zipCode: '',
+            };
+          }
+        } catch (e) {}
+      }
+
+      const token = getAuthToken();
+      if (parsedUser) {
+        setUser(parsedUser);
+        setIsLoggedIn(true);
+        localStorage.setItem('user', JSON.stringify(parsedUser));
+      } else if (token) {
+        setIsLoggedIn(true);
+      }
+
+      // If online and token exists, fetch latest profile from backend to ensure data is 100% fresh
+      if (token && typeof navigator !== 'undefined' && navigator.onLine) {
+        try {
+          const profileUrl = resolveApiUrl('/api/auth/profile');
+          const res = await fetch(profileUrl, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+            cache: 'no-store',
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data && (data.name || data.email)) {
+              const freshUser: UserProfile = {
+                id: data.id || data._id || parsedUser?.id || '',
+                name: data.name || parsedUser?.name || '',
+                email: data.email || parsedUser?.email || '',
+                phone: data.phone || parsedUser?.phone || '',
+                address: data.address || parsedUser?.address || '',
+                city: data.city || parsedUser?.city || '',
+                zipCode: data.zipCode || parsedUser?.zipCode || '',
+              };
+              setUser(freshUser);
+              setIsLoggedIn(true);
+              localStorage.setItem('user', JSON.stringify(freshUser));
+              if (freshUser.name) localStorage.setItem('matrices_last_synced_user_name', freshUser.name);
+              if (freshUser.email) localStorage.setItem('matrices_last_synced_user_email', freshUser.email);
+            }
+          }
+        } catch (e) {}
+      }
+    } catch (err) {
+      console.warn('Error restoring user session:', err);
+    }
+  };
+
+  // Restore and sync session on mount and listen to storage/sync events
+  useEffect(() => {
+    restoreUserSession();
+
+    const handleAuthUpdated = () => {
+      restoreUserSession();
+    };
+
+    window.addEventListener('matrices-auth-updated', handleAuthUpdated);
+    window.addEventListener('storage', handleAuthUpdated);
+    window.addEventListener('matrices-sync-stats-updated', handleAuthUpdated);
+
+    return () => {
+      window.removeEventListener('matrices-auth-updated', handleAuthUpdated);
+      window.removeEventListener('storage', handleAuthUpdated);
+      window.removeEventListener('matrices-sync-stats-updated', handleAuthUpdated);
+    };
+  }, []);
 
   // Check 24-hour expiration periodically and on window focus
   useEffect(() => {
@@ -150,12 +286,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoggedIn(true);
     markPinVerified(false);
     localStorage.setItem('user', JSON.stringify(newUser));
+    if (newUser.name) localStorage.setItem('matrices_last_synced_user_name', newUser.name);
+    if (newUser.email) localStorage.setItem('matrices_last_synced_user_email', newUser.email);
     localStorage.setItem('matrices_login_time', Date.now().toString());
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('matrices-auth-updated'));
+    }
   };
 
   const updateProfile = (profile: UserProfile) => {
     setUser(profile);
     localStorage.setItem('user', JSON.stringify(profile));
+    if (profile.name) localStorage.setItem('matrices_last_synced_user_name', profile.name);
+    if (profile.email) localStorage.setItem('matrices_last_synced_user_email', profile.email);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('matrices-auth-updated'));
+    }
   };
 
   const verifyPin = async (params: { pin?: string; password?: string; newPin?: string }): Promise<{
