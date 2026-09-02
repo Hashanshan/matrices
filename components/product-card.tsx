@@ -64,12 +64,11 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
   return (
     <>
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: index * 0.05 }}
-        viewport={{ once: true }}
-        whileHover={{ y: -5 }}
-        className="group h-full min-w-0 flex flex-col relative"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.2 }}
+        whileHover={{ y: -4 }}
+        className="group h-full min-w-0 flex flex-col relative will-change-transform"
       >
         {/* Main Card */}
         <div className="relative rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.1)] transition-all duration-300 h-full flex flex-col bg-white/20 backdrop-blur-2xl overflow-hidden border border-white/60">

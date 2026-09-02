@@ -4,7 +4,7 @@
  * or Base64 / Blob in IndexedDB (Web), eliminating reliance on volatile HTTP cache.
  *
  * KEY IMPROVEMENT: Builds an in-memory Map<url, localSrc> on first access so all subsequent
- * getCachedImageUrl() calls are O(1) synchronous lookups instead of async IndexedDB queries.
+ * getCachedImageUrlSync() calls are O(1) synchronous lookups instead of async IndexedDB queries.
  */
 
 import { offlineDB, ImageMapRecord } from './indexed-db';
@@ -14,15 +14,70 @@ const IMAGE_CACHE_NAME = 'matrices-product-images-v1';
 
 // ── In-memory image URL map for zero-latency synchronous lookups ─────────────────
 const imageMemoryMap: Map<string, string> = new Map();
+let isPrewarmingPromise: Promise<Map<string, string>> | null = null;
+let isPrewarmed = false;
 
-/** Pre-warm helper (no-op since map is initialized instantly) */
+/** Pre-warm helper that loads all mapped images into memory upfront */
 async function ensureImageMemoryMap(): Promise<Map<string, string>> {
-  return imageMemoryMap;
+  if (typeof window === 'undefined') return imageMemoryMap;
+  if (isPrewarmed && imageMemoryMap.size > 0) return imageMemoryMap;
+  if (isPrewarmingPromise) return isPrewarmingPromise;
+
+  isPrewarmingPromise = (async () => {
+    try {
+      // 1. Load all ImageMapRecords from IndexedDB in bulk (one transaction)
+      const records = await offlineDB.getAllImageMaps().catch(() => []);
+      const cap = getCapacitorCore();
+      const isNative = cap?.isNativePlatform?.() ?? false;
+
+      records.forEach((rec) => {
+        if (rec?.url && rec?.localSrc) {
+          // In native capacitor, native URIs are persistent file:// or capacitor://
+          if (isNative || !rec.localSrc.startsWith('blob:')) {
+            imageMemoryMap.set(rec.url, rec.localSrc);
+          }
+        }
+      });
+
+      // 2. In Web mode, read from CacheStorage to create valid active Blob Object URLs
+      if (!isNative && typeof window !== 'undefined' && 'caches' in window) {
+        try {
+          const cache = await caches.open(IMAGE_CACHE_NAME);
+          const keys = await cache.keys();
+          await Promise.all(
+            keys.map(async (req) => {
+              const url = req.url;
+              if (imageMemoryMap.has(url)) return;
+              const res = await cache.match(req);
+              if (res) {
+                const blob = await res.blob();
+                const objUrl = URL.createObjectURL(blob);
+                imageMemoryMap.set(url, objUrl);
+              }
+            })
+          );
+        } catch (e) {
+          console.warn('CacheStorage prewarm warning:', e);
+        }
+      }
+
+      isPrewarmed = true;
+    } catch (err) {
+      console.warn('Failed to pre-warm image memory map:', err);
+    } finally {
+      isPrewarmingPromise = null;
+    }
+    return imageMemoryMap;
+  })();
+
+  return isPrewarmingPromise;
 }
 
 /** Invalidate the in-memory map */
 export function invalidateImageMemoryMap(): void {
   imageMemoryMap.clear();
+  isPrewarmed = false;
+  isPrewarmingPromise = null;
 }
 
 /** Add/update a single entry in the in-memory map */
@@ -211,7 +266,7 @@ export async function cacheProductImages(
     onProgress?.(done, uniqueUrls.length);
   }
 
-  // Safe concurrency limit (4) to prevent memory saturation and native bridge congestion
+  // Concurrency limit (4) to prevent memory saturation and native bridge congestion
   const CONCURRENCY = 4;
   for (let i = 0; i < uncachedUrls.length; i += CONCURRENCY) {
     const chunk = uncachedUrls.slice(i, i + CONCURRENCY);
@@ -261,7 +316,13 @@ export async function getCachedImageUrl(url: string): Promise<string> {
       return imageMemoryMap.get(url)!;
     }
 
-    // 2. Fast single-key IndexedDB lookup (1ms)
+    // Ensure memory map is populated
+    await ensureImageMemoryMap();
+    if (imageMemoryMap.has(url)) {
+      return imageMemoryMap.get(url)!;
+    }
+
+    // 2. Fast single-key IndexedDB lookup
     const record = await offlineDB.getImageMap(url).catch(() => null);
     if (record?.localSrc && !record.localSrc.startsWith('blob:')) {
       updateImageMemoryMap(url, record.localSrc);
@@ -306,6 +367,33 @@ export function getCachedImageUrlSync(url: string): string | null {
  */
 export async function prewarmImageCache(): Promise<void> {
   await ensureImageMemoryMap();
+}
+
+/**
+ * Preload and decode a list of image URLs in GPU memory for instant display when swiping
+ */
+export function preloadAdjacentImages(imageUrls: string[]): void {
+  if (typeof window === 'undefined' || !Array.isArray(imageUrls)) return;
+
+  imageUrls.filter(Boolean).forEach(async (url) => {
+    try {
+      const resolvedSrc = getCachedImageUrlSync(url) || await getCachedImageUrl(url);
+      if (!resolvedSrc) return;
+
+      const img = new Image();
+      img.src = resolvedSrc;
+      if (typeof img.decode === 'function') {
+        img.decode().catch(() => {});
+      }
+    } catch {}
+  });
+}
+
+// Auto-trigger prewarm on client import
+if (typeof window !== 'undefined') {
+  setTimeout(() => {
+    ensureImageMemoryMap().catch(() => {});
+  }, 50);
 }
 
 export interface StorageStats {

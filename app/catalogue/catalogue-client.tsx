@@ -209,15 +209,15 @@ export default function CategoriesPage({ fallbackData }: { fallbackData?: any } 
             />
           </div>
 
-          <AnimatePresence mode="wait">
+          <AnimatePresence mode="popLayout" initial={false}>
             {!selectedCategory ? (
               // Top-Level Categories View
               <motion.div
                 key="categories"
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.3 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.18, ease: 'easeOut' }}
                 className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 backdrop-blur-[2px]"
               >
                 {filteredCategories.map((cat, index) => {
@@ -225,11 +225,11 @@ export default function CategoriesPage({ fallbackData }: { fallbackData?: any } 
                   return (
                     <motion.div
                       key={cat.name}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.4, delay: index * 0.05 }}
-                      whileHover={{ y: -5 }}
-                      className="relative group"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ duration: 0.15 }}
+                      whileHover={{ y: -4 }}
+                      className="relative group will-change-transform"
                     >
                       <div
                         onClick={() => {
@@ -249,8 +249,8 @@ export default function CategoriesPage({ fallbackData }: { fallbackData?: any } 
                                 src={cat.image}
                                 alt={cat.name}
                                 fill
-                                priority={index < 6 || isWishlisted}
-                                className="object-contain p-4 group-hover:scale-105 transition-transform duration-700 ease-out mix-blend-multiply drop-shadow-xl"
+                                priority={index < 8 || isWishlisted}
+                                className="object-contain p-4 group-hover:scale-105 transition-transform duration-500 ease-out mix-blend-multiply drop-shadow-xl"
                               />
                             ) : (
                               <div className="text-gray-400 font-semibold uppercase">NO IMAGE</div>
@@ -296,10 +296,10 @@ export default function CategoriesPage({ fallbackData }: { fallbackData?: any } 
               // Subcategories View (Under selected category)
               <motion.div
                 key="subcategories"
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.3 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.18, ease: 'easeOut' }}
                 className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 backdrop-blur-[2px]"
               >
                 {filteredSubcategories.map((sub, index) => {
@@ -307,11 +307,11 @@ export default function CategoriesPage({ fallbackData }: { fallbackData?: any } 
                   return (
                     <motion.div
                       key={sub.name}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.4, delay: index * 0.05 }}
-                      whileHover={{ y: -5 }}
-                      className="relative group"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ duration: 0.15 }}
+                      whileHover={{ y: -4 }}
+                      className="relative group will-change-transform"
                     >
                       <div
                         onClick={() => router.push(`/gallery?category=${encodeURIComponent(selectedCategory || '')}&subcategory=${encodeURIComponent(sub.name)}`)}
@@ -324,8 +324,8 @@ export default function CategoriesPage({ fallbackData }: { fallbackData?: any } 
                                 src={sub.image}
                                 alt={sub.name}
                                 fill
-                                priority={index < 6 || isWishlisted}
-                                className="object-contain p-4 group-hover:scale-105 transition-transform duration-700 ease-out mix-blend-multiply drop-shadow-xl"
+                                priority={index < 8 || isWishlisted}
+                                className="object-contain p-4 group-hover:scale-105 transition-transform duration-500 ease-out mix-blend-multiply drop-shadow-xl"
                               />
                             ) : (
                               <div className="text-gray-400 font-semibold uppercase">NO IMAGE</div>

@@ -13,7 +13,7 @@ import Link from 'next/link';
 import RelatedProducts from './related-products';
 import { Menu, Home, Grid, BookOpen } from 'lucide-react';
 import SmartImage from './smart-image';
-import { getCachedImageUrl, getCachedImageUrlSync } from '@/lib/offline/image-cache';
+import { getCachedImageUrl, getCachedImageUrlSync, preloadAdjacentImages } from '@/lib/offline/image-cache';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 import BackButton from './back-button';
@@ -196,58 +196,68 @@ export default function FullscreenProductViewer({
       return String(a.name || '').localeCompare(String(b.name || ''));
     });
 
-    return [targetProd, ...subMatches, ...catMatches, ...others].filter(Boolean) as Product[];
-  }, [products, initialProductId, viewerSearchQuery, activeSortBy]);
+    return [targetProd, ...subMatches, ...catMatches, ...others];
+  }, [products, initialProductId, viewerSearchQuery]);
+
+  // Set initial product index once when data arrives
+  useEffect(() => {
+    if (!validProducts.length) return;
+
+    if (!hasSetInitialIndex.current) {
+      if (initialProductId) {
+        const targetStr = initialProductId.toLowerCase().trim();
+        const targetClean = initialProductId.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+
+        const foundIndex = validProducts.findIndex((p: any) => {
+          if (p.isPlaceholder) return false;
+          const pProdId = String(p.productId || '').trim().toLowerCase();
+          const pId = String(p.id || '').trim().toLowerCase();
+          const pCode = String(p.code || p.productCode || '').trim().toLowerCase();
+          const pName = String(p.name || '').trim().toLowerCase();
+
+          if (pProdId === targetStr || pId === targetStr || pCode === targetStr) return true;
+          if (targetClean) {
+            const cProdId = pProdId.replace(/[^a-zA-Z0-9]/g, '');
+            const cCode = pCode.replace(/[^a-zA-Z0-9]/g, '');
+            const cId = pId.replace(/[^a-zA-Z0-9]/g, '');
+            const cName = pName.replace(/[^a-zA-Z0-9]/g, '');
+            if (cProdId === targetClean || cCode === targetClean || cId === targetClean) return true;
+            if (cName.includes(targetClean)) return true;
+          }
+          if (pName.includes(targetStr) || pCode.includes(targetStr) || pProdId.includes(targetStr)) return true;
+          return false;
+        });
+
+        if (foundIndex >= 0) {
+          setCurrentIndex(foundIndex);
+        }
+      }
+      hasSetInitialIndex.current = true;
+    }
+  }, [initialProductId, validProducts]);
 
   const currentProduct = validProducts[currentIndex] || validProducts[0] || null;
 
-  // Ensure currentIndex stays 0 when activeTarget changes
+  // Predictive GPU pre-decoding for adjacent slides (±4 surrounding images)
   useEffect(() => {
-    setCurrentIndex(0);
-  }, [viewerSearchQuery, initialProductId]);
+    if (!validProducts || validProducts.length === 0) return;
 
-  // Synchronous resolution of offline or cached image URL for zero-latency slide rendering
-  const rawImage = currentProduct?.image || (currentProduct as any)?.imageUrl || '';
-  const displayImg = getCachedImageUrlSync(rawImage) || rawImage;
-
-  // Async background fetch to populate local IndexedDB cache if not already stored
-  useEffect(() => {
-    if (rawImage && !(currentProduct as any)?.isPlaceholder) {
-      getCachedImageUrl(rawImage).catch(() => { });
-    }
-  }, [rawImage, currentProduct]);
-
-  // Pre-resolve images for adjacent products for instant swiping, both forward and backward
-  useEffect(() => {
-    if (!validProducts.length) return;
-    const len = validProducts.length;
-
-    const indicesToWarm = [
-      (currentIndex + 1) % len,
-      (currentIndex + 2) % len,
-      (currentIndex - 1 + len) % len,
-      (currentIndex - 2 + len) % len,
-    ];
-
-    indicesToWarm.forEach((idx) => {
+    const nearbyUrls: string[] = [];
+    const offsets = [-4, -3, -2, -1, 1, 2, 3, 4];
+    offsets.forEach((offset) => {
+      let idx = (currentIndex + offset) % validProducts.length;
+      if (idx < 0) idx += validProducts.length;
       const p = validProducts[idx];
-      if (p && !(p as any).isPlaceholder && p.image) {
-        getCachedImageUrl(p.image).catch(() => { });
-        if (typeof window !== 'undefined') {
-          const img = new window.Image();
-          img.src = p.image;
-        }
-      } else if (p && (p as any).isPlaceholder && prioritizeIndex) {
-        prioritizeIndex(idx);
+      if (p && !(p as any).isPlaceholder) {
+        const url = p.image || p.imageUrl || (Array.isArray(p.images) && p.images[0] ? p.images[0] : '');
+        if (url) nearbyUrls.push(url);
       }
     });
 
-    // Prioritize current index if placeholder
-    const curr = validProducts[currentIndex];
-    if (curr && (curr as any).isPlaceholder && prioritizeIndex) {
-      prioritizeIndex(currentIndex);
+    if (nearbyUrls.length > 0) {
+      preloadAdjacentImages(nearbyUrls);
     }
-  }, [currentIndex, validProducts, prioritizeIndex]);
+  }, [currentIndex, validProducts]);
 
   // Load more when approaching the end if paginated hook is used
   useEffect(() => {
@@ -328,23 +338,24 @@ export default function FullscreenProductViewer({
     }
   };
 
-  const pageFlipVariants = {
+  // Hardware-accelerated fast 2D slide transitions
+  const slideVariants = {
     enter: (dir: 'left' | 'right') => ({
-      rotateY: dir === 'left' ? -90 : 90,
+      x: dir === 'left' ? '60%' : '-60%',
       opacity: 0,
-      scale: 0.97,
+      scale: 0.98,
     }),
     center: {
       zIndex: 1,
-      rotateY: 0,
+      x: 0,
       opacity: 1,
       scale: 1,
     },
     exit: (dir: 'left' | 'right') => ({
       zIndex: 0,
-      rotateY: dir === 'left' ? 45 : -45,
+      x: dir === 'left' ? '-60%' : '60%',
       opacity: 0,
-      scale: 0.97,
+      scale: 0.98,
     }),
   };
 
@@ -410,33 +421,27 @@ export default function FullscreenProductViewer({
   const addToCartBtnText = isAddedToCart ? `IN CART (${inCartItem?.quantity}) - EDIT` : getAddToCartButtonLabel('ADD TO CART');
 
   return (
-    <div className="w-full h-screen !backdrop-blur-[2px] overflow-hidden relative max-w-full">
+    <div className="w-full h-screen !backdrop-blur-[2px] overflow-hidden relative max-w-full select-none">
       {/* Full Image Container */}
       <div
-        className="w-full h-full flex items-center justify-center relative cursor-move group"
+        className="w-full h-full flex items-center justify-center relative cursor-grab active:cursor-grabbing group will-change-transform"
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
-        style={{ perspective: 1600, perspectiveOrigin: '50% 50%' }}
       >
         <AnimatePresence initial={false} custom={direction}>
           <motion.div
             key={`${currentProduct.id || (currentProduct as any)._id || 'prod'}-${currentIndex}`}
             custom={direction}
-            variants={pageFlipVariants}
+            variants={slideVariants}
             initial="enter"
             animate="center"
             exit="exit"
             transition={{
-              type: 'tween',
-              ease: 'easeOut',
-              duration: 0.18,
+              x: { type: 'tween', ease: [0.22, 1, 0.36, 1], duration: 0.16 },
+              opacity: { duration: 0.14 },
+              scale: { duration: 0.16 },
             }}
-            className="absolute inset-0 flex items-center justify-center p-4 sm:p-8"
-            style={{
-              transformStyle: 'preserve-3d',
-              transformOrigin: 'left center',
-              backfaceVisibility: 'hidden',
-            }}
+            className="absolute inset-0 flex items-center justify-center p-4 sm:p-8 will-change-transform"
             onClick={() => setImageZoomed(!imageZoomed)}
           >
             <div
@@ -454,7 +459,7 @@ export default function FullscreenProductViewer({
               ) : (
                 <>
                   <SmartImage
-                    src={displayImg || currentProduct?.image || (currentProduct as any)?.imageUrl || ''}
+                    src={currentProduct?.image || (currentProduct as any)?.imageUrl || ''}
                     alt={currentProduct?.name || 'Product Image'}
                     className="w-full h-full object-contain rounded-3xl shadow-2xl"
                     priority
