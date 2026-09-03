@@ -22,6 +22,7 @@ import { getOfflineProducts } from '@/lib/hooks/use-products';
 interface ShopOption {
   shopId: string;
   name: string;
+  email?: string;
   phone?: string;
   address?: string;
 }
@@ -110,7 +111,7 @@ const productsFetcher = async (url: string) => {
       headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     });
     if (!res.ok) throw new Error('Failed to fetch products');
-    return await res.json();
+    return res.json();
   } catch {
     return await getOffline();
   }
@@ -119,22 +120,13 @@ const productsFetcher = async (url: string) => {
 function CreateOrderContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const shopIdFromUrl = searchParams.get('shopId');
   const editId = searchParams.get('editId');
 
   const { user, isPinVerified, resetPinVerification } = useAuth();
   const [showPinModal, setShowPinModal] = useState(true);
 
-  // Require Security PIN on every visit to /settings/orders/create
-  useEffect(() => {
-    resetPinVerification();
-  }, []);
-
-  // Show PIN modal if not yet verified
-  useEffect(() => {
-    setShowPinModal(!isPinVerified);
-  }, [isPinVerified]);
-
-  // State
+  const [allShops, setAllShops] = useState<ShopOption[]>([]);
   const [selectedShop, setSelectedShop] = useState<ShopOption | null>(null);
   const [isShopDropdownOpen, setIsShopDropdownOpen] = useState(false);
   const [shopFilterQuery, setShopFilterQuery] = useState('');
@@ -147,6 +139,11 @@ function CreateOrderContent() {
   const [discount, setDiscount] = useState<number>(0);
   const [notes, setNotes] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [status, setStatus] = useState<string>('Pending');
+
+  // Custom Price Editing modal / inline state
+  const [editingPriceIndex, setEditingPriceIndex] = useState<number | null>(null);
+  const [customPriceInput, setCustomPriceInput] = useState<string>('');
 
   // Product Selection Modal State & Refs
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
@@ -159,7 +156,17 @@ function CreateOrderContent() {
   const quantityInputRef = useRef<HTMLInputElement>(null);
   const noteInputRef = useRef<HTMLInputElement>(null);
 
-  // Close shop dropdown on outside click
+  // Require Security PIN on every visit to /settings/orders/create
+  useEffect(() => {
+    resetPinVerification();
+  }, []);
+
+  // Show PIN modal if not yet verified
+  useEffect(() => {
+    setShowPinModal(!isPinVerified);
+  }, [isPinVerified]);
+
+  // Click outside listener for shop dropdown
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (shopDropdownRef.current && !shopDropdownRef.current.contains(event.target as Node)) {
@@ -171,12 +178,10 @@ function CreateOrderContent() {
   }, []);
 
   // Fetch assigned shops (includes offline shops)
-  const { data: shopsData, isLoading: loadingShops } = useSWR(
+  const { data: shopsData } = useSWR(
     '/api/shops?limit=100',
     shopsFetcher
   );
-
-  const [allShops, setAllShops] = useState<ShopOption[]>([]);
 
   useEffect(() => {
     async function mergeShops() {
@@ -190,6 +195,7 @@ function CreateOrderContent() {
           shopMap.set(id, {
             shopId: id,
             name: s.name || 'Unnamed Shop',
+            email: s.email || '',
             phone: s.phone || '',
             address: s.address || '',
           });
@@ -201,6 +207,7 @@ function CreateOrderContent() {
           shopMap.set(s.shopId, {
             shopId: s.shopId,
             name: s.name || 'Unnamed Shop',
+            email: s.email || '',
             phone: s.phone || '',
             address: s.address || '',
           });
@@ -220,6 +227,7 @@ function CreateOrderContent() {
     return (
       (s.name || '').toLowerCase().includes(q) ||
       (s.shopId || '').toLowerCase().includes(q) ||
+      (s.email || '').toLowerCase().includes(q) ||
       (s.address || '').toLowerCase().includes(q)
     );
   });

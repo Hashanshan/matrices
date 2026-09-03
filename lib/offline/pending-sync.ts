@@ -540,6 +540,7 @@ async function resolveShopIdMapping(oldTempId: string, realShopId: string, serve
           const updatedShop = {
             ...targetShop,
             ...(serverShopData?.imageUrl ? { imageUrl: serverShopData.imageUrl } : {}),
+            ...(serverShopData?.email ? { email: serverShopData.email } : {}),
             ...(serverShopData?.phones ? { phones: serverShopData.phones } : {}),
             ...(serverShopData?.phone ? { phone: serverShopData.phone } : {})
           };
@@ -605,6 +606,7 @@ async function resolveShopIdMapping(oldTempId: string, realShopId: string, serve
         tempId: oldTempId,
         oldId: oldTempId,
         ...(serverShopData?.imageUrl ? { imageUrl: serverShopData.imageUrl } : {}),
+        ...(serverShopData?.email ? { email: serverShopData.email } : {}),
         ...(serverShopData?.phones ? { phones: serverShopData.phones } : {}),
         ...(serverShopData?.phone ? { phone: serverShopData.phone } : {})
       };

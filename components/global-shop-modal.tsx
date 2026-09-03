@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Store, Search, X, Check, Lock, MapPin, Phone, ShieldCheck, Delete, ArrowRight } from 'lucide-react';
+import { Store, Search, X, Check, Lock, MapPin, Phone, ShieldCheck, Delete, ArrowRight, Mail } from 'lucide-react';
 import { offlineDB } from '@/lib/offline/indexed-db';
 import { resolveApiUrl, getAuthToken } from '@/lib/utils';
 import { useAuth } from '@/lib/contexts/auth-context';
@@ -11,6 +11,7 @@ import useSWR from 'swr';
 export interface ShopOption {
   shopId: string;
   name: string;
+  email?: string;
   phone?: string;
   phones?: string[];
   address?: string;
@@ -124,6 +125,7 @@ export default function GlobalShopModal({
           shopMap.set(id, {
             shopId: id,
             name: s.name || 'Unnamed Shop',
+            email: s.email || '',
             phone: s.phone || (pList[0] || ''),
             phones: pList,
             address: s.address || '',
@@ -137,6 +139,7 @@ export default function GlobalShopModal({
           shopMap.set(s.shopId, {
             shopId: s.shopId,
             name: s.name || 'Unnamed Shop',
+            email: s.email || '',
             phone: s.phone || (pList[0] || ''),
             phones: pList,
             address: s.address || '',
@@ -155,10 +158,12 @@ export default function GlobalShopModal({
     const q = searchQuery.toLowerCase().trim();
     const phoneMatch = (s.phone || '').toLowerCase().includes(q) ||
       (Array.isArray(s.phones) && s.phones.some((p) => p.toLowerCase().includes(q)));
+    const emailMatch = (s.email || '').toLowerCase().includes(q);
     return (
       (s.name || '').toLowerCase().includes(q) ||
       (s.shopId || '').toLowerCase().includes(q) ||
       (s.address || '').toLowerCase().includes(q) ||
+      emailMatch ||
       phoneMatch
     );
   });
@@ -393,8 +398,13 @@ export default function GlobalShopModal({
                       >
                         <div className="space-y-1">
                           <h4 className="text-sm font-black uppercase">{shop.name}</h4>
-                          <div className="flex items-center gap-3 text-xs font-bold opacity-80">
+                          <div className="flex flex-wrap items-center gap-3 text-xs font-bold opacity-80">
                             <span className="font-mono">ID: {shop.shopId}</span>
+                            {shop.email && (
+                              <span className="flex items-center gap-1">
+                                <Mail size={12} /> {shop.email}
+                              </span>
+                            )}
                             {(() => {
                               const pList = Array.isArray(shop.phones) && shop.phones.length > 0
                                 ? shop.phones

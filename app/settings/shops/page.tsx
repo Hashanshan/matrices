@@ -8,7 +8,7 @@ import Pagination from '@/components/pagination';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Store, Phone, MapPin, Edit, ShieldCheck, Heart, Search, Lock, X, Check, FileText,
-  Plus, Camera, Upload, Navigation, ExternalLink, Image as ImageIcon, Trash2, Compass, RefreshCw
+  Plus, Camera, Upload, Navigation, ExternalLink, Image as ImageIcon, Trash2, Compass, RefreshCw, Mail
 } from 'lucide-react';
 import Link from 'next/link';
 import useSWR, { mutate } from 'swr';
@@ -24,6 +24,7 @@ import SmartImage from '@/components/smart-image';
 interface Shop {
   shopId: string;
   name: string;
+  email?: string;
   phone: string;
   phones?: string[];
   address: string;
@@ -55,10 +56,12 @@ const fetcher = async (url: string) => {
     const search = parseQuery();
     const filtered = search
       ? rawShops.filter((s: any) => {
+        const emailMatch = (s.email || '').toLowerCase().includes(search);
         const phoneMatch = (s.phone || '').toLowerCase().includes(search) ||
           (Array.isArray(s.phones) && s.phones.some((p: string) => (p || '').toLowerCase().includes(search)));
         return (s.name || '').toLowerCase().includes(search) ||
           (s.shopId || '').toLowerCase().includes(search) ||
+          emailMatch ||
           phoneMatch;
       })
       : rawShops;
@@ -108,6 +111,7 @@ export default function ShopsSettingsPage() {
 
   // Form Fields State
   const [formName, setFormName] = useState('');
+  const [formEmail, setFormEmail] = useState('');
   const [formPhones, setFormPhones] = useState<string[]>(['']);
   const [formAddress, setFormAddress] = useState('');
   const [formMapUrl, setFormMapUrl] = useState('');
@@ -162,6 +166,7 @@ export default function ShopsSettingsPage() {
   const handleOpenAddModal = () => {
     setEditingShop(null);
     setFormName('');
+    setFormEmail('');
     setFormPhones(['']);
     setFormAddress('');
     setFormMapUrl('');
@@ -173,6 +178,7 @@ export default function ShopsSettingsPage() {
     setIsAddModalOpen(false);
     setEditingShop(shop);
     setFormName(shop.name || '');
+    setFormEmail(shop.email || '');
     const existingPhones = Array.isArray(shop.phones) && shop.phones.length > 0
       ? shop.phones
       : (shop.phone ? shop.phone.split(',').map(p => p.trim()).filter(Boolean) : ['']);
@@ -186,6 +192,7 @@ export default function ShopsSettingsPage() {
     setIsAddModalOpen(false);
     setEditingShop(null);
     setFormName('');
+    setFormEmail('');
     setFormPhones(['']);
     setFormAddress('');
     setFormMapUrl('');
@@ -342,9 +349,11 @@ export default function ShopsSettingsPage() {
       }
 
       const primaryPhone = cleanPhones[0];
+      const cleanEmail = formEmail.trim().toLowerCase();
 
       const shopPayload = {
         name: formName,
+        email: cleanEmail,
         phone: primaryPhone,
         phones: cleanPhones,
         address: formAddress,
@@ -650,6 +659,20 @@ export default function ShopsSettingsPage() {
                               })()}
                             </div>
 
+                            {/* Email Address */}
+                            {shop.email && (
+                              <div className="flex items-center gap-1.5">
+                                <a
+                                  href={`mailto:${shop.email}`}
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white/70 hover:bg-[#0f172a] text-[#0f172a] hover:text-white rounded-full text-xs font-bold transition-all border border-white/80 shadow-2xs group/em truncate max-w-full"
+                                  title={`Email ${shop.email}`}
+                                >
+                                  <Mail size={11} className="text-blue-600 group-hover/em:text-blue-300 shrink-0" />
+                                  <span className="truncate">{shop.email}</span>
+                                </a>
+                              </div>
+                            )}
+
                             <div className="flex items-start gap-2 text-xs font-bold text-gray-600 uppercase">
                               <MapPin size={14} className="text-gray-500 mt-0.5 shrink-0" />
                               <span className="line-clamp-2">{shop.address || 'NO ADDRESS'}</span>
@@ -803,6 +826,25 @@ export default function ShopsSettingsPage() {
                   placeholder="E.G. METRO SUPERMART"
                   className="w-full px-4 py-3 bg-gray-50/50 border border-gray-300 focus:border-[#0f172a] rounded-2xl text-xs font-bold text-[#0f172a] focus:outline-none focus:ring-2 focus:ring-[#0f172a]/20 uppercase transition-all"
                 />
+              </div>
+
+              {/* Shop Email */}
+              <div>
+                <label className="block text-xs font-black text-[#0f172a] uppercase mb-1">
+                  SHOP EMAIL (OPTIONAL)
+                </label>
+                <div className="relative">
+                  <input
+                    type="email"
+                    value={formEmail}
+                    onChange={e => setFormEmail(e.target.value)}
+                    placeholder="E.G. CONTACT@METROSUPERMART.COM"
+                    className="w-full pl-9 pr-4 py-3 bg-gray-50/50 border border-gray-300 focus:border-[#0f172a] rounded-2xl text-xs font-bold text-[#0f172a] focus:outline-none focus:ring-2 focus:ring-[#0f172a]/20 transition-all placeholder:text-gray-400"
+                  />
+                  <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                    <Mail size={14} />
+                  </div>
+                </div>
               </div>
 
               {/* Phone Numbers (1 to 4) */}

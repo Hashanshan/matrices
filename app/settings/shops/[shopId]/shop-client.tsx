@@ -8,7 +8,7 @@ import PinModal from '@/components/pin-modal';
 import Pagination from '@/components/pagination';
 import InvoicePdfModal from '@/components/invoice-pdf-modal';
 import { motion } from 'framer-motion';
-import { Store, Phone, MapPin, ShieldCheck, Heart, Search, Lock, ArrowLeft, FileText, CheckCircle2, Clock, AlertCircle, XCircle, ShoppingBag, DollarSign, Calendar, RefreshCw, Eye, Navigation, ExternalLink } from 'lucide-react';
+import { Store, Phone, MapPin, ShieldCheck, Heart, Search, Lock, ArrowLeft, FileText, CheckCircle2, Clock, AlertCircle, XCircle, ShoppingBag, DollarSign, Calendar, RefreshCw, Eye, Navigation, ExternalLink, Mail } from 'lucide-react';
 import Link from 'next/link';
 import useSWR from 'swr';
 import { formatPrice } from '@/lib/currency';
@@ -16,6 +16,7 @@ import { formatPrice } from '@/lib/currency';
 interface Shop {
   shopId: string;
   name: string;
+  email?: string;
   phone: string;
   phones?: string[];
   address: string;
@@ -348,6 +349,19 @@ export default function ShopClient({ params }: { params?: Promise<{ shopId: stri
                           </a>
                         ))}
                       </div>
+
+                      {/* Shop Email */}
+                      {shop.email && (
+                        <a
+                          href={`mailto:${shop.email}`}
+                          className="inline-flex items-center gap-1.5 px-3 py-1 bg-white/70 hover:bg-[#0f172a] text-[#0f172a] hover:text-white rounded-full text-xs font-bold transition-all border border-white/80 shadow-2xs group/em"
+                          title={`Email ${shop.email}`}
+                        >
+                          <Mail size={12} className="text-blue-600 group-hover/em:text-blue-300 shrink-0" />
+                          <span>{shop.email}</span>
+                        </a>
+                      )}
+
                       <span className="flex items-center gap-1.5">
                         <MapPin size={14} className="text-gray-500 shrink-0" /> {shop.address}
                       </span>
