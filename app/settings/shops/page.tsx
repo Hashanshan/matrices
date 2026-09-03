@@ -98,9 +98,19 @@ const fetcher = async (url: string) => {
   }
 };
 
+import { useRouter } from 'next/navigation';
+
 export default function ShopsSettingsPage() {
-  const { isPinVerified, resetPinVerification } = useAuth();
+  const router = useRouter();
+  const { user, isPinVerified, resetPinVerification } = useAuth();
   const [showPinModal, setShowPinModal] = useState(true);
+
+  // If logged-in user is a shop account, block access and redirect to catalogue
+  useEffect(() => {
+    if (user?.role === 'shop') {
+      router.replace('/catalogue');
+    }
+  }, [user, router]);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [page, setPage] = useState(1);

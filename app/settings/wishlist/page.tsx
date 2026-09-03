@@ -13,8 +13,11 @@ import { getPendingActions, processPendingActionsStepByStep, PendingAction } fro
 
 export default function SettingsWishlistPage() {
   const { wishlist, isLoading, toggleCategoryWishlist, toggleSubcategoryWishlist, toggleProductWishlist, reorderWishlist } = useWishlist();
-  const { isPinVerified, resetPinVerification } = useAuth();
-  const [showPinModal, setShowPinModal] = useState(true);
+  const { user, isPinVerified, resetPinVerification } = useAuth();
+  const isShop = user?.role === 'shop';
+  const isAuthorized = isShop || isPinVerified;
+
+  const [showPinModal, setShowPinModal] = useState(!isShop);
 
   const [activeTab, setActiveTab] = useState<'all' | 'categories' | 'subcategories' | 'products' | 'offline_sync'>('all');
   const [pendingActions, setPendingActions] = useState<PendingAction[]>([]);
@@ -27,23 +30,30 @@ export default function SettingsWishlistPage() {
   const fullProducts = wishlist.fullProducts || [];
 
   const loadPending = async () => {
+    if (isShop) return;
     const list = await getPendingActions();
     setPendingActions(list);
   };
 
   useEffect(() => {
     loadPending();
-  }, [activeTab]);
+  }, [activeTab, isShop]);
 
-  // Require Security PIN on every visit to /settings/wishlist
+  // Require Security PIN on visit for salesreps only
   useEffect(() => {
-    resetPinVerification();
-  }, []);
+    if (!isShop) {
+      resetPinVerification();
+    }
+  }, [isShop]);
 
-  // Keep PIN modal open until PIN is verified
+  // Keep PIN modal open until PIN is verified (for salesreps)
   useEffect(() => {
-    setShowPinModal(!isPinVerified);
-  }, [isPinVerified]);
+    if (!isShop) {
+      setShowPinModal(!isPinVerified);
+    } else {
+      setShowPinModal(false);
+    }
+  }, [isPinVerified, isShop]);
 
   const handleProcessOfflineChanges = async () => {
     if (isSubmittingOffline || pendingActions.length === 0) return;
@@ -96,20 +106,22 @@ export default function SettingsWishlistPage() {
       <main className="min-h-screen bg-[url(/bg.png)] bg-cover bg-center bg-no-repeat bg-fixed py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
-          {/* PIN Verification Gate Modal */}
-          <PinModal
-            isOpen={showPinModal}
-            onClose={() => {
-              if (!isPinVerified) {
-                window.location.href = '/catalogue';
-              } else {
-                setShowPinModal(false);
-              }
-            }}
-            onSuccess={() => setShowPinModal(false)}
-          />
+          {/* PIN Verification Gate Modal (for salesreps only) */}
+          {!isShop && (
+            <PinModal
+              isOpen={showPinModal}
+              onClose={() => {
+                if (!isPinVerified) {
+                  window.location.href = '/catalogue';
+                } else {
+                  setShowPinModal(false);
+                }
+              }}
+              onSuccess={() => setShowPinModal(false)}
+            />
+          )}
 
-          {!isPinVerified ? (
+          {!isAuthorized ? (
             <div className="flex flex-col items-center justify-center py-32 text-center">
               <div className="w-20 h-20 bg-[#0f172a] text-white rounded-full flex items-center justify-center mb-4 shadow-xl border border-white/20">
                 <Lock size={36} />
@@ -163,7 +175,7 @@ export default function SettingsWishlistPage() {
                   { id: 'categories', label: 'Categories', count: categories.length, icon: Folder },
                   { id: 'subcategories', label: 'Subcategories', count: subcategories.length, icon: Layers },
                   { id: 'products', label: 'Products', count: fullProducts.length, icon: Package },
-                  { id: 'offline_sync', label: 'Offline Changes', count: pendingActions.length, icon: RefreshCw },
+                  ...(!isShop ? [{ id: 'offline_sync', label: 'Offline Changes', count: pendingActions.length, icon: RefreshCw }] : []),
                 ].map(tab => {
                   const Icon = tab.icon;
                   const isActive = activeTab === tab.id;

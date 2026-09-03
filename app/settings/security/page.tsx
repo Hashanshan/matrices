@@ -12,7 +12,10 @@ import { resolveApiUrl, getAuthToken } from '@/lib/utils';
 
 export default function SecuritySettingsPage() {
   const { user, isPinVerified, updateProfile, resetPinVerification } = useAuth();
-  const [showPinModal, setShowPinModal] = useState(true);
+  const isShop = user?.role === 'shop';
+  const isAuthorized = isShop || isPinVerified;
+
+  const [showPinModal, setShowPinModal] = useState(!isShop);
   const [activeTab, setActiveTab] = useState<'password' | 'pin'>('password');
 
   // Profile & Password form state
@@ -28,8 +31,6 @@ export default function SecuritySettingsPage() {
   const [formMsg, setFormMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
 
-  // Show PIN modal if not yet verified
-
   // Sync user profile values when context loads
   useEffect(() => {
     if (user) {
@@ -38,15 +39,21 @@ export default function SecuritySettingsPage() {
     }
   }, [user]);
 
-  // Require Security PIN on every visit to /settings/security
+  // Require Security PIN on visit for salesreps only
   useEffect(() => {
-    resetPinVerification();
-  }, []);
+    if (!isShop) {
+      resetPinVerification();
+    }
+  }, [isShop]);
 
-  // Keep PIN modal open until PIN is verified
+  // Keep PIN modal open until PIN is verified (for salesreps)
   useEffect(() => {
-    setShowPinModal(!isPinVerified);
-  }, [isPinVerified]);
+    if (!isShop) {
+      setShowPinModal(!isPinVerified);
+    } else {
+      setShowPinModal(false);
+    }
+  }, [isPinVerified, isShop]);
 
   // Save Password & Name Profile changes
   const handleSavePasswordProfile = async (e: React.FormEvent) => {
@@ -148,20 +155,22 @@ export default function SecuritySettingsPage() {
       <main className="min-h-screen bg-[url(/bg.png)] bg-cover bg-center bg-no-repeat bg-fixed py-8">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
 
-          {/* PIN Verification Gate Modal */}
-          <PinModal
-            isOpen={showPinModal}
-            onClose={() => {
-              if (!isPinVerified) {
-                window.location.href = '/catalogue';
-              } else {
-                setShowPinModal(false);
-              }
-            }}
-            onSuccess={() => setShowPinModal(false)}
-          />
+          {/* PIN Verification Gate Modal (for salesreps only) */}
+          {!isShop && (
+            <PinModal
+              isOpen={showPinModal}
+              onClose={() => {
+                if (!isPinVerified) {
+                  window.location.href = '/catalogue';
+                } else {
+                  setShowPinModal(false);
+                }
+              }}
+              onSuccess={() => setShowPinModal(false)}
+            />
+          )}
 
-          {!isPinVerified ? (
+          {!isAuthorized ? (
             <div className="flex flex-col items-center justify-center py-32 text-center">
               <div className="w-20 h-20 bg-[#0f172a] text-white rounded-full flex items-center justify-center mb-4 shadow-xl border border-white/20">
                 <Lock size={36} />
@@ -183,47 +192,42 @@ export default function SecuritySettingsPage() {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
                 <div>
                   <h1 className="text-3xl sm:text-4xl font-black text-[#0f172a] uppercase tracking-wide flex items-center gap-3">
-                    <ShieldCheck size={36} /> SECURITY SETTINGS
+                    <ShieldCheck size={36} /> {isShop ? 'ACCOUNT SECURITY' : 'SECURITY SETTINGS'}
                   </h1>
                   <p className="text-sm text-gray-500 font-bold tracking-wide mt-1 uppercase">
-                    MANAGE YOUR ACCOUNT PASSWORD AND 4-DIGIT SECURITY PIN
+                    {isShop ? 'MANAGE YOUR ACCOUNT PASSWORD' : 'MANAGE YOUR ACCOUNT PASSWORD AND 4-DIGIT SECURITY PIN'}
                   </p>
                 </div>
-
-                {/* <Link
-                  href="/settings/wishlist"
-                  className="inline-flex items-center gap-2 bg-white/60 hover:bg-white text-[#0f172a] px-6 py-3.5 rounded-full font-black text-xs uppercase tracking-wider border border-white/60 shadow-md transition-all self-start sm:self-auto"
-                >
-                  <Heart size={16} fill="#ef4444" className="text-red-500" /> GO TO MY WISHLIST
-                </Link> */}
               </div>
 
               {/* Navigation Tabs (iPad OS Pill Buttons) */}
-              <div className="flex flex-wrap items-center gap-3 mb-8 bg-white/30 backdrop-blur-xl p-2 rounded-full border border-white/60 shadow-[0_8px_32px_0_rgba(31,38,135,0.05)]">
-                {[
-                  { id: 'password', label: 'Password & Profile', icon: Lock },
-                  { id: 'pin', label: 'Security PIN', icon: Key },
-                ].map(tab => {
-                  const Icon = tab.icon;
-                  const isActive = activeTab === tab.id;
-                  return (
-                    <button
-                      key={tab.id}
-                      onClick={() => {
-                        setFormMsg(null);
-                        setActiveTab(tab.id as any);
-                      }}
-                      className={`flex items-center gap-2 px-7 py-3.5 rounded-full font-black text-xs sm:text-sm transition-all uppercase ${isActive
-                          ? 'bg-[#0f172a] text-white shadow-lg'
-                          : 'text-gray-600 hover:bg-white/50 hover:text-[#0f172a]'
-                        }`}
-                    >
-                      <Icon size={18} />
-                      {tab.label}
-                    </button>
-                  );
-                })}
-              </div>
+              {!isShop && (
+                <div className="flex flex-wrap items-center gap-3 mb-8 bg-white/30 backdrop-blur-xl p-2 rounded-full border border-white/60 shadow-[0_8px_32px_0_rgba(31,38,135,0.05)]">
+                  {[
+                    { id: 'password', label: 'Password & Profile', icon: Lock },
+                    { id: 'pin', label: 'Security PIN', icon: Key },
+                  ].map(tab => {
+                    const Icon = tab.icon;
+                    const isActive = activeTab === tab.id;
+                    return (
+                      <button
+                        key={tab.id}
+                        onClick={() => {
+                          setFormMsg(null);
+                          setActiveTab(tab.id as any);
+                        }}
+                        className={`flex items-center gap-2 px-7 py-3.5 rounded-full font-black text-xs sm:text-sm transition-all uppercase ${isActive
+                            ? 'bg-[#0f172a] text-white shadow-lg'
+                            : 'text-gray-600 hover:bg-white/50 hover:text-[#0f172a]'
+                          }`}
+                      >
+                        <Icon size={18} />
+                        {tab.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
 
               {/* Form Message Notification */}
               {formMsg && (

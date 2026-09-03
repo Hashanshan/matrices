@@ -68,6 +68,18 @@ const getDataMode = () =>
     ? (localStorage.getItem('matrices_data_mode') as 'online' | 'offline') || 'online'
     : 'online';
 
+const isShopUser = () => {
+  if (typeof window === 'undefined') return false;
+  try {
+    const userStr = localStorage.getItem('user') || localStorage.getItem('matrices_user');
+    if (userStr) {
+      const u = JSON.parse(userStr);
+      return u?.role === 'shop';
+    }
+  } catch {}
+  return false;
+};
+
 /** Read wishlist snapshot from IndexedDB */
 const readOfflineWishlist = async (): Promise<WishlistData> => {
   try {
@@ -91,11 +103,12 @@ const fetcher = async (url: string): Promise<WishlistResponse> => {
     return { success: true, wishlist: { categories: [], subcategories: [], products: [], fullProducts: [] } };
   }
 
+  const isShop = isShopUser();
   const mode = getDataMode();
   const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
 
-  // Offline mode OR device offline → serve from IndexedDB
-  if (mode === 'offline' || isOffline) {
+  // Offline mode OR device offline (for non-shops) → serve from IndexedDB
+  if (!isShop && (mode === 'offline' || isOffline)) {
     return { success: true, wishlist: await readOfflineWishlist() };
   }
 
@@ -107,8 +120,10 @@ const fetcher = async (url: string): Promise<WishlistResponse> => {
     if (!res.ok) throw new Error('Failed to fetch wishlist');
     return res.json();
   } catch {
-    // Network error → fall back to IndexedDB
-    return { success: true, wishlist: await readOfflineWishlist() };
+    if (!isShop) {
+      return { success: true, wishlist: await readOfflineWishlist() };
+    }
+    return { success: true, wishlist: { categories: [], subcategories: [], products: [], fullProducts: [] } };
   }
 };
 
@@ -169,11 +184,12 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
   };
 
   const toggleCategoryWishlist = async (name: string) => {
+    const isShop = isShopUser();
     const mode = getDataMode();
     const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
 
-    if (mode === 'offline' || isOffline) {
-      // Offline mode: Toggle category locally in IndexedDB & queue to SyncQueue
+    if (!isShop && (mode === 'offline' || isOffline)) {
+      // Offline mode: Toggle category locally in IndexedDB & queue to SyncQueue (Salesrep only)
       const current = { ...wishlistData };
       const exists = (current.categories || []).some(c => c.name.toUpperCase() === name.trim().toUpperCase());
       if (exists) {
@@ -217,7 +233,9 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
       });
       const updated = await res.json();
       if (updated?.success && updated?.wishlist) {
-        await offlineDB.saveBatch('wishlist', [{ id: 'user_wishlist', ...updated.wishlist }]);
+        if (!isShop) {
+          await offlineDB.saveBatch('wishlist', [{ id: 'user_wishlist', ...updated.wishlist }]);
+        }
         notifyWishlistChanged(updated.wishlist);
       }
     } catch (err) {
@@ -226,11 +244,12 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
   };
 
   const toggleSubcategoryWishlist = async (category: string, name: string) => {
+    const isShop = isShopUser();
     const mode = getDataMode();
     const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
 
-    if (mode === 'offline' || isOffline) {
-      // Offline mode: Toggle subcategory locally in IndexedDB & queue
+    if (!isShop && (mode === 'offline' || isOffline)) {
+      // Offline mode: Toggle subcategory locally in IndexedDB & queue (Salesrep only)
       const current = { ...wishlistData };
       const exists = (current.subcategories || []).some(
         s => s.category.toUpperCase() === category.trim().toUpperCase() && s.name.toUpperCase() === name.trim().toUpperCase()
@@ -281,7 +300,9 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
       });
       const updated = await res.json();
       if (updated?.success && updated?.wishlist) {
-        await offlineDB.saveBatch('wishlist', [{ id: 'user_wishlist', ...updated.wishlist }]);
+        if (!isShop) {
+          await offlineDB.saveBatch('wishlist', [{ id: 'user_wishlist', ...updated.wishlist }]);
+        }
         notifyWishlistChanged(updated.wishlist);
       }
     } catch (err) {
@@ -290,11 +311,12 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
   };
 
   const toggleProductWishlist = async (productId: string) => {
+    const isShop = isShopUser();
     const mode = getDataMode();
     const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
 
-    if (mode === 'offline' || isOffline) {
-      // Offline mode: Toggle product locally in IndexedDB & queue
+    if (!isShop && (mode === 'offline' || isOffline)) {
+      // Offline mode: Toggle product locally in IndexedDB & queue (Salesrep only)
       const current = { ...wishlistData };
       const strId = String(productId).trim();
       const exists = (current.products || []).some(p => String(p.productId).trim() === strId);
@@ -374,7 +396,9 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
       });
       const updated = await res.json();
       if (updated?.success && updated?.wishlist) {
-        await offlineDB.saveBatch('wishlist', [{ id: 'user_wishlist', ...updated.wishlist }]);
+        if (!isShop) {
+          await offlineDB.saveBatch('wishlist', [{ id: 'user_wishlist', ...updated.wishlist }]);
+        }
         notifyWishlistChanged(updated.wishlist);
       }
     } catch (err) {
@@ -383,6 +407,7 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
   };
 
   const reorderWishlist = async (type: 'category' | 'subcategory' | 'product', items: any[]) => {
+    const isShop = isShopUser();
     const mode = getDataMode();
     const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
 
@@ -407,12 +432,14 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
       }));
     }
 
-    // ── Always write to IDB & update SWR optimistically (zero-latency UI) ────
-    await offlineDB.saveBatch('wishlist', [{ id: 'user_wishlist', ...reordered }]);
+    // ── Always write to IDB (for salesreps) & update SWR optimistically (zero-latency UI) ────
+    if (!isShop) {
+      await offlineDB.saveBatch('wishlist', [{ id: 'user_wishlist', ...reordered }]);
+    }
     notifyWishlistChanged(reordered);
 
-    // ── Offline / no-network: queue for sync and return ───────────────────────
-    if (mode === 'offline' || isOffline) {
+    // ── Offline / no-network for salesreps: queue for sync and return ─────────
+    if (!isShop && (mode === 'offline' || isOffline)) {
       await addToSyncQueue({
         operation: 'UPDATE',
         entity: 'Wishlist',
@@ -425,7 +452,7 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // ── Online mode: push to live API, mirror confirmed state back to IDB ────
+    // ── Online mode / shop: push to live API, mirror confirmed state back ────
     const token = getAuthToken();
     try {
       const targetUrl = resolveApiUrl('/api/wishlist/reorder');
@@ -439,22 +466,26 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
       });
       const updated = await res.json();
       if (updated?.success && updated?.wishlist) {
-        // Mirror confirmed server state back to IDB & SWR
-        await offlineDB.saveBatch('wishlist', [{ id: 'user_wishlist', ...updated.wishlist }]);
+        if (!isShop) {
+          await offlineDB.saveBatch('wishlist', [{ id: 'user_wishlist', ...updated.wishlist }]);
+        }
         mutate(updated, { revalidate: false });
       }
     } catch (err) {
-      // Network dropped mid-session → queue reorder for next push
-      console.warn('Wishlist reorder API failed, queuing for sync:', err);
-      await addToSyncQueue({
-        operation: 'UPDATE',
-        entity: 'Wishlist',
-        entityId: `reorder_${type}`,
-        endpoint: '/api/wishlist/reorder',
-        method: 'PUT',
-        payload: { type, items },
-        title: `Reorder ${type} Wishlist`,
-      });
+      if (!isShop) {
+        console.warn('Wishlist reorder API failed, queuing for sync:', err);
+        await addToSyncQueue({
+          operation: 'UPDATE',
+          entity: 'Wishlist',
+          entityId: `reorder_${type}`,
+          endpoint: '/api/wishlist/reorder',
+          method: 'PUT',
+          payload: { type, items },
+          title: `Reorder ${type} Wishlist`,
+        });
+      } else {
+        console.error('Failed to reorder shop wishlist:', err);
+      }
     }
   };
 

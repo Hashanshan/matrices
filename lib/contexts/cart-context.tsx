@@ -6,6 +6,8 @@ import { offlineDB } from '../offline/indexed-db';
 import { addToSyncQueue } from '../offline/pending-sync';
 import GlobalShopModal, { ShopOption } from '@/components/global-shop-modal';
 import Swal from 'sweetalert2';
+import { useAuth } from './auth-context';
+import { resolveApiUrl, getAuthToken } from '../utils';
 
 interface CartContextType {
   cart: Cart;
@@ -30,12 +32,61 @@ interface CartContextType {
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
   const [cart, setCart] = useState<Cart>({ items: [], total: 0, itemCount: 0 });
   const [selectedShop, setSelectedShopState] = useState<ShopOption | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
 
   // Shop modal state
   const [isShopModalOpen, setIsShopModalOpen] = useState(false);
+
+  // Auto-set and lock shop when logged in as a customer shop; clear when logged out or salesrep
+  useEffect(() => {
+    if (user?.role === 'shop') {
+      const resolvedShopId = user.shopId || user.id || '';
+      if (resolvedShopId) {
+        const shopObj: ShopOption = {
+          shopId: resolvedShopId,
+          name: user.name || 'Your Shop',
+          address: user.address || (user.city ? `${user.city}` : ''),
+          phone: user.phone || '',
+          email: user.email || '',
+        };
+        setSelectedShopState(shopObj);
+        localStorage.setItem('matrices_cart_shop', JSON.stringify(shopObj));
+      }
+    } else if (!user) {
+      setSelectedShopState(null);
+    } else if (user.role !== 'shop') {
+      const savedShop = localStorage.getItem('matrices_cart_shop');
+      if (!savedShop) {
+        setSelectedShopState(null);
+      }
+    }
+  }, [user]);
+
+  // Listen to auth events to immediately synchronize selected shop state
+  useEffect(() => {
+    const handleAuthUpdated = () => {
+      const savedShop = localStorage.getItem('matrices_cart_shop');
+      if (savedShop) {
+        try {
+          setSelectedShopState(JSON.parse(savedShop));
+        } catch {
+          setSelectedShopState(null);
+        }
+      } else {
+        setSelectedShopState(null);
+      }
+    };
+
+    window.addEventListener('matrices-auth-updated', handleAuthUpdated);
+    window.addEventListener('storage', handleAuthUpdated);
+    return () => {
+      window.removeEventListener('matrices-auth-updated', handleAuthUpdated);
+      window.removeEventListener('storage', handleAuthUpdated);
+    };
+  }, []);
 
   // Load saved cart & selectedShop from localStorage on mount (App Restart Memory Persistence!)
   useEffect(() => {
@@ -106,6 +157,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   };
 
   const openShopModal = () => {
+    // If shop customer is logged in, their shop is auto-set and locked
+    if (user?.role === 'shop') return;
+
     // Close all other open popups first!
     closeAllOtherModals();
     setIsShopModalOpen(true);
@@ -117,6 +171,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   // Set selected shop with warning if cart already contains items for a different shop
   const setSelectedShop = async (shop: ShopOption | null) => {
+    if (user?.role === 'shop') return;
+
     if (shop && selectedShop && selectedShop.shopId !== shop.shopId && cart.items.length > 0) {
       const result = await Swal.fire({
         title: 'Switch Customer Shop?',
@@ -295,12 +351,13 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   };
 
   const deselectShop = () => {
+    if (user?.role === 'shop') return;
     clearCart();
     setSelectedShopState(null);
     localStorage.removeItem('matrices_cart_shop');
   };
 
-  // Submit active Cart directly to Local IndexedDB Orders & SyncQueue
+  // Submit active Cart directly to Local IndexedDB Orders & SyncQueue (or Live DB for shop role)
   const submitCartAsLocalOrder = async (discount = 0, notes = ''): Promise<boolean> => {
     if (!selectedShop) {
       Swal.fire('Shop Required', 'Please select a customer shop for this cart order.', 'warning');
@@ -316,6 +373,57 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       const subtotalVal = cart.total;
       const discountAmountVal = (subtotalVal * discount) / 100;
       const totalVal = subtotalVal - discountAmountVal;
+
+      // If logged-in user is a shop account, post directly to live backend
+      if (user?.role === 'shop') {
+        const token = getAuthToken();
+        const targetUrl = resolveApiUrl('/api/orders/create');
+        const res = await fetch(targetUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            shop: {
+              shopId: selectedShop.shopId,
+              name: selectedShop.name,
+              phone: selectedShop.phone || '',
+              address: selectedShop.address || '',
+            },
+            items: cart.items.map((it: any) => ({
+              productId: it.productId || it.id,
+              name: it.name || 'Product',
+              quantity: it.quantity,
+              price: it.price || 0,
+              originalPrice: it.price || 0,
+              note: it.notes || it.note || '',
+            })),
+            subtotal: subtotalVal,
+            discount,
+            discountAmount: discountAmountVal,
+            total: totalVal,
+            orderDate: new Date().toISOString().split('T')[0],
+            notes,
+          }),
+        });
+
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          throw new Error(data.msg || data.message || 'Failed to submit order');
+        }
+
+        Swal.fire({
+          icon: 'success',
+          title: 'Order Placed Directly',
+          text: `Order #${data.order?.orderId || ''} submitted directly to the database.`,
+          timer: 2000,
+          showConfirmButton: false,
+        });
+
+        clearCart();
+        return true;
+      }
 
       const localOrderId = `LOCAL_ORD_${Date.now()}`;
       const displayOrderId = `DRAFT-${Math.floor(1000 + Math.random() * 9000)}`;
@@ -369,9 +477,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       setSelectedShop(null);
 
       return true;
-    } catch (err) {
-      console.error('Failed to submit cart as local order:', err);
-      Swal.fire('Error', 'Failed to submit cart order to local storage.', 'error');
+    } catch (err: any) {
+      console.error('Failed to submit cart order:', err);
+      Swal.fire('Error', err.message || 'Failed to submit cart order.', 'error');
       return false;
     }
   };

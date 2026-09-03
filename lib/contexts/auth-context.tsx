@@ -104,6 +104,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem('token');
     localStorage.removeItem('matrices_token');
     localStorage.removeItem('matrices_login_time');
+    localStorage.removeItem('matrices_cart_shop');
+    localStorage.removeItem('matrices_cart');
+    localStorage.removeItem('cart');
+    if (typeof sessionStorage !== 'undefined') {
+      sessionStorage.clear();
+    }
     document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new Event('matrices-auth-updated'));
@@ -155,10 +161,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 id: data.id || data._id || parsedUser?.id || '',
                 name: data.name || parsedUser?.name || '',
                 email: data.email || parsedUser?.email || '',
+                role: data.role || parsedUser?.role || (data.shopId ? 'shop' : 'salesrep'),
+                shopId: data.shopId || parsedUser?.shopId || '',
                 phone: data.phone || parsedUser?.phone || '',
                 address: data.address || parsedUser?.address || '',
                 city: data.city || parsedUser?.city || '',
                 zipCode: data.zipCode || parsedUser?.zipCode || '',
+                hasPinSet: data.hasPinSet ?? parsedUser?.hasPinSet,
               };
               setUser(freshUser);
               setIsLoggedIn(true);
@@ -242,6 +251,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (newUser.name) localStorage.setItem('matrices_last_synced_user_name', newUser.name);
     if (newUser.email) localStorage.setItem('matrices_last_synced_user_email', newUser.email);
     localStorage.setItem('matrices_login_time', Date.now().toString());
+
+    if (newUser.role === 'shop') {
+      offlineDB.clearAllData().catch(() => {});
+      localStorage.removeItem('matrices_last_synced_user_email');
+      localStorage.removeItem('matrices_last_synced_user_name');
+      localStorage.setItem('matrices_data_mode', 'online');
+      const shopObj = {
+        shopId: newUser.shopId || newUser.id,
+        name: newUser.name || 'Your Shop',
+        email: newUser.email || '',
+        phone: newUser.phone || '',
+        address: newUser.address || (newUser.city ? `${newUser.city}` : ''),
+      };
+      localStorage.setItem('matrices_cart_shop', JSON.stringify(shopObj));
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('matrices-data-mode-change'));
+        window.dispatchEvent(new Event('matrices-sync-stats-updated'));
+      }
+    } else {
+      // Salesrep / Admin login: Always start with clean customer selection
+      localStorage.removeItem('matrices_cart_shop');
+    }
+
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new Event('matrices-auth-updated'));
     }
@@ -263,25 +295,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const token = getAuthToken();
     const isOnline = typeof navigator !== 'undefined' && navigator.onLine;
 
-    // ── Local PIN check FIRST (synced local DB priority) ─────────────────────
+    // ── Local PIN check FIRST (synced local DB priority for current user) ─────
     if (params.pin && !params.password) {
       try {
         const storedPinUser = await offlineDB.getSecure('pin_user_email');
         const currentUserEmail = (user?.email || '').toLowerCase().trim();
 
-        // Security check: If PIN belongs to a previous/different user, reject offline verification
-        if (storedPinUser && currentUserEmail && storedPinUser.toLowerCase().trim() !== currentUserEmail) {
-          return { success: false, msg: 'Security PIN was set by another salesrep. Please verify with your password online.' };
-        }
-
-        const storedHash = await offlineDB.getSecure('pin_hash');
-        if (storedHash) {
-          const inputHash = hashPin(params.pin);
-          if (inputHash === storedHash) {
-            markPinVerified(true);
-            return { success: true, msg: 'PIN verified' };
-          } else {
-            return { success: false, msg: 'Incorrect PIN' };
+        // If stored PIN belongs to the CURRENT user, verify locally
+        if (storedPinUser && currentUserEmail && storedPinUser.toLowerCase().trim() === currentUserEmail) {
+          const storedHash = await offlineDB.getSecure('pin_hash');
+          if (storedHash) {
+            const inputHash = hashPin(params.pin);
+            if (inputHash === storedHash) {
+              markPinVerified(true);
+              return { success: true, msg: 'PIN verified' };
+            } else {
+              return { success: false, msg: 'Incorrect PIN' };
+            }
+          }
+        } else if (!isOnline) {
+          // If completely offline and PIN belongs to a different user, reject
+          if (storedPinUser && currentUserEmail && storedPinUser.toLowerCase().trim() !== currentUserEmail) {
+            return { success: false, msg: 'Security PIN was set by another salesrep. Please connect to the internet to verify with your password online.' };
           }
         }
       } catch {

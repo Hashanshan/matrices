@@ -286,13 +286,15 @@ export default function CartPage() {
     setIsSubmitting(false);
 
     if (success) {
-      Swal.fire({
-        icon: 'success',
-        title: 'Order Saved to Local DB!',
-        text: `Order for ${selectedShop.name} saved to local IndexedDB and queued for sync.`,
-        timer: 2000,
-        showConfirmButton: false,
-      });
+      if (user?.role !== 'shop') {
+        Swal.fire({
+          icon: 'success',
+          title: 'Order Saved to Local DB!',
+          text: `Order for ${selectedShop?.name || 'Customer'} saved to local IndexedDB and queued for sync.`,
+          timer: 2000,
+          showConfirmButton: false,
+        });
+      }
 
       router.push('/settings/orders');
     }
@@ -306,12 +308,14 @@ export default function CartPage() {
     <>
       <Header showSearch={false} />
 
-      {/* Security PIN Gate Modal for Shop Deselection */}
-      <PinModal
-        isOpen={showDeselectPinModal}
-        onClose={() => setShowDeselectPinModal(false)}
-        onSuccess={handleDeselectPinSuccess}
-      />
+      {/* Security PIN Gate Modal for Shop Deselection (Salesrep only) */}
+      {user?.role !== 'shop' && (
+        <PinModal
+          isOpen={showDeselectPinModal}
+          onClose={() => setShowDeselectPinModal(false)}
+          onSuccess={handleDeselectPinSuccess}
+        />
+      )}
 
       <main className="min-h-screen bg-[#f8f9fc] pb-16">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
@@ -323,7 +327,9 @@ export default function CartPage() {
                 SHOPPING CART
               </h1>
               <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-                Review & Submit Cart Order to Local Database
+                {user?.role === 'shop'
+                  ? 'Review & Submit Cart Order Directly to Database'
+                  : 'Review & Submit Cart Order to Local Database'}
               </p>
             </div>
 
@@ -357,11 +363,16 @@ export default function CartPage() {
               </div>
               <div>
                 <span className="text-[10px] font-black uppercase tracking-wider text-gray-400">
-                  Target Customer Shop for Order
+                  {user?.role === 'shop' ? 'Your Ordering Shop Account' : 'Target Customer Shop for Order'}
                 </span>
                 {selectedShop ? (
-                  <h2 className="text-base sm:text-lg font-black text-[#0f172a] uppercase">
+                  <h2 className="text-base sm:text-lg font-black text-[#0f172a] uppercase flex items-center gap-2 flex-wrap">
                     {selectedShop.name} <span className="text-xs font-mono font-bold text-blue-600">({selectedShop.shopId})</span>
+                    {user?.role === 'shop' && (
+                      <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                        Auto-Selected Shop
+                      </span>
+                    )}
                   </h2>
                 ) : (
                   <h2 className="text-sm sm:text-base font-black text-amber-600 uppercase">
@@ -374,26 +385,28 @@ export default function CartPage() {
               </div>
             </div>
 
-            {/* Shop Actions: DESELECT SHOP + CHANGE SHOP */}
-            <div className="flex items-center gap-2 flex-wrap">
-              {selectedShop && (
+            {/* Shop Actions: DESELECT SHOP + CHANGE SHOP (Hidden for shop role) */}
+            {user?.role !== 'shop' && (
+              <div className="flex items-center gap-2 flex-wrap">
+                {selectedShop && (
+                  <button
+                    type="button"
+                    onClick={handleDeselectShopClick}
+                    className="px-5 py-3 bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 text-xs font-black uppercase rounded-full border border-red-200 shadow-xs transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 active:scale-95"
+                  >
+                    <XCircle size={15} /> DESELECT SHOP
+                  </button>
+                )}
+
                 <button
                   type="button"
-                  onClick={handleDeselectShopClick}
-                  className="px-5 py-3 bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 text-xs font-black uppercase rounded-full border border-red-200 shadow-xs transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 active:scale-95"
+                  onClick={() => openShopModal()}
+                  className="px-5 py-3 bg-[#0f172a] hover:bg-[#1e293b] text-white text-xs font-black uppercase rounded-full shadow-sm transition-all cursor-pointer whitespace-nowrap active:scale-95"
                 >
-                  <XCircle size={15} /> DESELECT SHOP
+                  {selectedShop ? 'CHANGE SHOP' : 'SELECT CUSTOMER SHOP'}
                 </button>
-              )}
-
-              <button
-                type="button"
-                onClick={() => openShopModal()}
-                className="px-5 py-3 bg-[#0f172a] hover:bg-[#1e293b] text-white text-xs font-black uppercase rounded-full shadow-sm transition-all cursor-pointer whitespace-nowrap active:scale-95"
-              >
-                {selectedShop ? 'CHANGE SHOP' : 'SELECT CUSTOMER SHOP'}
-              </button>
-            </div>
+              </div>
+            )}
           </div>
 
           {cart.items.length === 0 ? (
@@ -605,7 +618,7 @@ export default function CartPage() {
                     className="w-full bg-[#0f172a] hover:bg-[#1e293b] disabled:opacity-50 text-white font-black py-4 rounded-full shadow-md text-xs uppercase tracking-wider cursor-pointer active:scale-95 flex items-center justify-center gap-2"
                   >
                     <Save size={16} />
-                    {isSubmitting ? 'SUBMITTING ORDER...' : 'SUBMIT ORDER (LOCAL DB)'}
+                    {isSubmitting ? 'SUBMITTING ORDER...' : 'SUBMIT ORDER '}
                   </Button>
 
                   <Button

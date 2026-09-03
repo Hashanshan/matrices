@@ -113,9 +113,10 @@ const fetcher = async (url: string) => {
   }
 };
 
-import { useParams, useSearchParams } from 'next/navigation';
+import { useParams, useSearchParams, useRouter } from 'next/navigation';
 
 export default function ShopClient({ params }: { params?: Promise<{ shopId: string }> }) {
+  const router = useRouter();
   const routerParams = useParams();
   const searchParams = useSearchParams();
 
@@ -134,8 +135,15 @@ export default function ShopClient({ params }: { params?: Promise<{ shopId: stri
     ? rawParam
     : (queryParam || rawParam || '1');
 
-  const { isPinVerified, resetPinVerification } = useAuth();
+  const { user, isPinVerified, resetPinVerification } = useAuth();
   const [showPinModal, setShowPinModal] = useState(true);
+
+  // If logged-in user is a shop account, block access and redirect to catalogue
+  useEffect(() => {
+    if (user?.role === 'shop') {
+      router.replace('/catalogue');
+    }
+  }, [user, router]);
 
   const [activeTab, setActiveTab] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');

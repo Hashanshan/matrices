@@ -124,7 +124,10 @@ function CreateOrderContent() {
   const editId = searchParams.get('editId');
 
   const { user, isPinVerified, resetPinVerification } = useAuth();
-  const [showPinModal, setShowPinModal] = useState(true);
+  const isShop = user?.role === 'shop';
+  const isAuthorized = isShop || isPinVerified;
+
+  const [showPinModal, setShowPinModal] = useState(!isShop);
 
   const [allShops, setAllShops] = useState<ShopOption[]>([]);
   const [selectedShop, setSelectedShop] = useState<ShopOption | null>(null);
@@ -156,15 +159,34 @@ function CreateOrderContent() {
   const quantityInputRef = useRef<HTMLInputElement>(null);
   const noteInputRef = useRef<HTMLInputElement>(null);
 
-  // Require Security PIN on every visit to /settings/orders/create
+  // Require Security PIN on visit for salesreps only
   useEffect(() => {
-    resetPinVerification();
-  }, []);
+    if (!isShop) {
+      resetPinVerification();
+    }
+  }, [isShop]);
 
-  // Show PIN modal if not yet verified
+  // Keep PIN modal open until PIN is verified (for salesreps)
   useEffect(() => {
-    setShowPinModal(!isPinVerified);
-  }, [isPinVerified]);
+    if (!isShop) {
+      setShowPinModal(!isPinVerified);
+    } else {
+      setShowPinModal(false);
+    }
+  }, [isPinVerified, isShop]);
+
+  // If user is a shop account, default and lock selected shop to their shop
+  useEffect(() => {
+    if (isShop && user) {
+      setSelectedShop({
+        shopId: user.shopId || user.id,
+        name: user.name || 'My Shop',
+        email: user.email || '',
+        phone: user.phone || '',
+        address: user.address || '',
+      });
+    }
+  }, [isShop, user]);
 
   // Click outside listener for shop dropdown
   useEffect(() => {
@@ -417,6 +439,49 @@ function CreateOrderContent() {
       const discountAmountVal = calculateDiscountAmount();
       const totalVal = calculateTotal();
 
+      if (isShop) {
+        const token = getAuthToken();
+        const targetUrl = resolveApiUrl('/api/orders/create');
+        const res = await fetch(targetUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            shop: {
+              shopId: selectedShop.shopId,
+              name: selectedShop.name,
+              phone: selectedShop.phone || '',
+              address: selectedShop.address || '',
+            },
+            items: orderItems,
+            subtotal: subtotalVal,
+            discount,
+            discountAmount: discountAmountVal,
+            total: totalVal,
+            orderDate,
+            notes,
+          }),
+        });
+
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          throw new Error(data.msg || data.message || 'Failed to submit order');
+        }
+
+        Swal.fire({
+          icon: 'success',
+          title: 'Order Placed Directly',
+          text: `Order #${data.order?.orderId || ''} submitted directly to the database.`,
+          timer: 2000,
+          showConfirmButton: false,
+        });
+
+        router.push('/settings/orders');
+        return;
+      }
+
       const localOrderId = editId || `LOCAL_ORD_${Date.now()}`;
       const displayOrderId = editId ? editId : `DRAFT-${Math.floor(1000 + Math.random() * 9000)}`;
 
@@ -490,9 +555,9 @@ function CreateOrderContent() {
       });
 
       router.push('/settings/orders');
-    } catch (err) {
-      console.error('Failed to save order locally:', err);
-      Swal.fire('Error', 'Failed to save order to local storage.', 'error');
+    } catch (err: any) {
+      console.error('Failed to save order:', err);
+      Swal.fire('Error', err.message || 'Failed to submit order.', 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -502,21 +567,23 @@ function CreateOrderContent() {
     <div className="min-h-screen pb-16 bg-[url(/bg.png)] bg-cover bg-center bg-no-repeat bg-fixed">
       <Header showSearch={false} />
 
-      {/* Security PIN Gate Modal */}
-      <PinModal
-        isOpen={showPinModal}
-        onClose={() => {
-          if (!isPinVerified) {
-            window.location.href = '/catalogue';
-          } else {
-            setShowPinModal(false);
-          }
-        }}
-        onSuccess={() => setShowPinModal(false)}
-      />
+      {/* Security PIN Gate Modal (for salesreps only) */}
+      {!isShop && (
+        <PinModal
+          isOpen={showPinModal}
+          onClose={() => {
+            if (!isPinVerified) {
+              window.location.href = '/catalogue';
+            } else {
+              setShowPinModal(false);
+            }
+          }}
+          onSuccess={() => setShowPinModal(false)}
+        />
+      )}
 
       <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
-        {!isPinVerified ? (
+        {!isAuthorized ? (
           <div className="flex flex-col items-center justify-center py-24 sm:py-32 text-center px-4 bg-white/70 backdrop-blur-2xl rounded-[2.5rem]">
             <div className="w-16 h-16 sm:w-20 sm:h-20 bg-[#0f172a] text-white rounded-full flex items-center justify-center mb-4 shadow-xl border border-white/20">
               <ShoppingBag size={32} />
@@ -549,15 +616,21 @@ function CreateOrderContent() {
                     {editId ? 'EDIT DRAFT ORDER' : 'CREATE NEW ORDER'}
                   </h1>
                   <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-                    Offline-First Local Order Creation
+                    {isShop ? 'Live Direct Server Order Placement' : 'Offline-First Local Order Creation'}
                   </p>
                 </div>
               </div>
 
               <div className="flex items-center gap-2">
-                <span className="text-xs font-black text-amber-900 bg-amber-100 border border-amber-300 px-3.5 py-1.5 rounded-full flex items-center gap-1.5 uppercase">
-                  <Clock size={14} className="text-amber-600" /> Local Draft Mode
-                </span>
+                {isShop ? (
+                  <span className="text-xs font-black text-emerald-900 bg-emerald-100 border border-emerald-300 px-3.5 py-1.5 rounded-full flex items-center gap-1.5 uppercase">
+                    <Clock size={14} className="text-emerald-600" /> Live Online Mode
+                  </span>
+                ) : (
+                  <span className="text-xs font-black text-amber-900 bg-amber-100 border border-amber-300 px-3.5 py-1.5 rounded-full flex items-center gap-1.5 uppercase">
+                    <Clock size={14} className="text-amber-600" /> Local Draft Mode
+                  </span>
+                )}
               </div>
             </div>
 
@@ -569,15 +642,15 @@ function CreateOrderContent() {
                 {/* Auto-Assigned Salesrep Card */}
                 <div className="bg-white border border-slate-200/80 rounded-3xl p-5 shadow-xs space-y-2">
                   <label className="text-xs font-black text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
-                    <User size={14} className="text-blue-600" /> Sales Representative (Auto-Assigned)
+                    <User size={14} className="text-blue-600" /> {isShop ? 'Ordering Account' : 'Sales Representative (Auto-Assigned)'}
                   </label>
                   <div className="flex items-center justify-between bg-slate-50/80 border border-slate-200/70 rounded-2xl p-3.5">
                     <div>
-                      <p className="text-sm font-black text-[#0f172a] uppercase">{user?.name || 'Logged-in Salesrep'}</p>
-                      <p className="text-xs font-bold text-gray-400">{user?.email || 'salesrep@matrices.com'}</p>
+                      <p className="text-sm font-black text-[#0f172a] uppercase">{user?.name || (isShop ? 'Shop Customer' : 'Logged-in Salesrep')}</p>
+                      <p className="text-xs font-bold text-gray-400">{user?.email || (isShop ? 'shop@matrices.com' : 'salesrep@matrices.com')}</p>
                     </div>
                     <span className="text-[10px] font-mono font-black text-emerald-800 bg-emerald-100 px-2.5 py-1 rounded-full uppercase">
-                      Auto Assigned
+                      {isShop ? 'Verified Shop' : 'Auto Assigned'}
                     </span>
                   </div>
                 </div>
@@ -600,28 +673,34 @@ function CreateOrderContent() {
               {/* Custom Interactive Shop Selection Dropdown (GORGEOUS ROUNDED BORDERS!) */}
               <div className="bg-white border border-slate-200/80 rounded-3xl p-5 shadow-xs space-y-3 relative" ref={shopDropdownRef}>
                 <label className="text-xs font-black text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
-                  <Store size={14} className="text-blue-600" /> SELECT CUSTOMER SHOP *
+                  <Store size={14} className="text-blue-600" /> {isShop ? 'YOUR SHOP ACCOUNT' : 'SELECT CUSTOMER SHOP *'}
                 </label>
 
                 {/* Custom Trigger Button */}
                 <button
                   type="button"
-                  onClick={() => setIsShopDropdownOpen(!isShopDropdownOpen)}
-                  className="w-full flex items-center justify-between bg-slate-50/80 hover:bg-slate-100/80 border-2 border-slate-200/90 rounded-2xl p-4 text-left transition-all shadow-xs focus:outline-none focus:ring-2 focus:ring-[#0f172a]/20 focus:border-[#0f172a] cursor-pointer"
+                  disabled={isShop}
+                  onClick={() => { if (!isShop) setIsShopDropdownOpen(!isShopDropdownOpen); }}
+                  className={`w-full flex items-center justify-between border-2 rounded-2xl p-4 text-left transition-all shadow-xs focus:outline-none ${isShop
+                    ? 'bg-slate-100/90 border-slate-300 text-slate-700 cursor-default'
+                    : 'bg-slate-50/80 hover:bg-slate-100/80 border-slate-200/90 focus:ring-2 focus:ring-[#0f172a]/20 focus:border-[#0f172a] cursor-pointer'
+                  }`}
                 >
                   {selectedShop ? (
                     <div className="space-y-0.5 truncate">
-                      <p className="text-sm font-black text-[#0f172a] uppercase">{selectedShop.name}</p>
+                      <p className="text-sm font-black text-[#0f172a] uppercase">{selectedShop.name} {isShop && '(Your Shop)'}</p>
                       <p className="text-xs font-bold text-gray-400 font-mono">
                         ID: {selectedShop.shopId} {selectedShop.address ? `• ${selectedShop.address}` : ''}
                       </p>
                     </div>
                   ) : (
                     <span className="text-sm font-black text-gray-500 uppercase">
-                      -- SELECT SHOP ASSIGNED TO YOU --
+                      Click to Select Customer Shop...
                     </span>
                   )}
-                  <ChevronDown size={18} className={`text-gray-400 transition-transform ${isShopDropdownOpen ? 'rotate-180' : ''}`} />
+                  {!isShop && (
+                    <ChevronDown size={18} className={`text-gray-400 transition-transform ${isShopDropdownOpen ? 'rotate-180' : ''}`} />
+                  )}
                 </button>
 
                 {/* Custom Animated Options Dropdown Panel */}

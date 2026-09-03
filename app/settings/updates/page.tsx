@@ -22,8 +22,19 @@ import {
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
+import { useRouter } from 'next/navigation';
+
 export default function UpdatesSettingsPage() {
+  const router = useRouter();
   const { user } = useAuth();
+
+  // If logged-in user is a shop account, block access and redirect to catalogue
+  useEffect(() => {
+    if (user?.role === 'shop') {
+      router.replace('/catalogue');
+    }
+  }, [user, router]);
+
   const [manifest, setManifest] = useState<UpdateManifest | null>(null);
   const [currentVersion, setCurrentVersion] = useState<string>('1.0.0');
   const [isChecking, setIsChecking] = useState(false);

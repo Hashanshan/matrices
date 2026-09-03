@@ -100,9 +100,10 @@ const fetcher = async (url: string) => {
   }
 };
 
-import { useParams, useSearchParams } from 'next/navigation';
+import { useParams, useSearchParams, useRouter } from 'next/navigation';
 
 export default function OrderPdfClient({ params }: { params?: Promise<{ orderId: string }> }) {
+  const router = useRouter();
   const routerParams = useParams();
   const searchParams = useSearchParams();
 
@@ -121,9 +122,16 @@ export default function OrderPdfClient({ params }: { params?: Promise<{ orderId:
     ? rawParam
     : (queryParam || rawParam || '1');
 
-  const { isPinVerified, resetPinVerification } = useAuth();
+  const { user, isPinVerified, resetPinVerification } = useAuth();
   const [showPinModal, setShowPinModal] = useState(true);
   const [isDownloading, setIsDownloading] = useState(false);
+
+  // If logged-in user is a shop account, block access and redirect to catalogue
+  useEffect(() => {
+    if (user?.role === 'shop') {
+      router.replace('/catalogue');
+    }
+  }, [user, router]);
 
   const { data, error, isLoading } = useSWR(`/api/orders/${orderId}`, fetcher, {
     revalidateOnFocus: true,

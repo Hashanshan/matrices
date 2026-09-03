@@ -157,11 +157,14 @@ function LoginFormContent() {
 
       if (res.ok) {
         const userObj = {
-          id: data.id || cleanEmail,
+          id: data.id || data.shopId || cleanEmail,
           name: data.name,
           email: data.email,
           role: data.role,
-          token: data.token
+          shopId: data.shopId || data.id,
+          phone: data.phone || '',
+          address: data.address || '',
+          token: data.token,
         };
 
         // Cache offline credentials securely for future 24-hour offline logins
@@ -174,7 +177,35 @@ function LoginFormContent() {
           console.warn('Failed to cache offline auth credentials:', e);
         }
 
-        // 1. Check existing offline sync metadata and previously synced user
+        // If logged-in user is a shop, immediately clear all offline cache and redirect to catalogue in online mode
+        if (data.role === 'shop') {
+          login(userObj as any);
+          localStorage.setItem('token', data.token);
+          localStorage.setItem('matrices_login_time', Date.now().toString());
+          document.cookie = `token=${data.token}; path=/; max-age=86400; SameSite=Lax`;
+
+          await offlineDB.clearAllData().catch(() => {});
+          await clearSyncQueue().catch(() => {});
+          await clearMatricesFolder().catch(() => {});
+          if (typeof window !== 'undefined' && 'caches' in window) {
+            try {
+              await caches.delete('matrices-product-images-v1');
+            } catch {}
+          }
+          invalidateImageMemoryMap();
+          invalidateProductIndex();
+
+          localStorage.setItem('matrices_data_mode', 'online');
+          localStorage.removeItem('matrices_last_synced_user_email');
+          localStorage.removeItem('matrices_last_synced_user_name');
+          window.dispatchEvent(new Event('matrices-data-mode-change'));
+          window.dispatchEvent(new Event('matrices-sync-stats-updated'));
+
+          router.push('/catalogue');
+          return;
+        }
+
+        // 1. Check existing offline sync metadata and previously synced user (for salesreps)
         const existingMeta = await offlineDB.getMeta().catch(() => null);
         const storedSyncedEmail = (
           existingMeta?.syncedUserEmail ||
@@ -281,13 +312,75 @@ function LoginFormContent() {
     }
   };
 
+  const handleForgotPassword = async () => {
+    const SwalModule = await import('sweetalert2');
+    const Swal = SwalModule.default;
+    const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+
+    const { value: emailInput } = await Swal.fire({
+      title: 'Reset Password',
+      text: 'Enter your registered email address to receive a newly generated password.',
+      input: 'email',
+      inputValue: email.trim(),
+      inputPlaceholder: 'name@example.com',
+      showCancelButton: true,
+      confirmButtonText: 'Send New Password',
+      confirmButtonColor: '#0f172a',
+      cancelButtonColor: '#64748b',
+      inputValidator: (val) => {
+        if (!val || !val.includes('@')) {
+          return 'Please enter a valid email address';
+        }
+      },
+      showLoaderOnConfirm: true,
+      preConfirm: async (enteredEmail) => {
+        try {
+          const res = await fetch(`${BACKEND_URL}/api/catelogue/auth/forgot-password`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: enteredEmail.trim() }),
+          });
+          const json = await res.json();
+          if (!res.ok || !json.success) {
+            throw new Error(json.msg || json.message || 'Failed to request password reset');
+          }
+          return json;
+        } catch (err: any) {
+          Swal.showValidationMessage(err.message || 'Error communicating with server');
+        }
+      },
+      allowOutsideClick: () => !Swal.isLoading(),
+    });
+
+    if (emailInput) {
+      await Swal.fire({
+        icon: 'success',
+        title: 'Password Dispatched!',
+        html: `
+          <div style="text-align: left; font-size: 13px; line-height: 1.6; color: #1e293b;">
+            <p style="margin-bottom: 8px;">
+              A new password has been generated and sent to <strong>${emailInput}</strong>.
+            </p>
+            <div style="background: #fffbeb; border: 1px solid #fde68a; border-left: 4px solid #f59e0b; padding: 10px 12px; border-radius: 8px; margin-bottom: 12px;">
+              <p style="font-weight: 700; color: #92400e; margin: 0 0 4px 0;">📬 Check Spam / Junk Folder</p>
+              <p style="font-size: 12px; color: #78350f; margin: 0;">
+                If you do not see the email in your inbox within a couple of minutes, please check your <strong>Spam or Junk folder</strong>.
+              </p>
+            </div>
+            <p style="font-size: 11px; color: #64748b; margin: 0;">
+              * For security purposes, password reset requests can only be made once every 1 hour.
+            </p>
+          </div>
+        `,
+        confirmButtonText: 'Return to Sign In',
+        confirmButtonColor: '#0f172a',
+      });
+    }
+  };
+
   return (
-    <div className="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8   bg-[url(/bg.png)]
-    bg-cover
-    bg-center
-    bg-no-repeat
-    bg-fixed">
-      <div className=" rounded-[2rem] max-w-md w-full bg-white/10 backdrop-blur-sm border border-[#0f172a] space-y-8 p-8 sm:p-10 rounded-2xl shadow-xl transition-all duration-300 hover:shadow-2xl">
+    <div className="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-[url(/bg.png)] bg-cover bg-center bg-no-repeat bg-fixed">
+      <div className="rounded-[2rem] max-w-md w-full bg-white/10 backdrop-blur-sm border border-[#0f172a] space-y-8 p-8 sm:p-10 shadow-xl transition-all duration-300 hover:shadow-2xl">
         <div>
           {/* logo */}
           <Image
@@ -298,10 +391,10 @@ function LoginFormContent() {
             className='mx-auto h-auto w-60'
           />
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900 dark:text-white tracking-tight">
-            Sales Representative Login
+            Matrices Sign In
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
-            Sign in to access the product catalogue
+            Sign in to access your catalogue and orders
           </p>
         </div>
         {expiredMsg && (
@@ -311,16 +404,16 @@ function LoginFormContent() {
         )}
 
         <form className="mt-8 space-y-6" onSubmit={handleLogin}>
-          <div className="rounded-md  -space-y-px ">
-            <div className="mb-4 ">
-              <label htmlFor="email-address" className="sr-only rounded-[2rem]">Email address</label>
+          <div className="rounded-md -space-y-px">
+            <div className="mb-4">
+              <label htmlFor="email-address" className="sr-only">Email address</label>
               <input
                 id="email-address"
                 name="email"
                 type="email"
                 autoComplete="email"
                 required
-                className="appearance-none rounded-[1rem]  relative block w-full px-3 py-3 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900  focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm transition-colors duration-200"
+                className="appearance-none rounded-[1rem] relative block w-full px-3 py-3 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm transition-colors duration-200"
                 placeholder="Email address"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -334,12 +427,22 @@ function LoginFormContent() {
                 type="password"
                 autoComplete="current-password"
                 required
-                className="appearance-none rounded-[1rem] relative block w-full px-3 py-3 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900  focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm transition-colors duration-200"
+                className="appearance-none rounded-[1rem] relative block w-full px-3 py-3 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm transition-colors duration-200"
                 placeholder="Password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
             </div>
+          </div>
+
+          <div className="flex items-center justify-end -mt-3">
+            <button
+              type="button"
+              onClick={handleForgotPassword}
+              className="text-xs font-bold text-gray-700 hover:text-black transition-colors underline cursor-pointer"
+            >
+              Forgot Password?
+            </button>
           </div>
 
           {error && (
@@ -353,7 +456,7 @@ function LoginFormContent() {
               type="submit"
               disabled={loading}
               className={`group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-[1rem] text-white ${loading ? 'bg-[#0f172a] cursor-not-allowed' : 'bg-[#0f172a] hover:bg-[#233042] focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500'
-                } transition-all duration-200 ease-in-out transform hover:-translate-y-0.5`}
+                } transition-all duration-200 ease-in-out transform hover:-translate-y-0.5 cursor-pointer`}
             >
               {loading ? (
                 <span className="flex items-center">

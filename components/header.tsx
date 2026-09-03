@@ -16,6 +16,8 @@ import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 
 
+import { useRouter } from 'next/navigation';
+import Swal from 'sweetalert2';
 import BackButton from './back-button';
 
 interface HeaderProps {
@@ -25,8 +27,9 @@ interface HeaderProps {
 }
 
 export default function Header({ searchQuery = '', onSearchChange, showSearch = true }: HeaderProps) {
+  const router = useRouter();
   const { user, isLoggedIn, logout } = useAuth();
-  const { cart, selectedShop } = useCart();
+  const { cart, selectedShop, clearCart } = useCart();
   const { triggerSync, isSyncing, progress, openSyncModal } = useSync();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -52,14 +55,59 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
     };
   }, [showProfileMenu]);
 
-  const handleLogout = () => {
-    logout();
-    setShowProfileMenu(false);
-  };
-
   const closeAll = () => {
     setMobileMenuOpen(false);
     setShowProfileMenu(false);
+  };
+
+  const handleLogout = async () => {
+    closeAll();
+
+    const itemCount = cart.items.length || cart.itemCount || 0;
+    if (itemCount > 0) {
+      const result = await Swal.fire({
+        icon: 'warning',
+        title: 'Unsubmitted Cart Items!',
+        html: `
+          <div style="text-align: left; font-size: 13px; line-height: 1.6; color: #1e293b;">
+            <p style="margin-bottom: 8px;">
+              You have <strong>${itemCount} item(s)</strong> in your shopping cart${selectedShop?.name ? ` for <strong>${selectedShop.name}</strong>` : ''}.
+            </p>
+            <div style="background: #fffbeb; border: 1px solid #fde68a; border-left: 4px solid #f59e0b; padding: 10px 12px; border-radius: 8px; margin-bottom: 12px;">
+              <p style="font-weight: 700; color: #92400e; margin: 0 0 4px 0;">⚠️ Unsubmitted Cart Warning</p>
+              <p style="font-size: 12px; color: #78350f; margin: 0;">
+                Logging out will clear your active cart and unsubmitted products will be removed.
+              </p>
+            </div>
+            <p style="font-weight: 600; color: #0f172a; margin: 0;">
+              Would you like to review & submit your cart order first, or clear cart and proceed with logout?
+            </p>
+          </div>
+        `,
+        showCancelButton: true,
+        showDenyButton: true,
+        confirmButtonText: '🛒 Review & Submit Cart',
+        denyButtonText: '🗑️ Clear Cart & Log Out',
+        cancelButtonText: 'Cancel',
+        confirmButtonColor: '#0f172a',
+        denyButtonColor: '#dc2626',
+        cancelButtonColor: '#64748b',
+      });
+
+      if (result.isConfirmed) {
+        router.push('/cart');
+        return;
+      } else if (result.isDenied) {
+        clearCart();
+        logout();
+        return;
+      } else {
+        // Cancel clicked
+        return;
+      }
+    }
+
+    logout();
   };
 
   // nav links shared between hamburger & desktop
@@ -69,15 +117,19 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
     { href: '/view', label: 'Products', icon: Grid },
   ];
 
-  const profileLinks = [
+  const allProfileLinks = [
     { href: '/settings/orders', label: 'My Orders', icon: ShoppingBag, iconClass: 'text-amber-500' },
     { href: '/settings/wishlist', label: 'My Wishlist', icon: Heart, iconClass: 'text-red-500 fill-red-500' },
-    { href: '/settings/shops', label: 'My Shops', icon: Store, iconClass: '' },
-    { href: '/settings/invoices', label: 'My Invoices', icon: FileText, iconClass: '' },
-    { href: '/settings/sync', label: 'Data Sync & Storage', icon: RefreshCw, iconClass: 'text-emerald-600' },
-    { href: '/settings/updates', label: 'App Updates & APK', icon: Download, iconClass: 'text-blue-600' },
+    { href: '/settings/shops', label: 'My Shops', icon: Store, iconClass: '', salesrepOnly: true },
+    { href: '/settings/invoices', label: 'My Invoices', icon: FileText, iconClass: '', salesrepOnly: true },
+    { href: '/settings/sync', label: 'Data Sync & Storage', icon: RefreshCw, iconClass: 'text-emerald-600', salesrepOnly: true },
+    { href: '/settings/updates', label: 'App Updates & APK', icon: Download, iconClass: 'text-blue-600', salesrepOnly: true },
     { href: '/settings/security', label: 'Security Settings', icon: ShieldCheck, iconClass: '' },
   ];
+
+  const profileLinks = user?.role === 'shop'
+    ? allProfileLinks.filter(l => !l.salesrepOnly)
+    : allProfileLinks;
 
   return (
     <header className="sticky top-0 z-50  backdrop-blur-2xl border-b border-white/40 shadow-[0_8px_32px_0_rgba(31,38,135,0.05)]">
@@ -132,7 +184,7 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
           {/* ───── Right Actions ───── */}
           <div className="flex items-center gap-3 md:gap-6">
             {/* Live Background Sync Indicator */}
-            {isSyncing && (
+            {isSyncing && user?.role !== 'shop' && (
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
@@ -350,7 +402,7 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
 
                           <motion.button
                             whileTap={{ scale: 0.98 }}
-                            onClick={() => { closeAll(); logout(); }}
+                            onClick={handleLogout}
                             className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white font-black py-4 rounded-full transition-all uppercase text-xs tracking-wider shadow-lg shadow-red-500/20 cursor-pointer"
                           >
                             <LogOut size={16} />

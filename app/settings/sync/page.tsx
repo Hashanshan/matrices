@@ -19,8 +19,19 @@ import { getStorageStats, StorageStats } from '@/lib/offline/image-cache';
 import { NativeAdapter } from '@/mobile/bridge/native-adapter';
 import { SyncQueueItem } from '@/lib/offline/pending-sync';
 
+import { useRouter } from 'next/navigation';
+
 export default function SyncSettingsPage() {
+  const router = useRouter();
   const { isPinVerified, resetPinVerification, user } = useAuth();
+
+  // If logged-in user is a shop account, block access and redirect to catalogue
+  useEffect(() => {
+    if (user?.role === 'shop') {
+      router.replace('/catalogue');
+    }
+  }, [user, router]);
+
   const {
     isSyncing, progress, syncStatusText, lastSyncedAt, isOffline, meta, isIncompleteSync,
     triggerSync, resumeSync, queueItems, pendingQueueCount, failedQueueCount, isPushing, pushStatusText,
