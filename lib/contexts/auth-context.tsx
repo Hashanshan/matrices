@@ -14,6 +14,7 @@ interface AuthContextType {
   updateProfile: (profile: UserProfile) => void;
   verifyPin: (params: { pin?: string; password?: string; newPin?: string }) => Promise<{ success: boolean; msg: string; hasPinSet?: boolean; requirePassword?: boolean; requireNewPin?: boolean }>;
   resetPinVerification: () => void;
+  markPinVerified: (verified: boolean) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -412,6 +413,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         updateProfile,
         verifyPin,
         resetPinVerification,
+        markPinVerified,
       }}
     >
       {children}
