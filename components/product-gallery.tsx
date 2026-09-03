@@ -307,6 +307,8 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
   };
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [mobileOptionsOpen, setMobileOptionsOpen] = useState(false);
+  const [isMobileBarHidden, setIsMobileBarHidden] = useState(false);
   const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
 
@@ -316,12 +318,16 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
       setSidebarOpen(false);
       return true;
     }
+    if (mobileOptionsOpen) {
+      setMobileOptionsOpen(false);
+      return true;
+    }
     if (expandedCategories.length > 0) {
       setExpandedCategories([]);
       return true;
     }
     return false;
-  }, sidebarOpen || expandedCategories.length > 0);
+  }, sidebarOpen || mobileOptionsOpen || expandedCategories.length > 0);
 
   // Map frontend sortBy to backend sort param
   const backendSort = filters.sortBy === 'price-low' ? 'price-low'
@@ -616,102 +622,158 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
       </div>
 
       {/* Premium Controls Bar */}
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4 bg-white/30 backdrop-blur-2xl rounded-[2rem] p-4 px-6 border border-white/60 shadow-[0_8px_32px_0_rgba(31,38,135,0.05)] sticky top-[80px] z-30"
-      >
-        <div className="flex items-center justify-between w-full lg:w-auto">
+      {isMobileBarHidden ? (
+        <div className="lg:hidden sticky top-[72px] z-30 flex justify-end mb-4">
           <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="hidden md:flex items-center gap-3 px-6 py-3.5 bg-[#0f172a] text-white rounded-full font-bold text-sm hover:bg-[#1e293b] shadow-lg shadow-blue-900/10 transition-all border border-transparent hover:border-blue-800"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setIsMobileBarHidden(false)}
+            className="flex items-center gap-2 px-4 py-2 bg-[#0f172a]/90 backdrop-blur-md text-white text-xs font-bold rounded-full shadow-lg border border-white/20"
           >
-            {sidebarOpen ? <PanelLeftClose size={18} /> : <PanelLeftOpen size={18} />}
-            {sidebarOpen ? 'Hide Filters' : 'Show Filters'}
+            <Filter size={14} />
+            <span>Show Filters & Sort</span>
+            <span className="bg-white/20 px-2 py-0.5 rounded-full text-[10px]">{totalCount}</span>
           </motion.button>
-
-          <Button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="md:hidden bg-[#0f172a] text-white hover:bg-[#1e293b] rounded-full py-3 px-6 font-bold text-sm shadow-md flex items-center gap-2"
-          >
-            <Filter size={18} />
-            Filters
-          </Button>
-
-          <div className="lg:hidden text-sm text-gray-500 font-black px-4 bg-gray-50 py-2 rounded-full uppercase">
-            {totalCount} <span className="font-semibold">Items</span>
-          </div>
         </div>
-
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
-          <div className="w-full sm:w-52">
-            <CustomSelect
-              value={filters.sortBy}
-              onChange={(val) => setFilters((prev) => ({ ...prev, sortBy: val as any }))}
-              icon={<SortDesc size={16} />}
-              options={[
-                { label: 'Newest First', value: 'newest' },
-                { label: 'Price: Low to High', value: 'price-low' },
-                { label: 'Price: High to Low', value: 'price-high' },
-                { label: 'Highest Rated', value: 'rating' },
-              ]}
-            />
-          </div>
-
-          <div className="w-full sm:w-48">
-            <CustomSelect
-              value={filters.timeFilter || 'all'}
-              onChange={(val) => setFilters((prev) => ({ ...prev, timeFilter: val as any }))}
-              icon={<Clock size={16} />}
-              options={[
-                { label: 'All Products', value: 'all' },
-                { label: '1 Week (Updated)', value: '1week' },
-                { label: '2 Weeks (Updated)', value: '2week' },
-                { label: '3 Weeks (Updated)', value: '3week' },
-              ]}
-            />
-          </div>
-
-          <div className="w-full sm:w-36">
-            <CustomSelect
-              value={filters.gridSize.toString()}
-              onChange={(val) => setFilters((prev) => ({ ...prev, gridSize: parseInt(val) }))}
-              icon={<LayoutGrid size={16} />}
-              options={
-                sidebarOpen
-                  ? [
-                    { label: '2 Columns', value: '2' },
-                    { label: '3 Columns', value: '3' },
-                  ]
-                  : [
-                    { label: '2 Columns', value: '2' },
-                    { label: '3 Columns', value: '3' },
-                    { label: '4 Columns', value: '4' },
-                  ]
-              }
-            />
-          </div>
-
-          {/* Clear Filters Button in Controls Bar */}
-          {hasActiveFilters && (
+      ) : (
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-2.5 lg:gap-4 bg-white/40 backdrop-blur-2xl rounded-2xl lg:rounded-[2rem] p-2.5 px-3.5 sm:p-3 sm:px-4 lg:p-4 lg:px-6 border border-white/60 shadow-[0_8px_32px_0_rgba(31,38,135,0.05)] sticky top-[72px] lg:top-[80px] z-30 transition-all duration-300 mb-4 lg:mb-6"
+        >
+          {/* Top Row on Mobile / Left Section on Desktop */}
+          <div className="flex items-center justify-between w-full lg:w-auto gap-2">
+            {/* Desktop Filter Toggle Button */}
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
-              onClick={handleClearFilters}
-              className="px-4 py-3 bg-red-50 text-red-600 hover:bg-red-100 rounded-full font-bold text-sm transition-all border border-red-200 flex items-center gap-2"
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="hidden md:flex items-center gap-3 px-6 py-3.5 bg-[#0f172a] text-white rounded-full font-bold text-sm hover:bg-[#1e293b] shadow-lg shadow-blue-900/10 transition-all border border-transparent hover:border-blue-800"
             >
-              <X size={16} />
-              Clear Filters
+              {sidebarOpen ? <PanelLeftClose size={18} /> : <PanelLeftOpen size={18} />}
+              {sidebarOpen ? 'Hide Filters' : 'Show Filters'}
             </motion.button>
-          )}
 
-          <div className="hidden lg:flex items-center justify-center px-6 py-3.5 bg-gray-50 border-2 border-gray-100 rounded-full text-sm text-[#0f172a] font-black min-w-[120px] uppercase">
-            {totalCount} <span className="font-semibold text-gray-500 ml-1">Products</span>
+            {/* Mobile Category Filters Button */}
+            <Button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="md:hidden bg-[#0f172a] text-white hover:bg-[#1e293b] rounded-full py-2 px-3.5 font-bold text-xs shadow-md flex items-center gap-1.5 h-auto"
+            >
+              <Filter size={14} />
+              <span>Filters</span>
+              {filters.categories.length > 0 && (
+                <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />
+              )}
+            </Button>
+
+            {/* Mobile Quick Options (Sort, Time, Columns) Toggle */}
+            <button
+              type="button"
+              onClick={() => setMobileOptionsOpen(!mobileOptionsOpen)}
+              className={`lg:hidden flex items-center gap-1.5 py-1.5 px-3 rounded-full text-xs font-bold transition-all border ${
+                mobileOptionsOpen || (filters.sortBy !== 'newest' || (filters.timeFilter && filters.timeFilter !== 'all'))
+                  ? 'bg-[#0f172a] text-white border-[#0f172a] shadow-sm'
+                  : 'bg-white/90 text-gray-800 border-gray-200 hover:bg-gray-100'
+              }`}
+            >
+              <SortDesc size={13} />
+              <span>Sort & View</span>
+              <ChevronDown
+                size={13}
+                className={`transition-transform duration-200 ${mobileOptionsOpen ? 'rotate-180' : ''}`}
+              />
+            </button>
+
+            {/* Mobile Item Count Badge */}
+            <div className="lg:hidden text-xs text-gray-600 font-black px-3 py-1 bg-gray-100/90 rounded-full uppercase tracking-tight flex items-center gap-1">
+              <span>{totalCount}</span> <span className="font-semibold text-gray-500">Items</span>
+            </div>
+
+            {/* Mobile Hide Bar Button */}
+            <button
+              type="button"
+              onClick={() => setIsMobileBarHidden(true)}
+              title="Hide sticky controls"
+              className="lg:hidden p-1.5 text-gray-400 hover:text-gray-700 hover:bg-black/5 rounded-full transition-colors"
+            >
+              <X size={15} />
+            </button>
           </div>
-        </div>
-      </motion.div>
+
+          {/* Options Section: Collapsible on Mobile, always horizontal on Desktop (Laptop) */}
+          <div
+            className={`${
+              mobileOptionsOpen ? 'flex' : 'hidden'
+            } lg:flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto pt-2.5 lg:pt-0 border-t border-gray-200/60 lg:border-t-0`}
+          >
+            <div className="w-full sm:w-52">
+              <CustomSelect
+                value={filters.sortBy}
+                onChange={(val) => setFilters((prev) => ({ ...prev, sortBy: val as any }))}
+                icon={<SortDesc size={16} />}
+                options={[
+                  { label: 'Newest First', value: 'newest' },
+                  { label: 'Price: Low to High', value: 'price-low' },
+                  { label: 'Price: High to Low', value: 'price-high' },
+                  { label: 'Highest Rated', value: 'rating' },
+                ]}
+              />
+            </div>
+
+            <div className="w-full sm:w-48">
+              <CustomSelect
+                value={filters.timeFilter || 'all'}
+                onChange={(val) => setFilters((prev) => ({ ...prev, timeFilter: val as any }))}
+                icon={<Clock size={16} />}
+                options={[
+                  { label: 'All Products', value: 'all' },
+                  { label: '1 Week (Updated)', value: '1week' },
+                  { label: '2 Weeks (Updated)', value: '2week' },
+                  { label: '3 Weeks (Updated)', value: '3week' },
+                ]}
+              />
+            </div>
+
+            <div className="w-full sm:w-36">
+              <CustomSelect
+                value={filters.gridSize.toString()}
+                onChange={(val) => setFilters((prev) => ({ ...prev, gridSize: parseInt(val) }))}
+                icon={<LayoutGrid size={16} />}
+                options={
+                  sidebarOpen
+                    ? [
+                      { label: '2 Columns', value: '2' },
+                      { label: '3 Columns', value: '3' },
+                    ]
+                    : [
+                      { label: '2 Columns', value: '2' },
+                      { label: '3 Columns', value: '3' },
+                      { label: '4 Columns', value: '4' },
+                    ]
+                }
+              />
+            </div>
+
+            {/* Clear Filters Button in Controls Bar */}
+            {hasActiveFilters && (
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={handleClearFilters}
+                className="px-4 py-2.5 lg:py-3 bg-red-50 text-red-600 hover:bg-red-100 rounded-full font-bold text-xs sm:text-sm transition-all border border-red-200 flex items-center justify-center gap-2"
+              >
+                <X size={15} />
+                Clear Filters
+              </motion.button>
+            )}
+
+            <div className="hidden lg:flex items-center justify-center px-6 py-3.5 bg-gray-50 border-2 border-gray-100 rounded-full text-sm text-[#0f172a] font-black min-w-[120px] uppercase">
+              {totalCount} <span className="font-semibold text-gray-500 ml-1">Products</span>
+            </div>
+          </div>
+        </motion.div>
+      )}
 
       <div className="flex flex-col md:flex-row gap-8 relative">
         {/* Retractable Sidebar Filters */}
