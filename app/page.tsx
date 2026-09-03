@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth, hashCredential } from '@/lib/contexts/auth-context';
 import Image from 'next/image';
 import { offlineDB } from '@/lib/offline/indexed-db';
-import { clearSyncQueue } from '@/lib/offline/pending-sync';
+import { clearSyncQueue, getSyncQueue } from '@/lib/offline/pending-sync';
 import { clearMatricesFolder, invalidateImageMemoryMap } from '@/lib/offline/image-cache';
 import { invalidateProductIndex } from '@/lib/offline/offline-search';
 
@@ -99,7 +99,7 @@ function LoginFormContent() {
       if (storedProfileStr) {
         try {
           userObj = JSON.parse(storedProfileStr);
-        } catch {}
+        } catch { }
       }
 
       login(userObj);
@@ -117,7 +117,7 @@ function LoginFormContent() {
         position: 'top-end',
       });
 
-      router.push('/catalogue');
+      window.location.href = '/catalogue';
       return true;
     } catch (err) {
       console.error('Offline login error:', err);
@@ -177,35 +177,7 @@ function LoginFormContent() {
           console.warn('Failed to cache offline auth credentials:', e);
         }
 
-        // If logged-in user is a shop, immediately clear all offline cache and redirect to catalogue in online mode
-        if (data.role === 'shop') {
-          login(userObj as any);
-          localStorage.setItem('token', data.token);
-          localStorage.setItem('matrices_login_time', Date.now().toString());
-          document.cookie = `token=${data.token}; path=/; max-age=86400; SameSite=Lax`;
-
-          await offlineDB.clearAllData().catch(() => {});
-          await clearSyncQueue().catch(() => {});
-          await clearMatricesFolder().catch(() => {});
-          if (typeof window !== 'undefined' && 'caches' in window) {
-            try {
-              await caches.delete('matrices-product-images-v1');
-            } catch {}
-          }
-          invalidateImageMemoryMap();
-          invalidateProductIndex();
-
-          localStorage.setItem('matrices_data_mode', 'online');
-          localStorage.removeItem('matrices_last_synced_user_email');
-          localStorage.removeItem('matrices_last_synced_user_name');
-          window.dispatchEvent(new Event('matrices-data-mode-change'));
-          window.dispatchEvent(new Event('matrices-sync-stats-updated'));
-
-          router.push('/catalogue');
-          return;
-        }
-
-        // 1. Check existing offline sync metadata and previously synced user (for salesreps)
+        // Check existing offline sync metadata and queue items
         const existingMeta = await offlineDB.getMeta().catch(() => null);
         const storedSyncedEmail = (
           existingMeta?.syncedUserEmail ||
@@ -214,7 +186,29 @@ function LoginFormContent() {
           ''
         ).toLowerCase().trim();
 
+        const storedLastUserEmail = (
+          (typeof window !== 'undefined' ? (localStorage.getItem('matrices_last_user_email') || localStorage.getItem('matrices_last_synced_user_email')) : '') ||
+          storedSyncedEmail ||
+          ''
+        ).toLowerCase().trim();
+
+        const storedLastUserName = (typeof window !== 'undefined' ? (localStorage.getItem('matrices_last_user_name') || localStorage.getItem('matrices_last_synced_user_name')) : '') || '';
+
         const currentEmail = (data.email || cleanEmail || '').toLowerCase().trim();
+        const currentDisplayName = data.name || data.email;
+        const queue = await getSyncQueue().catch(() => []);
+        const unpushedCount = queue.filter((q: any) => q.status !== 'SUCCESS').length;
+
+        // Check cart storage
+        const cartSaved = typeof window !== 'undefined' ? (localStorage.getItem('matrices_cart') || localStorage.getItem('cart')) : null;
+        let cartItemsCount = 0;
+        if (cartSaved) {
+          try {
+            const parsed = JSON.parse(cartSaved);
+            cartItemsCount = Array.isArray(parsed?.items) ? parsed.items.length : 0;
+          } catch { }
+        }
+        const storedCartOwner = (typeof window !== 'undefined' ? (localStorage.getItem('matrices_cart_owner') || '') : '').toLowerCase().trim();
 
         // Check if there is actual cached data in offline storage
         const hasOfflineData = Boolean(
@@ -222,63 +216,218 @@ function LoginFormContent() {
           (existingMeta.totalProducts > 0 || existingMeta.totalShops > 0 || Boolean(existingMeta.lastSyncedAt))
         );
 
-        const isDifferentUser = Boolean(
-          hasOfflineData &&
-          storedSyncedEmail &&
+        const isSyncUserMismatch = Boolean(
+          (hasOfflineData || unpushedCount > 0) &&
+          (storedSyncedEmail || storedLastUserEmail) &&
           currentEmail &&
-          storedSyncedEmail !== currentEmail
+          (storedSyncedEmail ? storedSyncedEmail !== currentEmail : storedLastUserEmail !== currentEmail)
         );
 
-        login(userObj as any);
+        const isCartUserMismatch = Boolean(
+          cartItemsCount > 0 &&
+          storedCartOwner &&
+          currentEmail &&
+          storedCartOwner !== currentEmail
+        );
 
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('matrices_login_time', Date.now().toString());
-        document.cookie = `token=${data.token}; path=/; max-age=86400; SameSite=Lax`;
+        const isAccountMismatch = Boolean(
+          storedLastUserEmail &&
+          currentEmail &&
+          storedLastUserEmail !== currentEmail &&
+          (hasOfflineData || cartItemsCount > 0 || unpushedCount > 0)
+        );
+
+        const isDifferentUser = isSyncUserMismatch || isCartUserMismatch || isAccountMismatch;
+
+        // Resolve previous user display name reliably
+        let prevDisplayName =
+          storedLastUserName ||
+          existingMeta?.syncedUserName ||
+          storedSyncedEmail ||
+          storedLastUserEmail ||
+          storedCartOwner;
+
+        if (!prevDisplayName && typeof window !== 'undefined') {
+          try {
+            const u = localStorage.getItem('user') || localStorage.getItem('matrices_user');
+            if (u) {
+              const parsed = JSON.parse(u);
+              prevDisplayName = parsed.name || parsed.email;
+            }
+          } catch { }
+        }
+        if (!prevDisplayName) {
+          prevDisplayName = 'Previous User';
+        }
 
         if (isDifferentUser) {
-          const prevDisplayName = existingMeta?.syncedUserName || storedSyncedEmail;
-          const currentDisplayName = data.name || data.email;
-
           const SwalModule = await import('sweetalert2');
           const Swal = SwalModule.default;
 
-          const alertResult = await Swal.fire({
-            icon: 'warning',
-            title: 'Different User Login',
-            html: `
-              <div style="text-align: left; font-size: 13px; line-height: 1.6; color: #1e293b;">
-                <p style="margin-bottom: 8px;">
-                  You are logged in as <strong>${currentDisplayName}</strong> (<span style="color: #0284c7;">${currentEmail}</span>).
-                </p>
-                <div style="background: #fffbeb; border: 1px solid #fde68a; border-left: 4px solid #f59e0b; padding: 10px 12px; border-radius: 8px; margin-bottom: 12px;">
-                  <p style="font-weight: 700; color: #92400e; margin: 0 0 4px 0;">⚠️ Security & Data Isolation Notice</p>
-                  <p style="font-size: 12px; color: #78350f; margin: 0;">
-                    Device cache contains offline data & passcode previously synced for <strong>${prevDisplayName}</strong>.
-                    To protect customer shops and orders, old cached data must be cleared before syncing your assigned catalogue.
+          // Case A: Previous user has unpushed changes on this device
+          if (unpushedCount > 0) {
+            const queueAlert = await Swal.fire({
+              icon: 'warning',
+              title: 'Unpushed Changes on Device!',
+              html: `
+                <div style="text-align: left; font-size: 13px; line-height: 1.6; color: #1e293b;">
+                  <p style="margin-bottom: 8px;">
+                    You are signing in as <strong>${currentDisplayName}</strong> (<span style="color: #0284c7;">${currentEmail}</span>).
+                  </p>
+                  <div style="background: #fef2f2; border: 1px solid #fecaca; border-left: 4px solid #ef4444; padding: 10px 12px; border-radius: 8px; margin-bottom: 12px;">
+                    <p style="font-weight: 700; color: #991b1b; margin: 0 0 4px 0;">⚠️ Pending Offline Modifications Found</p>
+                    <p style="font-size: 12px; color: #7f1d1d; margin: 0;">
+                      This device contains <strong>${unpushedCount} unpushed offline order(s)/change(s)</strong> created by <strong>${prevDisplayName}</strong>.
+                      Logging in as another account will permanently discard these unpushed changes.
+                    </p>
+                  </div>
+                  <p style="font-weight: 600; color: #0f172a; margin: 0;">
+                    Please log in as <strong>${prevDisplayName}</strong> to push changes, or confirm to discard old cache:
                   </p>
                 </div>
-                <p style="font-weight: 600; color: #0f172a; margin: 0;">
-                  Please clear old cache and download your sync data:
-                </p>
-              </div>
-            `,
-            showCancelButton: true,
-            confirmButtonText: '⚡ Clear Cache & Sync My Data',
-            cancelButtonText: '🧹 Clear Cache & Continue Online',
-            confirmButtonColor: '#059669',
-            cancelButtonColor: '#0f172a',
-            allowOutsideClick: false,
-            allowEscapeKey: false,
-          });
+              `,
+              showCancelButton: true,
+              showDenyButton: true,
+              confirmButtonText: `🔄 Log In as ${prevDisplayName}`,
+              denyButtonText: '🗑️ Discard & Clear Old Data',
+              cancelButtonText: 'Cancel',
+              confirmButtonColor: '#0f172a',
+              denyButtonColor: '#dc2626',
+              cancelButtonColor: '#64748b',
+              allowOutsideClick: false,
+              allowEscapeKey: false,
+            });
 
-          // Always wipe old user's private data, queue, and passcode so old user's shops are NEVER visible to the new user
-          await offlineDB.clearAllData().catch(() => {});
-          await clearSyncQueue().catch(() => {});
-          await clearMatricesFolder().catch(() => {});
+            if (queueAlert.isConfirmed) {
+              setEmail(storedLastUserEmail || storedSyncedEmail);
+              setPassword('');
+              setError(`Please enter password for ${storedLastUserEmail || storedSyncedEmail} to sign in and push offline changes.`);
+              setLoading(false);
+              return;
+            } else if (!queueAlert.isDenied) {
+              setLoading(false);
+              return;
+            }
+          } else if (data.role === 'shop') {
+            // Case B (Shop Account): Different user is a customer shop
+            const shopAlertResult = await Swal.fire({
+              icon: 'warning',
+              title: 'Different User Account',
+              html: `
+                <div style="text-align: left; font-size: 13px; line-height: 1.6; color: #1e293b;">
+                  <p style="margin-bottom: 8px;">
+                    You are signing in as Customer Shop: <strong>${currentDisplayName}</strong> (<span style="color: #0284c7;">${currentEmail}</span>).
+                  </p>
+                  <div style="background: #fffbeb; border: 1px solid #fde68a; border-left: 4px solid #f59e0b; padding: 10px 12px; border-radius: 8px; margin-bottom: 12px;">
+                    <p style="font-weight: 700; color: #92400e; margin: 0 0 4px 0;">⚠️ Security & Data Isolation Notice</p>
+                    <p style="font-size: 12px; color: #78350f; margin: 0;">
+                      This device contains ${cartItemsCount > 0 ? `<strong>${cartItemsCount} active cart item(s)</strong>` : 'offline cached data'} previously stored for <strong>${prevDisplayName}</strong>.
+                      To ensure order privacy, previous user cache and cart will be cleared before opening your shop.
+                    </p>
+                  </div>
+                  <p style="font-weight: 600; color: #0f172a; margin: 0;">
+                    Please confirm to clear previous data and proceed:
+                  </p>
+                </div>
+              `,
+              showCancelButton: true,
+              confirmButtonText: '🧹 Clear Old Data & Open Shop',
+              cancelButtonText: 'Cancel',
+              confirmButtonColor: '#0f172a',
+              cancelButtonColor: '#64748b',
+              allowOutsideClick: false,
+              allowEscapeKey: false,
+            });
+
+            if (!shopAlertResult.isConfirmed) {
+              setLoading(false);
+              return;
+            }
+          } else {
+            // Case C (Salesrep / Admin Account): Different salesrep logging in
+            const alertResult = await Swal.fire({
+              icon: 'warning',
+              title: 'Different User Login',
+              html: `
+                <div style="text-align: left; font-size: 13px; line-height: 1.6; color: #1e293b;">
+                  <p style="margin-bottom: 8px;">
+                    You are logged in as <strong>${currentDisplayName}</strong> (<span style="color: #0284c7;">${currentEmail}</span>).
+                  </p>
+                  <div style="background: #fffbeb; border: 1px solid #fde68a; border-left: 4px solid #f59e0b; padding: 10px 12px; border-radius: 8px; margin-bottom: 12px;">
+                    <p style="font-weight: 700; color: #92400e; margin: 0 0 4px 0;">⚠️ Security & Data Isolation Notice</p>
+                    <p style="font-size: 12px; color: #78350f; margin: 0;">
+                      Device cache contains ${cartItemsCount > 0 ? `<strong>${cartItemsCount} active cart item(s)</strong> and ` : ''}offline data previously synced for <strong>${prevDisplayName}</strong>.
+                      To protect customer shops and orders, old cached data must be cleared before syncing your assigned catalogue.
+                    </p>
+                  </div>
+                  <p style="font-weight: 600; color: #0f172a; margin: 0;">
+                    Please clear old cache and download your sync data:
+                  </p>
+                </div>
+              `,
+              showCancelButton: true,
+              showDenyButton: true,
+              confirmButtonText: '⚡ Clear Cache & Sync My Data',
+              denyButtonText: '🧹 Clear Cache & Continue Online',
+              cancelButtonText: 'Cancel',
+              confirmButtonColor: '#059669',
+              denyButtonColor: '#0f172a',
+              cancelButtonColor: '#64748b',
+              allowOutsideClick: false,
+              allowEscapeKey: false,
+            });
+
+            if (alertResult.isDismissed) {
+              setLoading(false);
+              return;
+            }
+
+            // Wipe old user's private data, queue, cart, and passcode
+            await offlineDB.clearAllData().catch(() => { });
+            await clearSyncQueue().catch(() => { });
+            await clearMatricesFolder().catch(() => { });
+            if (typeof window !== 'undefined' && 'caches' in window) {
+              try {
+                await caches.delete('matrices-product-images-v1');
+              } catch { }
+            }
+            invalidateImageMemoryMap();
+            invalidateProductIndex();
+
+            localStorage.setItem('matrices_data_mode', 'online');
+            localStorage.removeItem('matrices_last_synced_user_email');
+            localStorage.removeItem('matrices_last_synced_user_name');
+            localStorage.removeItem('matrices_cart');
+            localStorage.removeItem('cart');
+            localStorage.removeItem('matrices_cart_shop');
+            localStorage.setItem('matrices_cart_owner', currentEmail);
+            localStorage.setItem('matrices_last_user_email', currentEmail);
+            if (data.name) localStorage.setItem('matrices_last_user_name', data.name);
+            window.dispatchEvent(new Event('matrices-cart-updated'));
+            window.dispatchEvent(new Event('matrices-data-mode-change'));
+            window.dispatchEvent(new Event('matrices-sync-stats-updated'));
+
+            login(userObj as any);
+            localStorage.setItem('token', data.token);
+            localStorage.setItem('matrices_login_time', Date.now().toString());
+            document.cookie = `token=${data.token}; path=/; max-age=86400; SameSite=Lax`;
+
+            if (alertResult.isConfirmed) {
+              window.location.href = '/catalogue?startSync=true';
+            } else {
+              window.location.href = '/catalogue';
+            }
+            return;
+          }
+
+          // If reached here from Case A (discard) or Case B (shop confirm), wipe old user data & cart
+          await offlineDB.clearAllData().catch(() => { });
+          await clearSyncQueue().catch(() => { });
+          await clearMatricesFolder().catch(() => { });
           if (typeof window !== 'undefined' && 'caches' in window) {
             try {
               await caches.delete('matrices-product-images-v1');
-            } catch {}
+            } catch { }
           }
           invalidateImageMemoryMap();
           invalidateProductIndex();
@@ -286,17 +435,43 @@ function LoginFormContent() {
           localStorage.setItem('matrices_data_mode', 'online');
           localStorage.removeItem('matrices_last_synced_user_email');
           localStorage.removeItem('matrices_last_synced_user_name');
+          localStorage.removeItem('matrices_cart');
+          localStorage.removeItem('cart');
+          localStorage.removeItem('matrices_cart_shop');
+          localStorage.setItem('matrices_cart_owner', currentEmail);
+          localStorage.setItem('matrices_last_user_email', currentEmail);
+          if (data.name) localStorage.setItem('matrices_last_user_name', data.name);
+          window.dispatchEvent(new Event('matrices-cart-updated'));
           window.dispatchEvent(new Event('matrices-data-mode-change'));
           window.dispatchEvent(new Event('matrices-sync-stats-updated'));
-
-          if (alertResult.isConfirmed) {
-            router.push('/catalogue?startSync=true');
-          } else {
-            router.push('/catalogue');
-          }
-        } else {
-          router.push('/catalogue');
         }
+
+        // Set cart owner & last user for the current matching user session
+        localStorage.setItem('matrices_cart_owner', currentEmail);
+        localStorage.setItem('matrices_last_user_email', currentEmail);
+        if (data.name) localStorage.setItem('matrices_last_user_name', data.name);
+
+        // Complete sign-in (for same salesrep OR shop user after check)
+        login(userObj as any);
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('matrices_login_time', Date.now().toString());
+        document.cookie = `token=${data.token}; path=/; max-age=86400; SameSite=Lax`;
+
+        if (data.role === 'shop' && !isDifferentUser) {
+          // Clean up offline salesrep database cache if any, but KEEP shop's own cart!
+          await offlineDB.clearAllData().catch(() => { });
+          await clearSyncQueue().catch(() => { });
+          await clearMatricesFolder().catch(() => { });
+          invalidateImageMemoryMap();
+          invalidateProductIndex();
+          localStorage.setItem('matrices_data_mode', 'online');
+          localStorage.removeItem('matrices_last_synced_user_email');
+          localStorage.removeItem('matrices_last_synced_user_name');
+          window.dispatchEvent(new Event('matrices-data-mode-change'));
+          window.dispatchEvent(new Event('matrices-sync-stats-updated'));
+        }
+
+        window.location.href = '/catalogue';
       } else {
         setError(data.msg || 'Login failed. Please try again.');
       }

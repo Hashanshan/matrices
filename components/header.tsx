@@ -30,7 +30,7 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
   const router = useRouter();
   const { user, isLoggedIn, logout } = useAuth();
   const { cart, selectedShop, clearCart } = useCart();
-  const { triggerSync, isSyncing, progress, openSyncModal } = useSync();
+  const { triggerSync, isSyncing, progress, openSyncModal, pendingQueueCount, failedQueueCount, pushChanges } = useSync();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement>(null);
@@ -63,47 +63,83 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
   const handleLogout = async () => {
     closeAll();
 
+    // 1. Check if salesrep has unpushed modifications in SyncQueue
+    const totalUnpushed = (pendingQueueCount || 0) + (failedQueueCount || 0);
+    if (totalUnpushed > 0) {
+      const queueResult = await Swal.fire({
+        icon: 'warning',
+        title: 'Unpushed Offline Changes!',
+        html: `
+          <div style="text-align: left; font-size: 13px; line-height: 1.6; color: #1e293b;">
+            <p style="margin-bottom: 8px;">
+              You have <strong>${totalUnpushed} offline modification(s)/order(s)</strong> created locally that have not been uploaded to the live database yet.
+            </p>
+            <div style="background: #fffbeb; border: 1px solid #fde68a; border-left: 4px solid #f59e0b; padding: 10px 12px; border-radius: 8px; margin-bottom: 12px;">
+              <p style="font-weight: 700; color: #92400e; margin: 0 0 4px 0;">⚡ Push Recommended Before Logout</p>
+              <p style="font-size: 12px; color: #78350f; margin: 0;">
+                You can push your changes now to ensure your orders are live, or keep them saved offline on this device for your next login.
+              </p>
+            </div>
+            <p style="font-weight: 600; color: #0f172a; margin: 0;">
+              Would you like to push your changes now or continue logging out?
+            </p>
+          </div>
+        `,
+        showCancelButton: true,
+        showDenyButton: true,
+        confirmButtonText: '⚡ Push Changes Now',
+        denyButtonText: '🔒 Keep Offline & Log Out',
+        cancelButtonText: 'Cancel',
+        confirmButtonColor: '#059669',
+        denyButtonColor: '#0f172a',
+        cancelButtonColor: '#64748b',
+      });
+
+      if (queueResult.isConfirmed) {
+        openSyncModal();
+        return;
+      } else if (!queueResult.isDenied) {
+        return; // Cancel clicked
+      }
+    }
+
+    // 2. Check if user has active items in cart
     const itemCount = cart.items.length || cart.itemCount || 0;
     if (itemCount > 0) {
-      const result = await Swal.fire({
-        icon: 'warning',
-        title: 'Unsubmitted Cart Items!',
+      const cartResult = await Swal.fire({
+        icon: 'info',
+        title: 'Active Shopping Cart',
         html: `
           <div style="text-align: left; font-size: 13px; line-height: 1.6; color: #1e293b;">
             <p style="margin-bottom: 8px;">
               You have <strong>${itemCount} item(s)</strong> in your shopping cart${selectedShop?.name ? ` for <strong>${selectedShop.name}</strong>` : ''}.
             </p>
-            <div style="background: #fffbeb; border: 1px solid #fde68a; border-left: 4px solid #f59e0b; padding: 10px 12px; border-radius: 8px; margin-bottom: 12px;">
-              <p style="font-weight: 700; color: #92400e; margin: 0 0 4px 0;">⚠️ Unsubmitted Cart Warning</p>
-              <p style="font-size: 12px; color: #78350f; margin: 0;">
-                Logging out will clear your active cart and unsubmitted products will be removed.
+            <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-left: 4px solid #3b82f6; padding: 10px 12px; border-radius: 8px; margin-bottom: 12px;">
+              <p style="font-weight: 700; color: #1e40af; margin: 0 0 4px 0;">🛒 Cart Will Be Saved</p>
+              <p style="font-size: 12px; color: #1e3a8a; margin: 0;">
+                Your cart items will remain safely stored on this device for when you log back in.
               </p>
             </div>
             <p style="font-weight: 600; color: #0f172a; margin: 0;">
-              Would you like to review & submit your cart order first, or clear cart and proceed with logout?
+              Would you like to review and submit your cart order now, or keep it stored and log out?
             </p>
           </div>
         `,
         showCancelButton: true,
         showDenyButton: true,
         confirmButtonText: '🛒 Review & Submit Cart',
-        denyButtonText: '🗑️ Clear Cart & Log Out',
+        denyButtonText: '🔒 Keep Cart & Log Out',
         cancelButtonText: 'Cancel',
         confirmButtonColor: '#0f172a',
-        denyButtonColor: '#dc2626',
+        denyButtonColor: '#334155',
         cancelButtonColor: '#64748b',
       });
 
-      if (result.isConfirmed) {
+      if (cartResult.isConfirmed) {
         router.push('/cart');
         return;
-      } else if (result.isDenied) {
-        clearCart();
-        logout();
-        return;
-      } else {
-        // Cancel clicked
-        return;
+      } else if (!cartResult.isDenied) {
+        return; // Cancel clicked
       }
     }
 

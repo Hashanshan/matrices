@@ -34,6 +34,10 @@ const SESSION_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 export function isSessionExpired(): boolean {
   if (typeof window === 'undefined') return false;
+  const token = localStorage.getItem('token');
+  const savedUser = localStorage.getItem('user');
+  if (!token && !savedUser) return false; // Not logged in -> NOT expired!
+
   const loginTimeStr = localStorage.getItem('matrices_login_time');
   if (!loginTimeStr) return true;
   const loginTime = Number(loginTimeStr);
@@ -45,7 +49,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(() => {
     if (typeof window !== 'undefined') {
       if (isSessionExpired()) {
-        return null; // Session expired or missing login time
+        return null; // Session expired
       }
       const savedUser = localStorage.getItem('user') || localStorage.getItem('matrices_user');
       if (savedUser) {
@@ -96,6 +100,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = () => {
+    // Record cart owner and user info before clearing session so on next login we can detect match/mismatch and show proper name
+    if (user?.email) {
+      localStorage.setItem('matrices_cart_owner', user.email.toLowerCase().trim());
+      localStorage.setItem('matrices_last_user_email', user.email.toLowerCase().trim());
+      if (user.name) {
+        localStorage.setItem('matrices_last_user_name', user.name);
+      }
+    }
     setUser(null);
     setIsLoggedIn(false);
     markPinVerified(false);
@@ -104,9 +116,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem('token');
     localStorage.removeItem('matrices_token');
     localStorage.removeItem('matrices_login_time');
-    localStorage.removeItem('matrices_cart_shop');
-    localStorage.removeItem('matrices_cart');
-    localStorage.removeItem('cart');
     if (typeof sessionStorage !== 'undefined') {
       sessionStorage.clear();
     }
@@ -248,8 +257,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoggedIn(true);
     markPinVerified(false);
     localStorage.setItem('user', JSON.stringify(newUser));
-    if (newUser.name) localStorage.setItem('matrices_last_synced_user_name', newUser.name);
-    if (newUser.email) localStorage.setItem('matrices_last_synced_user_email', newUser.email);
+    if (newUser.name) {
+      localStorage.setItem('matrices_last_user_name', newUser.name);
+      localStorage.setItem('matrices_last_synced_user_name', newUser.name);
+    }
+    if (newUser.email) {
+      localStorage.setItem('matrices_last_user_email', newUser.email.toLowerCase().trim());
+      localStorage.setItem('matrices_last_synced_user_email', newUser.email.toLowerCase().trim());
+    }
     localStorage.setItem('matrices_login_time', Date.now().toString());
 
     if (newUser.role === 'shop') {
@@ -269,9 +284,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         window.dispatchEvent(new Event('matrices-data-mode-change'));
         window.dispatchEvent(new Event('matrices-sync-stats-updated'));
       }
-    } else {
-      // Salesrep / Admin login: Always start with clean customer selection
-      localStorage.removeItem('matrices_cart_shop');
     }
 
     if (typeof window !== 'undefined') {

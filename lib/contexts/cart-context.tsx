@@ -40,7 +40,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   // Shop modal state
   const [isShopModalOpen, setIsShopModalOpen] = useState(false);
 
-  // Auto-set and lock shop when logged in as a customer shop; clear when logged out or salesrep
+  // Auto-set and lock shop when logged in as a customer shop; load saved shop if salesrep
   useEffect(() => {
     if (user?.role === 'shop') {
       const resolvedShopId = user.shopId || user.id || '';
@@ -59,15 +59,54 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       setSelectedShopState(null);
     } else if (user.role !== 'shop') {
       const savedShop = localStorage.getItem('matrices_cart_shop');
-      if (!savedShop) {
+      if (savedShop) {
+        try {
+          setSelectedShopState(JSON.parse(savedShop));
+        } catch {
+          setSelectedShopState(null);
+        }
+      } else {
         setSelectedShopState(null);
       }
     }
   }, [user]);
 
-  // Listen to auth events to immediately synchronize selected shop state
+  // Listen to auth & cart events to immediately synchronize cart and selected shop state
   useEffect(() => {
     const handleAuthUpdated = () => {
+      const savedCart = localStorage.getItem('matrices_cart') || localStorage.getItem('cart');
+      if (savedCart) {
+        try {
+          const parsed = JSON.parse(savedCart);
+          if (parsed && Array.isArray(parsed.items)) {
+            const uniqueMap = new Map<string, CartItem>();
+            parsed.items.forEach((it: CartItem) => {
+              const key = String(it.productId || it.id || '').trim().toLowerCase();
+              if (key) {
+                if (uniqueMap.has(key)) {
+                  const existing = uniqueMap.get(key)!;
+                  uniqueMap.set(key, { ...existing, ...it });
+                } else {
+                  uniqueMap.set(key, it);
+                }
+              }
+            });
+            const uniqueItems = Array.from(uniqueMap.values());
+            setCart({
+              items: uniqueItems,
+              total: calculateTotal(uniqueItems),
+              itemCount: uniqueItems.length,
+            });
+          } else {
+            setCart({ items: [], total: 0, itemCount: 0 });
+          }
+        } catch {
+          setCart({ items: [], total: 0, itemCount: 0 });
+        }
+      } else {
+        setCart({ items: [], total: 0, itemCount: 0 });
+      }
+
       const savedShop = localStorage.getItem('matrices_cart_shop');
       if (savedShop) {
         try {
@@ -81,9 +120,11 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     };
 
     window.addEventListener('matrices-auth-updated', handleAuthUpdated);
+    window.addEventListener('matrices-cart-updated', handleAuthUpdated);
     window.addEventListener('storage', handleAuthUpdated);
     return () => {
       window.removeEventListener('matrices-auth-updated', handleAuthUpdated);
+      window.removeEventListener('matrices-cart-updated', handleAuthUpdated);
       window.removeEventListener('storage', handleAuthUpdated);
     };
   }, []);
