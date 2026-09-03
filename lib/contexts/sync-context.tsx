@@ -796,6 +796,25 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
       const mergedOrders = [...localOrdersToPreserve, ...remoteOrdersFormatted];
 
+      // For full sync (Resync All): Clear all old cached catalog data & image stores before saving fresh data
+      if (syncMode === 'full') {
+        setProgress(42);
+        setSyncStatusText('Clearing old cached data for clean resync...');
+        await offlineDB.clear('categories').catch(() => {});
+        await offlineDB.clear('subcategories').catch(() => {});
+        await offlineDB.clear('products').catch(() => {});
+        await offlineDB.clear('shops').catch(() => {});
+        await offlineDB.clear('wishlist').catch(() => {});
+        await clearMatricesFolder().catch(() => {});
+        if (typeof window !== 'undefined' && 'caches' in window) {
+          try {
+            await caches.delete('matrices-product-images-v1');
+          } catch {}
+        }
+        invalidateImageMemoryMap();
+        invalidateProductIndex();
+      }
+
       // Save fresh data into IndexedDB tables
       await offlineDB.saveBatch('categories', formattedCategories);
       await offlineDB.saveBatch('subcategories', formattedSubcategories);
@@ -920,32 +939,45 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         setMeta(incompleteMeta);
       }
 
-      // Interactive Swal dialog allowing user to resume balance sync or resync all
+      const isAuthError = errMsg.includes('401') || errMsg.toLowerCase().includes('unauthorized');
+
+      // Interactive Swal dialog allowing user to resume balance sync or resync all with recommendation
       Swal.fire({
         icon: 'error',
-        title: 'Sync Interrupted',
+        title: isAuthError ? 'Authentication Required (401)' : 'Sync Interrupted',
         html: `
           <div style="text-align: left; font-size: 13px;" class="space-y-3">
             <p style="color: #dc2626; font-weight: 700;">${errMsg}</p>
-            <div style="background: #f1f5f9; padding: 12px; border-radius: 8px; border-left: 4px solid #0284c7;">
+            ${isAuthError ? `
+              <div style="background: #fef2f2; padding: 10px 12px; border-radius: 8px; border-left: 4px solid #ef4444;">
+                <p style="font-weight: 600; color: #991b1b;">🔒 Session Expired</p>
+                <p style="font-size: 12px; color: #b91c1c; margin-top: 2px;">Your login session has expired. Please re-login to download fresh data.</p>
+              </div>
+            ` : `
+              <div style="background: #fffbeb; padding: 10px 12px; border-radius: 8px; border-left: 4px solid #f59e0b;">
+                <p style="font-weight: 700; color: #92400e;">💡 Recommended Action</p>
+                <p style="font-size: 12px; color: #78350f; margin-top: 2px;">If you have any issues continuing the balance sync, we recommend clicking <strong>"Resync All From Scratch"</strong> to clear all old data and perform a clean sync.</p>
+              </div>
+            `}
+            <div style="background: #f1f5f9; padding: 10px 12px; border-radius: 8px; border-left: 4px solid #0284c7;">
               <p style="font-weight: 600; color: #0f172a;">🌐 Online Mode Maintained</p>
-              <p style="font-size: 12px; color: #475569; margin-top: 4px;">App was not switched to offline mode and remains online. You can continue the balance sync or resync all anytime.</p>
+              <p style="font-size: 12px; color: #475569; margin-top: 2px;">App remains in Online Mode with live catalog access.</p>
             </div>
           </div>
         `,
         showDenyButton: true,
         showCancelButton: true,
-        confirmButtonText: '⚡ Continue & Finish Balance Sync',
-        denyButtonText: '🔄 Resync All',
+        confirmButtonText: '🔄 Resync All From Scratch',
+        denyButtonText: '⚡ Try Continue Balance Sync',
         cancelButtonText: 'Stay in Online Mode',
-        confirmButtonColor: '#059669',
-        denyButtonColor: '#0f172a',
+        confirmButtonColor: '#0f172a',
+        denyButtonColor: '#059669',
         cancelButtonColor: '#64748b',
       }).then((res) => {
         if (res.isConfirmed) {
-          executeSync('resume');
-        } else if (res.isDenied) {
           executeSync('full');
+        } else if (res.isDenied) {
+          executeSync('resume');
         }
       });
 

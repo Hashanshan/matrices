@@ -396,14 +396,17 @@ export default function SyncSettingsPage() {
                   </div>
 
                   {isIncompleteSync || dbMeta?.isIncomplete ? (
-                    <div className="p-3.5 bg-amber-50 border-2 border-amber-300 rounded-2xl text-amber-900 text-xs space-y-1">
+                    <div className="p-3.5 bg-amber-50 border-2 border-amber-300 rounded-2xl text-amber-900 text-xs space-y-2">
                       <div className="flex items-center gap-2 font-black uppercase">
                         <AlertTriangle size={16} className="text-amber-600 shrink-0" />
                         <span>INCOMPLETE SYNC DETECTED (ONLINE MODE ACTIVE)</span>
                       </div>
-                      <p className="text-[0.75rem] text-amber-800">
-                        {dbMeta?.incompleteReason || 'Previous sync was interrupted. The app remains in Online Mode. You can continue the balance sync or resync all.'}
+                      <p className="text-[0.75rem] text-amber-800 font-medium">
+                        {dbMeta?.incompleteReason || 'Previous sync was interrupted. The app remains in Online Mode.'}
                       </p>
+                      <div className="p-2 bg-amber-100/80 rounded-xl text-[0.72rem] text-amber-950 font-semibold border border-amber-300/60">
+                        💡 <strong>Recommendation:</strong> If continuing the balance sync has any issues, please click <strong>"🔄 RESYNC ALL FROM SCRATCH"</strong> below to clear all old data and perform a fresh sync.
+                      </div>
                     </div>
                   ) : null}
 

@@ -201,16 +201,10 @@ export default function SyncProgressModal() {
                     <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-[0.7rem] font-bold text-amber-900 text-center uppercase">
                       🌐 Online Mode Maintained — You are NOT locked offline
                     </div>
+                    <div className="p-2 bg-amber-100/70 rounded-xl text-[0.68rem] text-amber-950 font-semibold border border-amber-300/60 text-center">
+                      💡 <strong>Recommendation:</strong> If continuing balance sync fails, click <strong>"🔄 Resync All"</strong> to clear old data and sync freshly.
+                    </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          executeSync('resume');
-                        }}
-                        className="py-3 px-4 rounded-full font-black text-xs uppercase tracking-wider text-white bg-emerald-600 hover:bg-emerald-700 shadow-md transition-all cursor-pointer flex items-center justify-center gap-1.5"
-                      >
-                        ⚡ Finish Balance Sync
-                      </button>
                       <button
                         type="button"
                         onClick={() => {
@@ -218,7 +212,16 @@ export default function SyncProgressModal() {
                         }}
                         className="py-3 px-4 rounded-full font-black text-xs uppercase tracking-wider text-white bg-[#0f172a] hover:bg-[#1e293b] shadow-md transition-all cursor-pointer flex items-center justify-center gap-1.5"
                       >
-                        🔄 Resync All
+                        🔄 Resync All (Recommended)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          executeSync('resume');
+                        }}
+                        className="py-3 px-4 rounded-full font-black text-xs uppercase tracking-wider text-white bg-emerald-600 hover:bg-emerald-700 shadow-md transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                      >
+                        ⚡ Try Finish Balance
                       </button>
                     </div>
                     <button

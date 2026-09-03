@@ -264,6 +264,18 @@ class OfflineDB {
     });
   }
 
+  /** Clear all records in a single object store */
+  async clear(storeName: string): Promise<void> {
+    const db = await this.getDB();
+    if (!db.objectStoreNames.contains(storeName)) return;
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(storeName, 'readwrite');
+      tx.objectStore(storeName).clear();
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
   /** Put (insert or update) a single record without clearing the store */
   async upsert<T>(storeName: string, item: T): Promise<void> {
     const db = await this.getDB();
