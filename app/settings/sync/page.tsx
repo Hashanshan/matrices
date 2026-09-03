@@ -124,7 +124,14 @@ export default function SyncSettingsPage() {
     }
   };
 
-  const formattedDate = lastSyncedAt || dbMeta?.lastSyncedAt
+  const isSyncValid = Boolean(
+    (lastSyncedAt || dbMeta?.lastSyncedAt) &&
+    !dbMeta?.isIncomplete &&
+    !isIncompleteSync &&
+    (dbMeta?.totalProducts ?? 0) > 0
+  );
+
+  const formattedDate = isSyncValid
     ? new Date(lastSyncedAt || dbMeta!.lastSyncedAt).toLocaleString(undefined, {
       dateStyle: 'medium',
       timeStyle: 'short',
@@ -177,29 +184,8 @@ export default function SyncSettingsPage() {
                   </p>
                 </div>
               </div>
-
-              {/* Navigation Shortcuts */}
-              {/* <div className="flex items-center gap-2 overflow-x-auto pb-1">
-                <Link
-                  href="/settings/shops"
-                  className="text-xs font-black text-[#0f172a] uppercase bg-white/60 hover:bg-white border border-white/60 px-4 py-2.5 rounded-full shadow-xs transition-all flex items-center gap-1.5 whitespace-nowrap"
-                >
-                  <Store size={14} /> MY SHOPS
-                </Link>
-                <Link
-                  href="/settings/invoices"
-                  className="text-xs font-black text-[#0f172a] uppercase bg-white/60 hover:bg-white border border-white/60 px-4 py-2.5 rounded-full shadow-xs transition-all flex items-center gap-1.5 whitespace-nowrap"
-                >
-                  <FileText size={14} /> INVOICES
-                </Link>
-                <Link
-                  href="/settings/security"
-                  className="text-xs font-black text-[#0f172a] uppercase bg-white/60 hover:bg-white border border-white/60 px-4 py-2.5 rounded-full shadow-xs transition-all flex items-center gap-1.5 whitespace-nowrap"
-                >
-                  <ShieldCheck size={14} /> SECURITY
-                </Link>
-              </div> */}
             </div>
+
 
             {/* Offline Status Warning Bar */}
             {isOffline && (
@@ -221,7 +207,7 @@ export default function SyncSettingsPage() {
               <div className="flex flex-wrap items-center gap-4 sm:gap-6">
                 {/* Last Sync Status */}
                 <div className="flex items-center gap-3">
-                  <div className={`p-3 rounded-2xl shrink-0 ${dbMeta?.lastSyncedAt ? 'bg-emerald-500/10 text-emerald-600' : 'bg-gray-100 text-gray-400'}`}>
+                  <div className={`p-3 rounded-2xl shrink-0 ${isSyncValid ? 'bg-emerald-500/10 text-emerald-600' : 'bg-gray-100 text-gray-400'}`}>
                     <CheckCircle2 size={24} />
                   </div>
                   <div>
@@ -240,7 +226,7 @@ export default function SyncSettingsPage() {
                   <div>
                     <span className="text-[0.65rem] font-black text-gray-400 uppercase tracking-widest block">LOCAL STORAGE USED</span>
                     <span className="text-sm sm:text-base font-black text-[#0f172a]">
-                      {storageStats?.totalUsageMB ?? dbMeta?.imageStorageMB ?? 0} MB <span className="text-xs font-bold text-gray-500 font-normal">({storageStats?.downloadedImagesCount ?? dbMeta?.totalImages ?? 0} Images)</span>
+                      {isSyncValid ? (storageStats?.totalUsageMB ?? dbMeta?.imageStorageMB ?? 0) : 0} MB <span className="text-xs font-bold text-gray-500 font-normal">({isSyncValid ? (storageStats?.downloadedImagesCount ?? dbMeta?.totalImages ?? 0) : 0} Images)</span>
                     </span>
                   </div>
                 </div>
@@ -255,12 +241,12 @@ export default function SyncSettingsPage() {
                   <div>
                     <span className="text-[0.65rem] font-black text-gray-400 uppercase tracking-widest block">OFFLINE CATALOG DATA</span>
                     <span className="text-sm sm:text-base font-black text-[#0f172a]">
-                      {dbMeta?.totalProducts ?? 0} Products <span className="text-xs font-bold text-gray-500 font-normal">• {dbMeta?.totalShops ?? 0} Shops</span>
+                      {isSyncValid ? (dbMeta?.totalProducts ?? 0) : 0} Products <span className="text-xs font-bold text-gray-500 font-normal">• {isSyncValid ? (dbMeta?.totalShops ?? 0) : 0} Shops</span>
                     </span>
                   </div>
                 </div>
 
-                {dbMeta?.syncedUserEmail && (
+                {isSyncValid && dbMeta?.syncedUserEmail && (
                   <>
                     <div className="hidden sm:block w-px h-10 bg-gray-200" />
                     <div className="flex items-center gap-3">
@@ -285,6 +271,88 @@ export default function SyncSettingsPage() {
               >
                 <RotateCcw size={14} /> REFRESH STATS
               </button>
+            </div>
+            {/* Storage & Local Entity Counters */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {/* Image Storage Card */}
+              <div className="bg-white/80 backdrop-blur-2xl rounded-[2.5rem] p-6 border border-white/80 shadow-lg space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black text-gray-400 uppercase tracking-widest">LOCAL IMAGES</span>
+                  <div className="p-2.5 bg-emerald-500/10 text-emerald-600 rounded-2xl">
+                    <ImageIcon size={22} />
+                  </div>
+                </div>
+                <div>
+                  <div className="text-3xl font-black text-[#0f172a]">
+                    {storageStats?.downloadedImagesCount ?? dbMeta?.totalImages ?? 0}
+                  </div>
+                  <p className="text-xs font-bold text-gray-500 uppercase mt-0.5">IMAGES DOWNLOADED</p>
+                </div>
+                <div className="pt-2 border-t border-gray-100 flex justify-between text-xs font-mono text-gray-500">
+                  <span>Image Size:</span>
+                  <span className="font-bold text-[#0f172a]">{storageStats?.imageStorageMB ?? dbMeta?.imageStorageMB ?? 0} MB</span>
+                </div>
+              </div>
+
+              {/* Storage Quota / Limit */}
+              <div className="bg-white/80 backdrop-blur-2xl rounded-[2.5rem] p-6 border border-white/80 shadow-lg space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black text-gray-400 uppercase tracking-widest">STORAGE LIMIT</span>
+                  <div className="p-2.5 bg-indigo-500/10 text-indigo-600 rounded-2xl">
+                    <HardDrive size={22} />
+                  </div>
+                </div>
+                <div>
+                  <div className="text-3xl font-black text-[#0f172a]">
+                    {storageStats?.storageLimitMB ? `${storageStats.storageLimitMB} MB` : 'Unlimited'}
+                  </div>
+                  <p className="text-xs font-bold text-gray-500 uppercase mt-0.5 font-mono">DEVICE STORAGE LIMIT</p>
+                </div>
+                <div className="pt-2 border-t border-gray-100 flex justify-between text-xs font-mono text-gray-500">
+                  <span>Used by App:</span>
+                  <span className="font-bold text-[#0f172a]">{storageStats?.totalUsageMB ?? 0} MB</span>
+                </div>
+              </div>
+
+              {/* Synced Products */}
+              <div className="bg-white/80 backdrop-blur-2xl rounded-[2.5rem] p-6 border border-white/80 shadow-lg space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black text-gray-400 uppercase tracking-widest">PRODUCTS</span>
+                  <div className="p-2.5 bg-blue-500/10 text-blue-600 rounded-2xl">
+                    <Package size={22} />
+                  </div>
+                </div>
+                <div>
+                  <div className="text-3xl font-black text-[#0f172a]">
+                    {dbMeta?.totalProducts ?? 0}
+                  </div>
+                  <p className="text-xs font-bold text-gray-500 uppercase mt-0.5">PRODUCTS IN LOCALDB</p>
+                </div>
+                <div className="pt-2 border-t border-gray-100 flex justify-between text-xs font-mono text-gray-500">
+                  <span>Categories:</span>
+                  <span className="font-bold text-[#0f172a]">{dbMeta?.totalCategories ?? 0}</span>
+                </div>
+              </div>
+
+              {/* Customer Shops & Invoices */}
+              <div className="bg-white/80 backdrop-blur-2xl rounded-[2.5rem] p-6 border border-white/80 shadow-lg space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black text-gray-400 uppercase tracking-widest">SHOPS & ORDERS</span>
+                  <div className="p-2.5 bg-amber-500/10 text-amber-600 rounded-2xl">
+                    <Store size={22} />
+                  </div>
+                </div>
+                <div>
+                  <div className="text-3xl font-black text-[#0f172a]">
+                    {dbMeta?.totalShops ?? 0}
+                  </div>
+                  <p className="text-xs font-bold text-gray-500 uppercase mt-0.5">ASSIGNED SHOPS SYNCED</p>
+                </div>
+                <div className="pt-2 border-t border-gray-100 flex justify-between text-xs font-mono text-gray-500">
+                  <span>Invoices/Orders:</span>
+                  <span className="font-bold text-[#0f172a]">{dbMeta?.totalOrders ?? 0}</span>
+                </div>
+              </div>
             </div>
 
             {/* Top Action Cards: Push Changes, Download Catalog, & Delete Sync Data */}
@@ -335,10 +403,10 @@ export default function SyncSettingsPage() {
                       }}
                       disabled={isPushing || isOffline || totalUnpushed === 0}
                       className={`flex-1 px-6 py-4 rounded-full font-black text-xs sm:text-sm uppercase tracking-wider shadow-xl transition-all flex items-center justify-center gap-2 cursor-pointer ${isOffline || totalUnpushed === 0
-                          ? 'bg-white/10 text-gray-400 border border-white/10 cursor-not-allowed'
-                          : isPushing
-                            ? 'bg-accent/40 text-white cursor-wait border border-accent/50'
-                            : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-500/30 border border-emerald-400'
+                        ? 'bg-white/10 text-gray-400 border border-white/10 cursor-not-allowed'
+                        : isPushing
+                          ? 'bg-accent/40 text-white cursor-wait border border-accent/50'
+                          : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-500/30 border border-emerald-400'
                         }`}
                     >
                       <UploadCloud size={18} className={isPushing ? 'animate-bounce' : ''} />
@@ -435,13 +503,12 @@ export default function SyncSettingsPage() {
                           await refreshStats();
                         }}
                         disabled={isSyncing || isOffline || totalUnpushed > 0}
-                        className={`w-full px-6 py-3.5 rounded-full font-black text-xs sm:text-sm uppercase tracking-wider shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                          isOffline || totalUnpushed > 0
-                            ? 'bg-gray-200 text-gray-400 border border-gray-300 cursor-not-allowed'
-                            : isSyncing
+                        className={`w-full px-6 py-3.5 rounded-full font-black text-xs sm:text-sm uppercase tracking-wider shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer ${isOffline || totalUnpushed > 0
+                          ? 'bg-gray-200 text-gray-400 border border-gray-300 cursor-not-allowed'
+                          : isSyncing
                             ? 'bg-emerald-600/30 text-emerald-900 border border-emerald-400 cursor-wait'
                             : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20'
-                        }`}
+                          }`}
                       >
                         <RefreshCw size={16} className={isSyncing ? 'animate-spin' : ''} />
                         ⚡ CONTINUE & FINISH BALANCE SYNC
@@ -460,13 +527,12 @@ export default function SyncSettingsPage() {
                         }
                       }}
                       disabled={isOffline || totalUnpushed > 0}
-                      className={`w-full px-6 py-4 rounded-full font-black text-xs sm:text-sm uppercase tracking-wider shadow-xl transition-all flex items-center justify-center gap-3 cursor-pointer ${
-                        isOffline || totalUnpushed > 0
-                          ? 'bg-gray-200 text-gray-400 border border-gray-300 cursor-not-allowed'
-                          : isSyncing
+                      className={`w-full px-6 py-4 rounded-full font-black text-xs sm:text-sm uppercase tracking-wider shadow-xl transition-all flex items-center justify-center gap-3 cursor-pointer ${isOffline || totalUnpushed > 0
+                        ? 'bg-gray-200 text-gray-400 border border-gray-300 cursor-not-allowed'
+                        : isSyncing
                           ? 'bg-sky-600 hover:bg-sky-700 text-white shadow-sky-600/30'
                           : 'bg-[#0f172a] hover:bg-[#1e293b] text-white shadow-slate-900/20'
-                      }`}
+                        }`}
                     >
                       <RefreshCw size={18} className={isSyncing ? 'animate-spin' : ''} />
                       {isSyncing
@@ -617,12 +683,12 @@ export default function SyncSettingsPage() {
                           <tr
                             key={item.id}
                             className={`transition-colors ${isFailed
-                                ? 'bg-rose-50/80 hover:bg-rose-100/80'
-                                : isProcessing
-                                  ? 'bg-amber-50/80'
-                                  : isSuccess
-                                    ? 'bg-emerald-50/30'
-                                    : 'hover:bg-gray-50/60'
+                              ? 'bg-rose-50/80 hover:bg-rose-100/80'
+                              : isProcessing
+                                ? 'bg-amber-50/80'
+                                : isSuccess
+                                  ? 'bg-emerald-50/30'
+                                  : 'hover:bg-gray-50/60'
                               }`}
                           >
                             <td className="py-3.5 px-4 font-mono font-bold text-[#0f172a]">
@@ -632,10 +698,10 @@ export default function SyncSettingsPage() {
                             <td className="py-3.5 px-4">
                               <span
                                 className={`px-2.5 py-1 rounded-full text-[0.65rem] font-black uppercase tracking-wider ${item.operation === 'CREATE'
-                                    ? 'bg-blue-100 text-blue-800 border border-blue-200'
-                                    : item.operation === 'DELETE'
-                                      ? 'bg-rose-100 text-rose-800 border border-rose-200'
-                                      : 'bg-amber-100 text-amber-800 border border-amber-200'
+                                  ? 'bg-blue-100 text-blue-800 border border-blue-200'
+                                  : item.operation === 'DELETE'
+                                    ? 'bg-rose-100 text-rose-800 border border-rose-200'
+                                    : 'bg-amber-100 text-amber-800 border border-amber-200'
                                   }`}
                               >
                                 {item.operation}
@@ -705,88 +771,7 @@ export default function SyncSettingsPage() {
               )}
             </div>
 
-            {/* Storage & Local Entity Counters */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {/* Image Storage Card */}
-              <div className="bg-white/80 backdrop-blur-2xl rounded-[2.5rem] p-6 border border-white/80 shadow-lg space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-black text-gray-400 uppercase tracking-widest">LOCAL IMAGES</span>
-                  <div className="p-2.5 bg-emerald-500/10 text-emerald-600 rounded-2xl">
-                    <ImageIcon size={22} />
-                  </div>
-                </div>
-                <div>
-                  <div className="text-3xl font-black text-[#0f172a]">
-                    {storageStats?.downloadedImagesCount ?? dbMeta?.totalImages ?? 0}
-                  </div>
-                  <p className="text-xs font-bold text-gray-500 uppercase mt-0.5">IMAGES DOWNLOADED</p>
-                </div>
-                <div className="pt-2 border-t border-gray-100 flex justify-between text-xs font-mono text-gray-500">
-                  <span>Image Size:</span>
-                  <span className="font-bold text-[#0f172a]">{storageStats?.imageStorageMB ?? dbMeta?.imageStorageMB ?? 0} MB</span>
-                </div>
-              </div>
 
-              {/* Storage Quota / Limit */}
-              <div className="bg-white/80 backdrop-blur-2xl rounded-[2.5rem] p-6 border border-white/80 shadow-lg space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-black text-gray-400 uppercase tracking-widest">STORAGE LIMIT</span>
-                  <div className="p-2.5 bg-indigo-500/10 text-indigo-600 rounded-2xl">
-                    <HardDrive size={22} />
-                  </div>
-                </div>
-                <div>
-                  <div className="text-3xl font-black text-[#0f172a]">
-                    {storageStats?.storageLimitMB ? `${storageStats.storageLimitMB} MB` : 'Unlimited'}
-                  </div>
-                  <p className="text-xs font-bold text-gray-500 uppercase mt-0.5 font-mono">DEVICE STORAGE LIMIT</p>
-                </div>
-                <div className="pt-2 border-t border-gray-100 flex justify-between text-xs font-mono text-gray-500">
-                  <span>Used by App:</span>
-                  <span className="font-bold text-[#0f172a]">{storageStats?.totalUsageMB ?? 0} MB</span>
-                </div>
-              </div>
-
-              {/* Synced Products */}
-              <div className="bg-white/80 backdrop-blur-2xl rounded-[2.5rem] p-6 border border-white/80 shadow-lg space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-black text-gray-400 uppercase tracking-widest">PRODUCTS</span>
-                  <div className="p-2.5 bg-blue-500/10 text-blue-600 rounded-2xl">
-                    <Package size={22} />
-                  </div>
-                </div>
-                <div>
-                  <div className="text-3xl font-black text-[#0f172a]">
-                    {dbMeta?.totalProducts ?? 0}
-                  </div>
-                  <p className="text-xs font-bold text-gray-500 uppercase mt-0.5">PRODUCTS IN LOCALDB</p>
-                </div>
-                <div className="pt-2 border-t border-gray-100 flex justify-between text-xs font-mono text-gray-500">
-                  <span>Categories:</span>
-                  <span className="font-bold text-[#0f172a]">{dbMeta?.totalCategories ?? 0}</span>
-                </div>
-              </div>
-
-              {/* Customer Shops & Invoices */}
-              <div className="bg-white/80 backdrop-blur-2xl rounded-[2.5rem] p-6 border border-white/80 shadow-lg space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-black text-gray-400 uppercase tracking-widest">SHOPS & ORDERS</span>
-                  <div className="p-2.5 bg-amber-500/10 text-amber-600 rounded-2xl">
-                    <Store size={22} />
-                  </div>
-                </div>
-                <div>
-                  <div className="text-3xl font-black text-[#0f172a]">
-                    {dbMeta?.totalShops ?? 0}
-                  </div>
-                  <p className="text-xs font-bold text-gray-500 uppercase mt-0.5">ASSIGNED SHOPS SYNCED</p>
-                </div>
-                <div className="pt-2 border-t border-gray-100 flex justify-between text-xs font-mono text-gray-500">
-                  <span>Invoices/Orders:</span>
-                  <span className="font-bold text-[#0f172a]">{dbMeta?.totalOrders ?? 0}</span>
-                </div>
-              </div>
-            </div>
           </motion.div>
         )}
       </main>

@@ -107,9 +107,12 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
     // Initial load
     offlineDB.getMeta().then((m) => {
-      if (m) {
+      if (m && !m.isIncomplete && m.lastSyncedAt && m.totalProducts > 0) {
         setMeta(m);
         setLastSyncedAt(m.lastSyncedAt);
+      } else {
+        setMeta(m || null);
+        setLastSyncedAt(null);
       }
     }).catch(console.error);
 
@@ -522,7 +525,18 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      // Full fresh sync execution
+      // Full fresh sync execution: Reset previous metadata & timestamps so stats show unsynced during download
+      if (syncMode === 'full') {
+        setLastSyncedAt(null);
+        setMeta(null);
+        await offlineDB.clear('meta').catch(() => {});
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('matrices_last_synced_user_email');
+          localStorage.removeItem('matrices_last_synced_user_name');
+          window.dispatchEvent(new Event('matrices-sync-stats-updated'));
+        }
+      }
+
       const token = getAuthToken();
       const headers = {
         Authorization: token ? `Bearer ${token}` : '',
@@ -823,33 +837,6 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       await offlineDB.saveBatch('orders', mergedOrders);
       await offlineDB.saveBatch('wishlist', formattedWishlist);
 
-      // Checkpoint 1: Immediate catalog persistence so sync status is never lost even if image caching is interrupted
-      const initialMeta: SyncMetadata = {
-        lastSyncedAt: new Date().toISOString(),
-        totalProducts: formattedProducts.length,
-        totalCategories: formattedCategories.length,
-        totalSubcategories: formattedSubcategories.length,
-        totalShops: formattedShops.length,
-        totalOrders: formattedOrders.length,
-        totalImages: 0,
-        imageStorageMB: 0,
-        isIncomplete: false,
-        syncedUserId: user?.id || (user as any)?._id || (user?.email ? String(user.email) : ''),
-        syncedUserEmail: user?.email || '',
-        syncedUserName: user?.name || '',
-      };
-
-      await offlineDB.setMeta(initialMeta);
-      if (user?.email) {
-        await offlineDB.saveSecure('synced_user_email', user.email.toLowerCase().trim());
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('matrices_last_synced_user_email', user.email);
-          if (user?.name) localStorage.setItem('matrices_last_synced_user_name', user.name);
-        }
-      }
-      setMeta(initialMeta);
-      setLastSyncedAt(initialMeta.lastSyncedAt);
-
       setProgress(80);
       setSyncStatusText('Preparing full offline image download...');
 
@@ -888,15 +875,32 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       invalidateProductIndex();
       await prewarmImageCache().catch(() => {});
 
+      // ONLY commit sync timestamp, metadata, and salesrep details when 100% complete
       const summary = await offlineDB.getImageStorageSummary();
       const finalImageMB = Number((summary.totalBytes / (1024 * 1024)).toFixed(2));
       const newMeta: SyncMetadata = {
-        ...initialMeta,
+        lastSyncedAt: new Date().toISOString(),
+        totalProducts: formattedProducts.length,
+        totalCategories: formattedCategories.length,
+        totalSubcategories: formattedSubcategories.length,
+        totalShops: formattedShops.length,
+        totalOrders: formattedOrders.length,
         totalImages: summary.count > 0 ? summary.count : (totalImagesDownloaded > 0 ? totalImagesDownloaded : uniqueImageUrls.length),
         imageStorageMB: finalImageMB,
+        isIncomplete: false,
+        syncedUserId: user?.id || (user as any)?._id || (user?.email ? String(user.email) : ''),
+        syncedUserEmail: user?.email || '',
+        syncedUserName: user?.name || '',
       };
 
       await offlineDB.setMeta(newMeta);
+      if (user?.email) {
+        await offlineDB.saveSecure('synced_user_email', user.email.toLowerCase().trim());
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('matrices_last_synced_user_email', user.email);
+          if (user?.name) localStorage.setItem('matrices_last_synced_user_name', user.name);
+        }
+      }
       setMeta(newMeta);
       setLastSyncedAt(newMeta.lastSyncedAt);
 
@@ -920,24 +924,26 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         window.dispatchEvent(new Event('matrices-sync-stats-updated'));
       }
 
-      // Mark metadata as incomplete with reason using lightweight counts
+      // Mark metadata as incomplete with NO lastSyncedAt timestamp on interrupted sync
+      setLastSyncedAt(null);
       const productsCount = await offlineDB.getCount('products').catch(() => 0);
-      if (productsCount > 0) {
-        const incompleteMeta: SyncMetadata = {
-          lastSyncedAt: meta?.lastSyncedAt || '',
-          totalProducts: productsCount,
-          totalCategories: await offlineDB.getCount('categories').catch(() => 0),
-          totalSubcategories: await offlineDB.getCount('subcategories').catch(() => 0),
-          totalShops: await offlineDB.getCount('shops').catch(() => 0),
-          totalOrders: await offlineDB.getCount('orders').catch(() => 0),
-          totalImages: meta?.totalImages || 0,
-          imageStorageMB: meta?.imageStorageMB || 0,
-          isIncomplete: true,
-          incompleteReason: errMsg,
-        };
-        await offlineDB.setMeta(incompleteMeta);
-        setMeta(incompleteMeta);
-      }
+      const incompleteMeta: SyncMetadata = {
+        lastSyncedAt: '',
+        totalProducts: productsCount,
+        totalCategories: await offlineDB.getCount('categories').catch(() => 0),
+        totalSubcategories: await offlineDB.getCount('subcategories').catch(() => 0),
+        totalShops: await offlineDB.getCount('shops').catch(() => 0),
+        totalOrders: await offlineDB.getCount('orders').catch(() => 0),
+        totalImages: 0,
+        imageStorageMB: 0,
+        isIncomplete: true,
+        incompleteReason: errMsg,
+        syncedUserId: '',
+        syncedUserEmail: '',
+        syncedUserName: '',
+      };
+      await offlineDB.setMeta(incompleteMeta);
+      setMeta(incompleteMeta);
 
       const isAuthError = errMsg.includes('401') || errMsg.toLowerCase().includes('unauthorized') || errMsg.toLowerCase().includes('authentication required');
 
