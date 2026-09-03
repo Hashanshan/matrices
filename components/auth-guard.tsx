@@ -25,7 +25,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
 
     // If user is not logged in and not on the login page (root), redirect to root
     if (!isLoggedIn && pathname !== '/') {
-      router.replace('/');
+      router.replace('/?auth=required');
     }
     
     // Optional: If user is logged in and on the login page, redirect to catalogue

@@ -18,36 +18,34 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-/** Simple stable hash for offline PIN comparison (djb2) */
-function hashPin(pin: string): string {
+/** Simple stable hash for offline PIN/password comparison (djb2) */
+export function hashCredential(str: string): string {
   let hash = 5381;
-  for (let i = 0; i < pin.length; i++) {
-    hash = ((hash << 5) + hash) + pin.charCodeAt(i);
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) + hash) + str.charCodeAt(i);
     hash = hash & hash; // 32-bit int
   }
   return String(hash >>> 0);
 }
+
+export const hashPin = hashCredential;
 
 const SESSION_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 export function isSessionExpired(): boolean {
   if (typeof window === 'undefined') return false;
   const loginTimeStr = localStorage.getItem('matrices_login_time');
-  if (!loginTimeStr) return false;
+  if (!loginTimeStr) return true;
   const loginTime = Number(loginTimeStr);
-  if (isNaN(loginTime) || loginTime <= 0) return false;
+  if (isNaN(loginTime) || loginTime <= 0) return true;
   return (Date.now() - loginTime) >= SESSION_DURATION_MS;
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(() => {
     if (typeof window !== 'undefined') {
-      const loginTimeStr = localStorage.getItem('matrices_login_time');
-      if (loginTimeStr) {
-        const elapsed = Date.now() - Number(loginTimeStr);
-        if (elapsed >= SESSION_DURATION_MS) {
-          return null; // Expired
-        }
+      if (isSessionExpired()) {
+        return null; // Session expired or missing login time
       }
       const savedUser = localStorage.getItem('user') || localStorage.getItem('matrices_user');
       if (savedUser) {
@@ -57,40 +55,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           console.error('Failed to parse user from localStorage:', error);
         }
       }
-      const syncedEmail = localStorage.getItem('matrices_last_synced_user_email');
-      const syncedName = localStorage.getItem('matrices_last_synced_user_name');
-      if (syncedEmail || syncedName) {
-        return {
-          id: syncedEmail || 'user',
-          name: syncedName || syncedEmail?.split('@')[0] || 'Salesrep',
-          email: syncedEmail || '',
-          phone: '',
-          address: '',
-          city: '',
-          zipCode: '',
-        };
-      }
     }
     return null;
   });
 
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
+      if (isSessionExpired()) {
+        // Clean up expired session stored items immediately
+        localStorage.removeItem('user');
+        localStorage.removeItem('matrices_user');
+        localStorage.removeItem('token');
+        localStorage.removeItem('matrices_login_time');
+        document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+        return false;
+      }
       const savedUser = localStorage.getItem('user') || localStorage.getItem('matrices_user');
       const savedToken = localStorage.getItem('token');
-      const loginTimeStr = localStorage.getItem('matrices_login_time');
-      if (loginTimeStr) {
-        const elapsed = Date.now() - Number(loginTimeStr);
-        if (elapsed >= SESSION_DURATION_MS) {
-          // Clean up expired session stored items immediately
-          localStorage.removeItem('user');
-          localStorage.removeItem('matrices_user');
-          localStorage.removeItem('token');
-          localStorage.removeItem('matrices_login_time');
-          document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
-          return false;
-        }
-      }
       return Boolean(savedUser || savedToken);
     }
     return false;
@@ -121,6 +102,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem('user');
     localStorage.removeItem('matrices_user');
     localStorage.removeItem('token');
+    localStorage.removeItem('matrices_token');
     localStorage.removeItem('matrices_login_time');
     document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
     if (typeof window !== 'undefined') {
@@ -131,13 +113,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const restoreUserSession = async () => {
     if (typeof window === 'undefined') return;
     try {
-      const loginTimeStr = localStorage.getItem('matrices_login_time');
-      if (loginTimeStr) {
-        const elapsed = Date.now() - Number(loginTimeStr);
-        if (elapsed >= SESSION_DURATION_MS) {
-          logout();
-          return;
-        }
+      if (isSessionExpired()) {
+        logout();
+        return;
       }
 
       let parsedUser: UserProfile | null = null;
@@ -148,46 +126,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } catch (e) {}
       }
 
-      const syncedEmail = localStorage.getItem('matrices_last_synced_user_email');
-      const syncedName = localStorage.getItem('matrices_last_synced_user_name');
-
-      if (!parsedUser && (syncedEmail || syncedName)) {
-        parsedUser = {
-          id: syncedEmail || 'user',
-          name: syncedName || syncedEmail?.split('@')[0] || 'Salesrep',
-          email: syncedEmail || '',
-          phone: '',
-          address: '',
-          city: '',
-          zipCode: '',
-        };
-      }
-
-      // If still missing, check offlineDB metadata
-      if (!parsedUser) {
-        try {
-          const meta = await offlineDB.getMeta();
-          if (meta?.syncedUserEmail || meta?.syncedUserName) {
-            parsedUser = {
-              id: meta.syncedUserId || meta.syncedUserEmail || 'user',
-              name: meta.syncedUserName || meta.syncedUserEmail?.split('@')[0] || 'Salesrep',
-              email: meta.syncedUserEmail || '',
-              phone: '',
-              address: '',
-              city: '',
-              zipCode: '',
-            };
-          }
-        } catch (e) {}
-      }
-
       const token = getAuthToken();
       if (parsedUser) {
         setUser(parsedUser);
         setIsLoggedIn(true);
-        localStorage.setItem('user', JSON.stringify(parsedUser));
       } else if (token) {
         setIsLoggedIn(true);
+      } else {
+        logout();
+        return;
       }
 
       // If online and token exists, fetch latest profile from backend to ensure data is 100% fresh
@@ -218,6 +165,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               localStorage.setItem('user', JSON.stringify(freshUser));
               if (freshUser.name) localStorage.setItem('matrices_last_synced_user_name', freshUser.name);
               if (freshUser.email) localStorage.setItem('matrices_last_synced_user_email', freshUser.email);
+            }
+          } else if (res.status === 401 || res.status === 403) {
+            // Token expired on server
+            logout();
+            if (typeof window !== 'undefined' && window.location.pathname !== '/') {
+              window.location.href = '/?expired=true';
             }
           }
         } catch (e) {}

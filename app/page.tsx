@@ -2,7 +2,7 @@
 
 import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useAuth } from '@/lib/contexts/auth-context';
+import { useAuth, hashCredential } from '@/lib/contexts/auth-context';
 import Image from 'next/image';
 import { offlineDB } from '@/lib/offline/indexed-db';
 import { clearSyncQueue } from '@/lib/offline/pending-sync';
@@ -20,14 +20,46 @@ function LoginFormContent() {
   const { login } = useAuth();
 
   useEffect(() => {
-    if (searchParams.get('expired') === 'true' || searchParams.get('sessionExpired') === 'true') {
+    const isExpired = searchParams.get('expired') === 'true' || searchParams.get('sessionExpired') === 'true';
+    const isAuthRequired = searchParams.get('auth') === 'required' || searchParams.get('login') === 'required';
+    const errorParam = searchParams.get('error') || searchParams.get('msg');
+
+    if (isExpired) {
       setExpiredMsg(true);
       import('sweetalert2').then((Swal) => {
         Swal.default.fire({
           icon: 'warning',
           title: 'Session Expired',
-          text: 'Session expired. Please log in again.',
+          text: 'Your 24-hour login session has expired. Please sign in again to continue.',
+          timer: 4500,
+          showConfirmButton: false,
+          toast: true,
+          position: 'top-end',
+          timerProgressBar: true,
+        });
+      });
+    } else if (isAuthRequired) {
+      import('sweetalert2').then((Swal) => {
+        Swal.default.fire({
+          icon: 'info',
+          title: 'Sign In Required',
+          text: 'Please sign in to access the product catalogue.',
           timer: 3500,
+          showConfirmButton: false,
+          toast: true,
+          position: 'top-end',
+          timerProgressBar: true,
+        });
+      });
+    } else if (errorParam) {
+      const decoded = decodeURIComponent(errorParam);
+      setError(decoded);
+      import('sweetalert2').then((Swal) => {
+        Swal.default.fire({
+          icon: 'error',
+          title: 'Authentication Error',
+          text: decoded,
+          timer: 4500,
           showConfirmButton: false,
           toast: true,
           position: 'top-end',
@@ -37,11 +69,80 @@ function LoginFormContent() {
     }
   }, [searchParams]);
 
+  const handleOfflineLogin = async (cleanEmail: string, cleanPassword: string): Promise<boolean> => {
+    try {
+      const storedEmail = await offlineDB.getSecure('offline_auth_email').catch(() => null);
+      const storedHash = await offlineDB.getSecure('offline_auth_hash').catch(() => null);
+      const storedProfileStr = await offlineDB.getSecure('offline_auth_user').catch(() => null);
+
+      if (!storedEmail || !storedHash) {
+        return false;
+      }
+
+      if (storedEmail.toLowerCase() !== cleanEmail) {
+        setError('Email does not match the account synced on this device.');
+        return true;
+      }
+
+      const inputHash = hashCredential(`${cleanEmail}:${cleanPassword}`);
+      if (inputHash !== storedHash) {
+        setError('Incorrect password for offline access.');
+        return true;
+      }
+
+      let userObj: any = {
+        id: cleanEmail,
+        name: cleanEmail.split('@')[0] || 'Salesrep',
+        email: cleanEmail,
+        role: 'salesrep',
+      };
+      if (storedProfileStr) {
+        try {
+          userObj = JSON.parse(storedProfileStr);
+        } catch {}
+      }
+
+      login(userObj);
+      localStorage.setItem('matrices_login_time', Date.now().toString());
+
+      const SwalModule = await import('sweetalert2');
+      const Swal = SwalModule.default;
+      Swal.fire({
+        icon: 'success',
+        title: 'Signed In (Offline)',
+        text: '24-hour offline access granted. Working in offline mode.',
+        timer: 3000,
+        showConfirmButton: false,
+        toast: true,
+        position: 'top-end',
+      });
+
+      router.push('/catalogue');
+      return true;
+    } catch (err) {
+      console.error('Offline login error:', err);
+      return false;
+    }
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
     const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanPassword = password.trim();
+
+    // Check if offline
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      const handled = await handleOfflineLogin(cleanEmail, cleanPassword);
+      if (!handled) {
+        setError('No offline credentials found on this device. Connect to the internet for the first login.');
+      }
+      setLoading(false);
+      return;
+    }
 
     try {
       const res = await fetch(BACKEND_URL + '/api/catelogue/auth/login', {
@@ -49,19 +150,29 @@ function LoginFormContent() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email: cleanEmail, password: cleanPassword }),
       });
 
       const data = await res.json();
 
       if (res.ok) {
         const userObj = {
-          id: data.id || email,
+          id: data.id || cleanEmail,
           name: data.name,
           email: data.email,
           role: data.role,
           token: data.token
         };
+
+        // Cache offline credentials securely for future 24-hour offline logins
+        try {
+          const credHash = hashCredential(`${cleanEmail}:${cleanPassword}`);
+          await offlineDB.saveSecure('offline_auth_email', cleanEmail);
+          await offlineDB.saveSecure('offline_auth_hash', credHash);
+          await offlineDB.saveSecure('offline_auth_user', JSON.stringify(userObj));
+        } catch (e) {
+          console.warn('Failed to cache offline auth credentials:', e);
+        }
 
         // 1. Check existing offline sync metadata and previously synced user
         const existingMeta = await offlineDB.getMeta().catch(() => null);
@@ -72,7 +183,7 @@ function LoginFormContent() {
           ''
         ).toLowerCase().trim();
 
-        const currentEmail = (data.email || email || '').toLowerCase().trim();
+        const currentEmail = (data.email || cleanEmail || '').toLowerCase().trim();
 
         // Check if there is actual cached data in offline storage
         const hasOfflineData = Boolean(
@@ -160,7 +271,11 @@ function LoginFormContent() {
       }
     } catch (err) {
       console.error('Login error:', err);
-      setError('A network error occurred. Please try again later.');
+      // If network failed, attempt offline login fallback if cached credentials exist
+      const handled = await handleOfflineLogin(cleanEmail, cleanPassword);
+      if (!handled) {
+        setError('A network error occurred and no matching offline account was found on this device.');
+      }
     } finally {
       setLoading(false);
     }

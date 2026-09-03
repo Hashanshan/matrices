@@ -939,26 +939,55 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         setMeta(incompleteMeta);
       }
 
-      const isAuthError = errMsg.includes('401') || errMsg.toLowerCase().includes('unauthorized');
+      const isAuthError = errMsg.includes('401') || errMsg.toLowerCase().includes('unauthorized') || errMsg.toLowerCase().includes('authentication required');
+
+      if (isAuthError) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('matrices_login_time');
+        document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+
+        Swal.fire({
+          icon: 'warning',
+          title: 'Authentication Required (401)',
+          html: `
+            <div style="text-align: left; font-size: 13px;" class="space-y-3">
+              <p style="color: #dc2626; font-weight: 700;">${errMsg}</p>
+              <div style="background: #fef2f2; padding: 10px 12px; border-radius: 8px; border-left: 4px solid #ef4444;">
+                <p style="font-weight: 600; color: #991b1b;">🔒 Session Expired</p>
+                <p style="font-size: 12px; color: #b91c1c; margin-top: 2px;">Your server session token has expired. Please sign in again to download fresh data.</p>
+              </div>
+              <div style="background: #f1f5f9; padding: 10px 12px; border-radius: 8px; border-left: 4px solid #0284c7;">
+                <p style="font-weight: 600; color: #0f172a;">💾 Local Data Preserved</p>
+                <p style="font-size: 12px; color: #475569; margin-top: 2px;">Your existing cached catalog and orders remain safe on your device.</p>
+              </div>
+            </div>
+          `,
+          showDenyButton: false,
+          showCancelButton: true,
+          confirmButtonText: '🔑 Re-Login to Refresh Session',
+          cancelButtonText: 'Stay on This Page',
+          confirmButtonColor: '#059669',
+          cancelButtonColor: '#64748b',
+        }).then((res) => {
+          if (res.isConfirmed) {
+            window.location.href = '/?expired=true';
+          }
+        });
+
+        return false;
+      }
 
       // Interactive Swal dialog allowing user to resume balance sync or resync all with recommendation
       Swal.fire({
         icon: 'error',
-        title: isAuthError ? 'Authentication Required (401)' : 'Sync Interrupted',
+        title: 'Sync Interrupted',
         html: `
           <div style="text-align: left; font-size: 13px;" class="space-y-3">
             <p style="color: #dc2626; font-weight: 700;">${errMsg}</p>
-            ${isAuthError ? `
-              <div style="background: #fef2f2; padding: 10px 12px; border-radius: 8px; border-left: 4px solid #ef4444;">
-                <p style="font-weight: 600; color: #991b1b;">🔒 Session Expired</p>
-                <p style="font-size: 12px; color: #b91c1c; margin-top: 2px;">Your login session has expired. Please re-login to download fresh data.</p>
-              </div>
-            ` : `
-              <div style="background: #fffbeb; padding: 10px 12px; border-radius: 8px; border-left: 4px solid #f59e0b;">
-                <p style="font-weight: 700; color: #92400e;">💡 Recommended Action</p>
-                <p style="font-size: 12px; color: #78350f; margin-top: 2px;">If you have any issues continuing the balance sync, we recommend clicking <strong>"Resync All From Scratch"</strong> to clear all old data and perform a clean sync.</p>
-              </div>
-            `}
+            <div style="background: #fffbeb; padding: 10px 12px; border-radius: 8px; border-left: 4px solid #f59e0b;">
+              <p style="font-weight: 700; color: #92400e;">💡 Recommended Action</p>
+              <p style="font-size: 12px; color: #78350f; margin-top: 2px;">If you have any issues continuing the balance sync, we recommend clicking <strong>"Resync All From Scratch"</strong> to clear all old data and perform a clean sync.</p>
+            </div>
             <div style="background: #f1f5f9; padding: 10px 12px; border-radius: 8px; border-left: 4px solid #0284c7;">
               <p style="font-weight: 600; color: #0f172a;">🌐 Online Mode Maintained</p>
               <p style="font-size: 12px; color: #475569; margin-top: 2px;">App remains in Online Mode with live catalog access.</p>
