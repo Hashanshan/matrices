@@ -213,6 +213,33 @@ export default function SyncSettingsPage() {
               </div>
             )}
 
+            {/* Incomplete / Half-Synced Storage Alert */}
+            {!isSyncValid && (storageStats?.downloadedImagesCount ?? 0) > 0 && (
+              <div className="bg-amber-500/15 border-2 border-amber-500/40 rounded-3xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-amber-900 shadow-md">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-amber-500 text-white rounded-2xl shrink-0">
+                    <AlertTriangle size={24} />
+                  </div>
+                  <div>
+                    <h4 className="text-sm sm:text-base font-black uppercase">INCOMPLETE / HALF-SYNCED STORAGE DETECTED</h4>
+                    <p className="text-xs font-medium text-amber-800">
+                      Found <strong>{storageStats?.downloadedImagesCount} orphaned offline image(s)</strong> ({storageStats?.imageStorageMB} MB) from an incomplete sync.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await deleteSyncData();
+                    await refreshStats();
+                  }}
+                  className="px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-black uppercase rounded-full shadow-md transition-all shrink-0 cursor-pointer active:scale-95"
+                >
+                  🧹 Clear Half-Synced Storage
+                </button>
+              </div>
+            )}
+
             {/* Live Storage & Sync Status Overview Strip */}
             <div className="bg-white/70 backdrop-blur-2xl border border-white/80 rounded-[2rem] p-5 sm:p-6 shadow-xl flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
               <div className="flex flex-wrap items-center gap-4 sm:gap-6">
@@ -237,7 +264,7 @@ export default function SyncSettingsPage() {
                   <div>
                     <span className="text-[0.65rem] font-black text-gray-400 uppercase tracking-widest block">LOCAL STORAGE USED</span>
                     <span className="text-sm sm:text-base font-black text-[#0f172a]">
-                      {isSyncValid ? (storageStats?.totalUsageMB ?? dbMeta?.imageStorageMB ?? 0) : 0} MB <span className="text-xs font-bold text-gray-500 font-normal">({isSyncValid ? (storageStats?.downloadedImagesCount ?? dbMeta?.totalImages ?? 0) : 0} Images)</span>
+                      {storageStats?.totalUsageMB ?? dbMeta?.imageStorageMB ?? 0} MB <span className="text-xs font-bold text-gray-500 font-normal">({storageStats?.downloadedImagesCount ?? dbMeta?.totalImages ?? 0} Images)</span>
                     </span>
                   </div>
                 </div>

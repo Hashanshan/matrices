@@ -4,6 +4,9 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { UserProfile } from '../types';
 import { resolveApiUrl, getAuthToken } from '../utils';
 import { offlineDB } from '../offline/indexed-db';
+import { clearMatricesFolder, invalidateImageMemoryMap } from '../offline/image-cache';
+import { clearSyncQueue } from '../offline/pending-sync';
+import { invalidateProductIndex } from '../offline/offline-search';
 
 interface AuthContextType {
   user: UserProfile | null;
@@ -277,6 +280,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     if (newUser.role === 'shop') {
       offlineDB.clearAllData().catch(() => {});
+      clearSyncQueue().catch(() => {});
+      clearMatricesFolder().catch(() => {});
+      invalidateImageMemoryMap();
+      invalidateProductIndex();
       localStorage.removeItem('matrices_last_synced_user_email');
       localStorage.removeItem('matrices_last_synced_user_name');
       localStorage.setItem('matrices_data_mode', 'online');

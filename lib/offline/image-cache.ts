@@ -477,7 +477,17 @@ export async function clearMatricesFolder(): Promise<void> {
       console.warn('Error clearing Matrices folder:', e);
     }
   }
-  // Also invalidate in-memory map and clear IndexedDB image_map store
+
+  // Also clear web CacheStorage images
+  if (typeof window !== 'undefined' && 'caches' in window) {
+    try {
+      await caches.delete(IMAGE_CACHE_NAME);
+    } catch (e) {
+      console.warn('Error deleting image CacheStorage:', e);
+    }
+  }
+
+  // Invalidate in-memory map and clear IndexedDB image_map store
   invalidateImageMemoryMap();
   await offlineDB.clear('image_map').catch(() => {});
 }

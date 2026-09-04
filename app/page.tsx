@@ -177,8 +177,12 @@ function LoginFormContent() {
           console.warn('Failed to cache offline auth credentials:', e);
         }
 
-        // Check existing offline sync metadata and queue items
+        // Check existing offline sync metadata, image summary, product counts, and queue items
         const existingMeta = await offlineDB.getMeta().catch(() => null);
+        const imageSummary = await offlineDB.getImageStorageSummary().catch(() => ({ count: 0, totalBytes: 0 }));
+        const existingProductsCount = await offlineDB.getCount('products').catch(() => 0);
+        const existingShopsCount = await offlineDB.getCount('shops').catch(() => 0);
+
         const storedSyncedEmail = (
           existingMeta?.syncedUserEmail ||
           (await offlineDB.getSecure('synced_user_email').catch(() => '')) ||
@@ -210,10 +214,18 @@ function LoginFormContent() {
         }
         const storedCartOwner = (typeof window !== 'undefined' ? (localStorage.getItem('matrices_cart_owner') || '') : '').toLowerCase().trim();
 
-        // Check if there is actual cached data in offline storage
+        // Check if there is actual cached data OR half-synced storage in offline storage
         const hasOfflineData = Boolean(
-          existingMeta &&
-          (existingMeta.totalProducts > 0 || existingMeta.totalShops > 0 || Boolean(existingMeta.lastSyncedAt))
+          (existingMeta && (existingMeta.totalProducts > 0 || existingMeta.totalShops > 0 || Boolean(existingMeta.lastSyncedAt))) ||
+          imageSummary.count > 0 ||
+          existingProductsCount > 0 ||
+          existingShopsCount > 0
+        );
+
+        // Detect if device has orphaned half-synced images (e.g. 158 images downloaded but 0 products in localDB or Never Synced)
+        const isHalfSyncedOrphaned = Boolean(
+          imageSummary.count > 0 &&
+          (existingProductsCount === 0 || !existingMeta?.lastSyncedAt || existingMeta?.isIncomplete)
         );
 
         const isSyncUserMismatch = Boolean(
@@ -461,6 +473,17 @@ function LoginFormContent() {
           // Clean up offline salesrep database cache if any, but KEEP shop's own cart!
           await offlineDB.clearAllData().catch(() => { });
           await clearSyncQueue().catch(() => { });
+          await clearMatricesFolder().catch(() => { });
+          invalidateImageMemoryMap();
+          invalidateProductIndex();
+          localStorage.setItem('matrices_data_mode', 'online');
+          localStorage.removeItem('matrices_last_synced_user_email');
+          localStorage.removeItem('matrices_last_synced_user_name');
+          window.dispatchEvent(new Event('matrices-data-mode-change'));
+          window.dispatchEvent(new Event('matrices-sync-stats-updated'));
+        } else if (isHalfSyncedOrphaned && !isDifferentUser) {
+          // Auto-clean orphaned images / half-synced storage from previous interrupted attempt
+          await offlineDB.clearAllData().catch(() => { });
           await clearMatricesFolder().catch(() => { });
           invalidateImageMemoryMap();
           invalidateProductIndex();
