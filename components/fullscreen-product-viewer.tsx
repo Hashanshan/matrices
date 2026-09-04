@@ -238,12 +238,33 @@ export default function FullscreenProductViewer({
 
   const currentProduct = validProducts[currentIndex] || validProducts[0] || null;
 
-  // Predictive GPU pre-decoding for adjacent slides (±4 surrounding images)
+  // Proactive bidirectional on-demand page loading for uninterrupted forward and reverse swiping
+  useEffect(() => {
+    if (!prioritizeIndex || !validProducts || validProducts.length === 0) return;
+
+    // 1. Prioritize current index immediately
+    prioritizeIndex(currentIndex);
+
+    // 2. Prefetch forward buffer (+20 items ahead)
+    const forwardIdx = (currentIndex + 20) % validProducts.length;
+    if (validProducts[forwardIdx]?.isPlaceholder) {
+      prioritizeIndex(forwardIdx);
+    }
+
+    // 3. Prefetch reverse buffer (-20 items behind)
+    let reverseIdx = (currentIndex - 20) % validProducts.length;
+    if (reverseIdx < 0) reverseIdx += validProducts.length;
+    if (validProducts[reverseIdx]?.isPlaceholder) {
+      prioritizeIndex(reverseIdx);
+    }
+  }, [currentIndex, validProducts, prioritizeIndex]);
+
+  // Predictive GPU pre-decoding for adjacent slides (±6 surrounding images)
   useEffect(() => {
     if (!validProducts || validProducts.length === 0) return;
 
     const nearbyUrls: string[] = [];
-    const offsets = [-4, -3, -2, -1, 1, 2, 3, 4];
+    const offsets = [-6, -5, -4, -3, -2, -1, 1, 2, 3, 4, 5, 6];
     offsets.forEach((offset) => {
       let idx = (currentIndex + offset) % validProducts.length;
       if (idx < 0) idx += validProducts.length;

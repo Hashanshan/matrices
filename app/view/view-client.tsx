@@ -38,7 +38,7 @@ export default function SingleViewPage({
     : sortBy === 'price-high' ? 'price-high'
       : sortBy;
 
-  // Use specialized useViewProducts hook: loads first 20 & last 20 upfront in online mode + silent background streaming
+  // Use specialized useViewProducts hook: loads first 50 & last 50 upfront in online mode + bidirectional instant buffering
   const {
     products,
     isLoading,
@@ -54,7 +54,7 @@ export default function SingleViewPage({
     search: searchQuery || initialProductId,
     productId: initialProductId,
     fallbackData: Array.isArray(fallbackData) && fallbackData.length > 0 ? fallbackData : undefined,
-    limit: 20,
+    limit: 50,
   });
 
   const handleClearFilters = () => {

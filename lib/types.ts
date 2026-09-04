@@ -43,6 +43,7 @@ export interface Product {
     sizes: ProductVariant[];
   };
   inStock?: boolean;
+  isPlaceholder?: boolean;
 }
 
 // Cart & Orders

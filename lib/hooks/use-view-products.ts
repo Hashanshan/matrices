@@ -39,14 +39,15 @@ export function useViewProducts(options: UseViewProductsOptions = {}) {
   const [exactMatchFound, setExactMatchFound] = useState<boolean | undefined>(undefined);
   const [error, setError] = useState<any>(null);
 
-  // Track loaded pages and pending queue
+  // Track loaded pages, pending queue, and shared sparse products cache
   const loadedPagesRef = useRef<Set<number>>(new Set());
   const fetchingPagesRef = useRef<Set<number>>(new Set());
   const cancelControllerRef = useRef<AbortController | null>(null);
+  const productStoreRef = useRef<ViewProduct[]>([]);
 
   const isOffline = dataMode === 'offline' || (typeof navigator !== 'undefined' && !navigator.onLine);
 
-  const buildQuery = useCallback((pageIndex: number, pageLimit = 20) => {
+  const buildQuery = useCallback((pageIndex: number, pageLimit = 50) => {
     const params = new URLSearchParams();
     if (sort) params.set('sort', sort);
     if (category) {
@@ -67,7 +68,7 @@ export function useViewProducts(options: UseViewProductsOptions = {}) {
     return params.toString();
   }, [sort, category, subcategory, search, productId, prioritizeCategory, timeFilter, dataMode]);
 
-  const fetchPage = useCallback(async (pageIndex: number, pageLimit = 20, signal?: AbortSignal): Promise<ProductsResponse | null> => {
+  const fetchPage = useCallback(async (pageIndex: number, pageLimit = 50, signal?: AbortSignal): Promise<ProductsResponse | null> => {
     if (fetchingPagesRef.current.has(pageIndex) || loadedPagesRef.current.has(pageIndex)) {
       return null;
     }
@@ -119,6 +120,9 @@ export function useViewProducts(options: UseViewProductsOptions = {}) {
 
     loadedPagesRef.current.clear();
     fetchingPagesRef.current.clear();
+    productStoreRef.current = [];
+
+    const effectiveLimit = Math.max(limit, 50);
 
     const loadData = async () => {
       // ── OFFLINE MODE: untouched full load from IndexedDB ────────────────
@@ -137,6 +141,7 @@ export function useViewProducts(options: UseViewProductsOptions = {}) {
           });
 
           if (!isCancelled) {
+            productStoreRef.current = offlineData.data || [];
             setProducts(offlineData.data || []);
             setTotalCount(offlineData.totalCount || offlineData.data.length);
             setExactMatchFound(offlineData.exactMatchFound);
@@ -152,13 +157,13 @@ export function useViewProducts(options: UseViewProductsOptions = {}) {
         return;
       }
 
-      // ── ONLINE MODE: First 20 + Last 20 Upfront, Stream Intermediate ────
+      // ── ONLINE MODE: Bidirectional Upfront Buffers + Smooth Streaming ───
       setIsLoading(true);
       setIsValidating(true);
 
       try {
-        // 1. Fetch Page 1 (First 20 items)
-        const page1Data = await fetchPage(1, limit, abortController.signal);
+        // 1. Fetch Page 1 (First 50 items)
+        const page1Data = await fetchPage(1, effectiveLimit, abortController.signal);
         if (isCancelled || !page1Data || !page1Data.data) {
           setIsLoading(false);
           setIsValidating(false);
@@ -167,22 +172,23 @@ export function useViewProducts(options: UseViewProductsOptions = {}) {
 
         const firstBatch = page1Data.data;
         const total = page1Data.totalCount || firstBatch.length;
-        const totalPages = Math.ceil(total / limit);
+        const totalPages = Math.ceil(total / effectiveLimit);
 
         setExactMatchFound(page1Data.exactMatchFound);
         setTotalCount(total);
 
         // Prewarm first few images
-        firstBatch.slice(0, 5).forEach((p) => {
+        firstBatch.slice(0, 8).forEach((p) => {
           if (p.image) {
             const img = new window.Image();
             img.src = p.image;
           }
         });
 
-        // Case A: Everything fits in Page 1
-        if (totalPages <= 1 || total <= limit) {
+        // Case A: Single page catalog
+        if (totalPages <= 1 || total <= effectiveLimit) {
           if (!isCancelled) {
+            productStoreRef.current = firstBatch;
             setProducts(firstBatch);
             setIsLoading(false);
             setIsValidating(false);
@@ -190,17 +196,17 @@ export function useViewProducts(options: UseViewProductsOptions = {}) {
           return;
         }
 
-        // Case B: Multiple pages — Create sparse/placeholder array of size `total`
-        const sparseProducts: ViewProduct[] = new Array(total);
+        // Case B: Multi-page catalog — Initialize sparse array
+        const sparse: ViewProduct[] = new Array(total);
 
         // Fill Page 1
         for (let i = 0; i < firstBatch.length; i++) {
-          sparseProducts[i] = firstBatch[i];
+          sparse[i] = firstBatch[i];
         }
 
-        // Fill placeholders for intermediate & last slots
+        // Fill placeholders for remaining slots
         for (let i = firstBatch.length; i < total; i++) {
-          sparseProducts[i] = {
+          sparse[i] = {
             id: `__ph_${i}`,
             productId: `...`,
             name: 'LOADING...',
@@ -214,66 +220,104 @@ export function useViewProducts(options: UseViewProductsOptions = {}) {
           };
         }
 
+        productStoreRef.current = sparse;
+
         if (!isCancelled) {
-          setProducts([...sparseProducts]);
-          setIsLoading(false); // First batch ready! User can start viewing right away
+          setProducts([...sparse]);
+          setIsLoading(false); // First batch ready for instant browsing!
         }
 
-        // 2. Fetch Last Page (Last 20 items) in parallel / immediately
+        // 2. Fetch Last Page (Reverse swipe buffer) in parallel
         const lastPageNumber = totalPages;
-        const lastPageData = await fetchPage(lastPageNumber, limit, abortController.signal);
+        const lastPageData = await fetchPage(lastPageNumber, effectiveLimit, abortController.signal);
 
         if (!isCancelled && lastPageData && Array.isArray(lastPageData.data)) {
           const lastBatch = lastPageData.data;
-          const lastPageStartIndex = (lastPageNumber - 1) * limit;
+          const lastPageStartIndex = (lastPageNumber - 1) * effectiveLimit;
 
           for (let i = 0; i < lastBatch.length; i++) {
             const targetIdx = lastPageStartIndex + i;
             if (targetIdx < total) {
-              sparseProducts[targetIdx] = lastBatch[i];
+              productStoreRef.current[targetIdx] = lastBatch[i];
             }
           }
 
-          // Prewarm the very last products so reverse swipe has instant images
-          const lastItems = lastBatch.slice(-3);
-          lastItems.forEach((p) => {
+          // Prewarm last products for instant reverse swiping
+          lastBatch.slice(-6).forEach((p) => {
             if (p.image) {
               const img = new window.Image();
               img.src = p.image;
             }
           });
 
-          setProducts([...sparseProducts]);
+          setProducts([...productStoreRef.current]);
         }
 
-        // 3. Silently fetch remaining intermediate pages in the background
+        // 3. If catalog has 3+ pages, also proactively pre-fetch Page 2 and Penultimate Page
+        if (totalPages > 2) {
+          const bufferPromises: Promise<any>[] = [];
+          if (!loadedPagesRef.current.has(2)) {
+            bufferPromises.push(
+              fetchPage(2, effectiveLimit, abortController.signal).then((res) => {
+                if (res && Array.isArray(res.data)) {
+                  const startIdx = effectiveLimit;
+                  res.data.forEach((p, i) => {
+                    const idx = startIdx + i;
+                    if (idx < total) productStoreRef.current[idx] = p;
+                  });
+                }
+              })
+            );
+          }
+          if (totalPages > 3 && !loadedPagesRef.current.has(totalPages - 1)) {
+            bufferPromises.push(
+              fetchPage(totalPages - 1, effectiveLimit, abortController.signal).then((res) => {
+                if (res && Array.isArray(res.data)) {
+                  const startIdx = (totalPages - 2) * effectiveLimit;
+                  res.data.forEach((p, i) => {
+                    const idx = startIdx + i;
+                    if (idx < total) productStoreRef.current[idx] = p;
+                  });
+                }
+              })
+            );
+          }
+
+          await Promise.all(bufferPromises);
+          if (!isCancelled) {
+            setProducts([...productStoreRef.current]);
+          }
+        }
+
+        // 4. Silently stream all remaining pages in the background
         const remainingPages: number[] = [];
-        for (let p = 2; p < lastPageNumber; p++) {
-          remainingPages.push(p);
+        for (let p = 3; p < lastPageNumber - 1; p++) {
+          if (!loadedPagesRef.current.has(p)) {
+            remainingPages.push(p);
+          }
         }
 
         const runBackgroundQueue = async () => {
           for (const pageNum of remainingPages) {
             if (isCancelled || abortController.signal.aborted) break;
+            if (loadedPagesRef.current.has(pageNum)) continue;
 
-            // Small breathing gap between requests to prevent network saturation
-            await new Promise((r) => setTimeout(r, 120));
+            await new Promise((r) => setTimeout(r, 80));
             if (isCancelled || abortController.signal.aborted) break;
 
-            const pageRes = await fetchPage(pageNum, limit, abortController.signal);
+            const pageRes = await fetchPage(pageNum, effectiveLimit, abortController.signal);
             if (!isCancelled && pageRes && Array.isArray(pageRes.data)) {
               const batch = pageRes.data;
-              const startIndex = (pageNum - 1) * limit;
+              const startIndex = (pageNum - 1) * effectiveLimit;
 
               for (let i = 0; i < batch.length; i++) {
                 const targetIdx = startIndex + i;
                 if (targetIdx < total) {
-                  sparseProducts[targetIdx] = batch[i];
+                  productStoreRef.current[targetIdx] = batch[i];
                 }
               }
 
-              // Update products state silently in-place without triggering full reloads
-              setProducts([...sparseProducts]);
+              setProducts([...productStoreRef.current]);
             }
           }
 
@@ -300,26 +344,33 @@ export function useViewProducts(options: UseViewProductsOptions = {}) {
     };
   }, [sort, category, subcategory, search, productId, prioritizeCategory, limit, isOffline, fetchPage]);
 
-  // Method to prioritize loading a specific page on-demand if user jumps or swipes near it
+  // High-priority on-demand page loader for user jumping or swiping near any index (forward or reverse)
   const prioritizeIndex = useCallback(async (index: number) => {
     if (isOffline || index < 0 || index >= totalCount) return;
-    const pageNum = Math.floor(index / limit) + 1;
+    const effectiveLimit = Math.max(limit, 50);
+    const pageNum = Math.floor(index / effectiveLimit) + 1;
     if (loadedPagesRef.current.has(pageNum) || fetchingPagesRef.current.has(pageNum)) return;
 
     try {
-      const pageData = await fetchPage(pageNum, limit);
+      const pageData = await fetchPage(pageNum, effectiveLimit);
       if (pageData && Array.isArray(pageData.data)) {
-        setProducts((prev) => {
-          const updated = [...prev];
-          const startIndex = (pageNum - 1) * limit;
-          pageData.data.forEach((p, i) => {
-            const targetIdx = startIndex + i;
-            if (targetIdx < updated.length) {
-              updated[targetIdx] = p;
-            }
-          });
-          return updated;
+        const startIndex = (pageNum - 1) * effectiveLimit;
+        pageData.data.forEach((p, i) => {
+          const targetIdx = startIndex + i;
+          if (targetIdx < productStoreRef.current.length) {
+            productStoreRef.current[targetIdx] = p;
+          }
         });
+
+        // Prewarm image assets of the newly loaded page immediately
+        pageData.data.forEach((p) => {
+          if (p.image) {
+            const img = new window.Image();
+            img.src = p.image;
+          }
+        });
+
+        setProducts([...productStoreRef.current]);
       }
     } catch {
       /* ignore */
