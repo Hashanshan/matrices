@@ -156,7 +156,7 @@ function CategorySection({
   }, [category, visibleCount, combinedProducts.length, targetTotalCount, isLoadingCategoryMore, fetchCategoryProducts]);
 
   // Handle manual "Load More" button click (and auto-scroll)
-  const handleLoadMore = async () => {
+  const handleLoadMore = useCallback(async () => {
     if (isLoadingCategoryMore) return;
     const nextTarget = visibleCount + stepSize;
     setVisibleCount(nextTarget);
@@ -169,7 +169,23 @@ function CategorySection({
     if (onGlobalLoadMore) {
       onGlobalLoadMore();
     }
-  };
+  }, [isLoadingCategoryMore, visibleCount, stepSize, combinedProducts.length, targetTotalCount, fetchCategoryProducts, onGlobalLoadMore]);
+
+  // Automatic infinite scroll when scrolling within this category section
+  const categorySentinelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!categorySentinelRef.current || isCollapsed) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !isLoadingCategoryMore) {
+          handleLoadMore();
+        }
+      },
+      { rootMargin: '350px 0px', threshold: 0.05 }
+    );
+    observer.observe(categorySentinelRef.current);
+    return () => observer.disconnect();
+  }, [hasMore, isLoadingCategoryMore, isCollapsed, handleLoadMore]);
 
   return (
     <motion.section
@@ -209,7 +225,10 @@ function CategorySection({
                 ))}
               </motion.div>
 
-              {/* Load More Button (Both Online & Offline - Hidden when showing count equals top count) */}
+              {/* Automatic scroll trigger sentinel */}
+              {hasMore && <div ref={categorySentinelRef} className="h-6 w-full pointer-events-none" />}
+
+              {/* Load More Button Fallback (Always visible as fallback when more products exist) */}
               {hasMore && (
                 <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
                   <motion.button
@@ -391,7 +410,7 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
           loadMore();
         }
       },
-      { threshold: 0.1 }
+      { rootMargin: '450px 0px', threshold: 0.05 }
     );
     observer.observe(sentinelRef.current);
     return () => observer.disconnect();
