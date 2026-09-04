@@ -157,9 +157,9 @@ export default function SyncProgressModal() {
                   {
                     step: 4,
                     minProg: 100,
-                    title: 'PRODUCT IMAGES & OFFLINE ASSETS',
+                    title: 'PRODUCT & SHOP IMAGES & OFFLINE ASSETS',
                     icon: ImageIcon,
-                    count: null,
+                    count: meta?.totalImages ? `${meta.totalImages} images` : null,
                   },
                 ].map((item) => {
                   const status = getStepStatus(item.minProg);

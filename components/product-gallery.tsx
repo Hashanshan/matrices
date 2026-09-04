@@ -318,8 +318,30 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
     (filters.priceRange[1] < maxP && maxP > 0 && filters.priceRange[1] !== maxP)
   );
 
+  // Smooth scroll to top whenever filter selection changes
+  const isInitialFilterMount = useRef(true);
+  useEffect(() => {
+    if (isInitialFilterMount.current) {
+      isInitialFilterMount.current = false;
+      return;
+    }
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [
+    filters.categories,
+    filters.subcategories,
+    filters.sortBy,
+    filters.timeFilter,
+    filters.searchQuery,
+    filters.priceRange,
+  ]);
+
   const handleClearFilters = () => {
     clearGalleryFilters();
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
     const defaultMinP = apiPriceRange.min || 0;
     const defaultMaxP = apiPriceRange.max > 0 ? apiPriceRange.max : 40000;
     setFilters({

@@ -199,7 +199,7 @@ function blobToBase64(blob: Blob): Promise<string> {
  * Includes automatic retry on transient network failures for resilient background sync.
  */
 export async function downloadAndSaveImage(url: string, retries = 2): Promise<string | null> {
-  if (!url || isLocalUri(url)) return url;
+  if (!url || typeof url !== 'string' || isLocalUri(url)) return url;
 
   // Check in-memory map first (O(1))
   const cached = getCachedImageUrlSync(url);
@@ -209,16 +209,39 @@ export async function downloadAndSaveImage(url: string, retries = 2): Promise<st
   const isNative = cap?.isNativePlatform?.() ?? false;
   const targetFetchUrl = resolveApiUrl(url);
 
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    try {
-      const token = getAuthToken();
-      const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+  // DO NOT send custom Authorization headers to Cloudinary or external media CDNs.
+  // Sending Authorization headers triggers CORS preflight OPTIONS which Cloudinary/S3 reject.
+  const isExternalMediaHost =
+    targetFetchUrl.includes('cloudinary.com') ||
+    targetFetchUrl.includes('amazonaws.com') ||
+    targetFetchUrl.includes('res.cloudinary') ||
+    /\.(webp|jpg|jpeg|png|gif|svg|avif)($|\?)/i.test(targetFetchUrl);
 
-      const response = await fetch(targetFetchUrl, { headers, mode: 'cors', cache: 'no-cache' });
+  const token = !isExternalMediaHost ? getAuthToken() : null;
+  const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timeoutId = controller ? setTimeout(() => controller.abort(), 15000) : null;
+
+    try {
+      const response = await fetch(targetFetchUrl, {
+        headers,
+        mode: 'cors',
+        cache: 'no-cache',
+        signal: controller?.signal,
+      });
+
+      if (timeoutId) clearTimeout(timeoutId);
+
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
       const blob = await response.blob();
       const sizeBytes = blob.size;
+
+      if (sizeBytes === 0) {
+        throw new Error('Downloaded empty image blob');
+      }
 
       if (isNative) {
         const fsModule = await loadCapacitorFilesystem();
@@ -282,9 +305,11 @@ export async function downloadAndSaveImage(url: string, retries = 2): Promise<st
 
       return objectUrl;
     } catch (err) {
+      if (timeoutId) clearTimeout(timeoutId);
+
       if (attempt < retries) {
-        // Wait 400ms before retry
-        await new Promise((r) => setTimeout(r, 400));
+        // Wait 350ms before retry
+        await new Promise((r) => setTimeout(r, 350));
       } else {
         console.warn(`Failed to download image ${url} after ${retries + 1} attempts:`, err);
         return null;
@@ -305,7 +330,7 @@ export async function getUncachedImageUrls(imageUrls: string[]): Promise<string[
 }
 
 /**
- * Downloads a batch of product image URLs and persists them to LocalDB
+ * Downloads a batch of product and shop image URLs and persists them to LocalDB
  */
 export async function cacheProductImages(
   imageUrls: string[],
@@ -313,7 +338,7 @@ export async function cacheProductImages(
 ): Promise<{ totalDownloaded: number; totalSizeBytes: number; failedCount: number; balanceRemaining: number }> {
   if (typeof window === 'undefined') return { totalDownloaded: 0, totalSizeBytes: 0, failedCount: 0, balanceRemaining: 0 };
 
-  const uniqueUrls = Array.from(new Set(imageUrls.filter(Boolean)));
+  const uniqueUrls = Array.from(new Set(imageUrls.filter((u) => Boolean(u && typeof u === 'string' && u.trim().length > 0 && !isLocalUri(u)))));
   let done = 0;
   let totalSizeBytes = 0;
   let failedCount = 0;
@@ -330,8 +355,8 @@ export async function cacheProductImages(
     onProgress?.(done, uniqueUrls.length);
   }
 
-  // Concurrency limit (4) to prevent memory saturation and native bridge congestion
-  const CONCURRENCY = 4;
+  // Optimized concurrency pool (8 concurrent workers)
+  const CONCURRENCY = 8;
   for (let i = 0; i < uncachedUrls.length; i += CONCURRENCY) {
     const chunk = uncachedUrls.slice(i, i + CONCURRENCY);
     await Promise.all(

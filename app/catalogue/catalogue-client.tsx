@@ -58,10 +58,20 @@ export default function CategoriesPage({ fallbackData }: { fallbackData?: any } 
     if (selectedCategory !== null) {
       setSelectedCategory(null);
       setSearchQuery('');
+      if (typeof window !== 'undefined') {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
       return true;
     }
     return false;
   }, selectedCategory !== null);
+
+  // Smooth scroll to top when selected category changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [selectedCategory]);
 
   // Access wishlist state and toggles
   const {

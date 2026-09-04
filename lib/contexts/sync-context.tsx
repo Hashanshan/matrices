@@ -420,34 +420,64 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
           setSyncStatusText('Scanning offline image cache for balance images...');
 
           const allImageUrls: string[] = [
-            ...localCats.map((c: any) => c.image),
-            ...localSubcats.map((s: any) => s.image),
+            ...localCats.map((c: any) => c.image || c.imageUrl || c.categoryImage),
+            ...localSubcats.map((s: any) => s.image || s.imageUrl),
             ...localProducts.map((p: any) => p.imageUrl || p.image),
-            ...localProducts.flatMap((p: any) => p.images || []),
-            ...localShops.map((s: any) => s.imageUrl),
+            ...localProducts.flatMap((p: any) => (Array.isArray(p.images) ? p.images : (p.imageUrl ? [p.imageUrl] : []))),
+            ...localShops.map((s: any) => s.imageUrl || s.image),
           ].filter((url): url is string => Boolean(url && typeof url === 'string' && url.trim().length > 0));
 
           const uniqueImageUrls = Array.from(new Set(allImageUrls));
           const uncachedUrls = await getUncachedImageUrls(uniqueImageUrls);
 
-          if (uncachedUrls.length === 0) {
-            setProgress(95);
-            setSyncStatusText('All balance images already cached! Finalizing...');
-            invalidateImageMemoryMap();
-            invalidateProductIndex();
-            await prewarmImageCache().catch(() => {});
+          if (uncachedUrls.length > 0) {
+            setSyncStatusText(`Downloading balance of ${uncachedUrls.length} offline images (Total ${uniqueImageUrls.length})...`);
+            let lastResumeProgressTime = 0;
+            await cacheProductImages(uniqueImageUrls, (done, total) => {
+              const now = Date.now();
+              if (now - lastResumeProgressTime > 120 || done === total || done === 1) {
+                lastResumeProgressTime = now;
+                const imageProgress = 50 + Math.floor((done / total) * 45);
+                setProgress(imageProgress);
+                setSyncStatusText(`Downloading balance offline images (${done}/${total})...`);
+              }
+            });
+          }
 
-            const summary = await offlineDB.getImageStorageSummary();
-            const imageMB = Number((summary.totalBytes / (1024 * 1024)).toFixed(2));
+          setProgress(95);
+          setSyncStatusText('Performing final verification of offline data & local images...');
 
+          invalidateImageMemoryMap();
+          invalidateProductIndex();
+          await prewarmImageCache().catch(() => {});
+
+          // Query actual stored database records directly for strict verification
+          const verifiedProducts = await offlineDB.getCount('products').catch(() => 0);
+          const verifiedCategories = await offlineDB.getCount('categories').catch(() => 0);
+          const verifiedSubcategories = await offlineDB.getCount('subcategories').catch(() => 0);
+          const verifiedShops = await offlineDB.getCount('shops').catch(() => 0);
+          const verifiedOrders = await offlineDB.getCount('orders').catch(() => 0);
+          const summary = await offlineDB.getImageStorageSummary().catch(() => ({ count: 0, totalBytes: 0 }));
+          const imageMB = Number((summary.totalBytes / (1024 * 1024)).toFixed(2));
+
+          const totalExpectedImages = uniqueImageUrls.length;
+          const actualStoredImages = summary.count;
+          const minimumRequiredImages = totalExpectedImages > 0 ? Math.floor(totalExpectedImages * 0.95) : 0;
+
+          const isProductsOk = verifiedProducts > 0 && verifiedProducts >= localProducts.length;
+          const isShopsOk = verifiedShops >= localShops.length;
+          const isImagesOk = totalExpectedImages === 0 || actualStoredImages >= minimumRequiredImages;
+          const isFullyVerified = isProductsOk && isShopsOk && isImagesOk;
+
+          if (isFullyVerified) {
             const newMeta: SyncMetadata = {
               lastSyncedAt: new Date().toISOString(),
-              totalProducts: localProducts.length,
-              totalCategories: localCats.length,
-              totalSubcategories: localSubcats.length,
-              totalShops: localShops.length,
-              totalOrders: localOrders.length,
-              totalImages: summary.count,
+              totalProducts: verifiedProducts,
+              totalCategories: verifiedCategories,
+              totalSubcategories: verifiedSubcategories,
+              totalShops: verifiedShops,
+              totalOrders: verifiedOrders,
+              totalImages: actualStoredImages,
               imageStorageMB: imageMB,
               isIncomplete: false,
               syncedUserId: user?.id || (user as any)?._id || (user?.email ? String(user.email) : ''),
@@ -467,66 +497,76 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
             setLastSyncedAt(newMeta.lastSyncedAt);
 
             setProgress(100);
-            setSyncStatusText('Sync Complete! 100% of data & images available offline.');
+            setSyncStatusText(`Sync Verified! ${verifiedProducts} Products, ${verifiedShops} Shops, and ${actualStoredImages} Images Ready Offline.`);
 
             window.dispatchEvent(new Event('matrices-data-mode-change'));
             window.dispatchEvent(new Event('matrices-sync-stats-updated'));
             return true;
+          } else {
+            const pendingCount = Math.max(0, totalExpectedImages - actualStoredImages);
+            const failReason = !isProductsOk
+              ? `Product count mismatch (Expected ${localProducts.length}, verified ${verifiedProducts})`
+              : !isImagesOk
+              ? `Image sync incomplete (${actualStoredImages} of ${totalExpectedImages} images stored, ${pendingCount} pending)`
+              : `Shop count mismatch (Expected ${localShops.length}, verified ${verifiedShops})`;
+
+            const incompleteMeta: SyncMetadata = {
+              lastSyncedAt: '',
+              totalProducts: verifiedProducts,
+              totalCategories: verifiedCategories,
+              totalSubcategories: verifiedSubcategories,
+              totalShops: verifiedShops,
+              totalOrders: verifiedOrders,
+              totalImages: actualStoredImages,
+              imageStorageMB: imageMB,
+              isIncomplete: true,
+              incompleteReason: failReason,
+              pendingImagesCount: pendingCount,
+              syncedUserId: user?.id || (user as any)?._id || (user?.email ? String(user.email) : ''),
+              syncedUserEmail: user?.email || '',
+              syncedUserName: user?.name || '',
+            };
+
+            await offlineDB.setMeta(incompleteMeta);
+            setMeta(incompleteMeta);
+            setLastSyncedAt(null);
+
+            setProgress(100);
+            setSyncStatusText(`Sync Incomplete: ${actualStoredImages}/${totalExpectedImages} images stored. Resume sync to complete.`);
+            window.dispatchEvent(new Event('matrices-sync-stats-updated'));
+
+            Swal.fire({
+              icon: 'warning',
+              title: 'Sync Incomplete',
+              html: `
+                <div style="text-align: left; font-size: 13px;" class="space-y-3">
+                  <p style="color: #b45309; font-weight: 700;">${failReason}</p>
+                  <div style="background: #fef3c7; padding: 10px 12px; border-radius: 8px; border-left: 4px solid #f59e0b;">
+                    <p style="font-weight: 700; color: #92400e;">📦 Verified Offline Data</p>
+                    <p style="font-size: 12px; color: #78350f; margin-top: 2px;">
+                      • Products: <strong>${verifiedProducts}</strong><br/>
+                      • Shops: <strong>${verifiedShops}</strong><br/>
+                      • Images Cached: <strong>${actualStoredImages} / ${totalExpectedImages}</strong> (${imageMB} MB)
+                    </p>
+                  </div>
+                  <p style="font-size: 12px; color: #475569;">
+                    Click <strong>"Resume Balance Sync"</strong> to download the remaining ${pendingCount} images and complete offline setup.
+                  </p>
+                </div>
+              `,
+              showCancelButton: true,
+              confirmButtonText: '⚡ Resume Balance Sync',
+              cancelButtonText: 'Close',
+              confirmButtonColor: '#059669',
+              cancelButtonColor: '#64748b',
+            }).then((res) => {
+              if (res.isConfirmed) {
+                executeSync('resume');
+              }
+            });
+
+            return false;
           }
-
-          setSyncStatusText(`Downloading balance of ${uncachedUrls.length} offline images (Total ${uniqueImageUrls.length})...`);
-          let lastResumeProgressTime = 0;
-          const stats = await cacheProductImages(uniqueImageUrls, (done, total) => {
-            const now = Date.now();
-            if (now - lastResumeProgressTime > 120 || done === total || done === 1) {
-              lastResumeProgressTime = now;
-              const imageProgress = 50 + Math.floor((done / total) * 45);
-              setProgress(imageProgress);
-              setSyncStatusText(`Downloading balance offline images (${done}/${total})...`);
-            }
-          });
-
-          setProgress(96);
-          setSyncStatusText('Finalizing sync & pre-warming local search & image index...');
-
-          invalidateImageMemoryMap();
-          invalidateProductIndex();
-          await prewarmImageCache().catch(() => {});
-
-          const summary = await offlineDB.getImageStorageSummary();
-          const imageMB = Number((summary.totalBytes / (1024 * 1024)).toFixed(2));
-          const newMeta: SyncMetadata = {
-            lastSyncedAt: new Date().toISOString(),
-            totalProducts: localProducts.length,
-            totalCategories: localCats.length,
-            totalSubcategories: localSubcats.length,
-            totalShops: localShops.length,
-            totalOrders: localOrders.length,
-            totalImages: summary.count > 0 ? summary.count : (stats.totalDownloaded > 0 ? stats.totalDownloaded : uniqueImageUrls.length),
-            imageStorageMB: imageMB,
-            isIncomplete: false,
-            syncedUserId: user?.id || (user as any)?._id || (user?.email ? String(user.email) : ''),
-            syncedUserEmail: user?.email || '',
-            syncedUserName: user?.name || '',
-          };
-
-          await offlineDB.setMeta(newMeta);
-          if (user?.email) {
-            await offlineDB.saveSecure('synced_user_email', user.email.toLowerCase().trim());
-            if (typeof window !== 'undefined') {
-              localStorage.setItem('matrices_last_synced_user_email', user.email);
-              if (user?.name) localStorage.setItem('matrices_last_synced_user_name', user.name);
-            }
-          }
-          setMeta(newMeta);
-          setLastSyncedAt(newMeta.lastSyncedAt);
-
-          setProgress(100);
-          setSyncStatusText('Sync Complete! 100% of data & images available offline.');
-
-          window.dispatchEvent(new Event('matrices-data-mode-change'));
-          window.dispatchEvent(new Event('matrices-sync-stats-updated'));
-          return true;
         }
       }
 
@@ -894,23 +934,20 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
       // Collect ALL unique image URLs from categories, subcategories, products, and shops
       const allImageUrls: string[] = [
-        ...formattedCategories.map((c: { image?: string }) => c.image),
-        ...formattedSubcategories.map((s: { image?: string }) => s.image),
+        ...formattedCategories.map((c: { image?: string; imageUrl?: string; categoryImage?: string }) => c.image || c.imageUrl || c.categoryImage),
+        ...formattedSubcategories.map((s: { image?: string; imageUrl?: string }) => s.image || s.imageUrl),
         ...formattedProducts.map((p: { image?: string; imageUrl?: string }) => p.imageUrl || p.image),
-        ...formattedProducts.flatMap((p: { images?: string[] }) => p.images || []),
-        ...formattedShops.map((s: { imageUrl?: string }) => s.imageUrl),
+        ...formattedProducts.flatMap((p: { images?: string[]; imageUrl?: string }) => (Array.isArray(p.images) ? p.images : (p.imageUrl ? [p.imageUrl] : []))),
+        ...formattedShops.map((s: { imageUrl?: string; image?: string }) => s.imageUrl || s.image),
       ].filter((url): url is string => Boolean(url && typeof url === 'string' && url.trim().length > 0));
 
       const uniqueImageUrls = Array.from(new Set(allImageUrls));
-
-      let totalImagesDownloaded = 0;
-      let totalSizeBytesDownloaded = 0;
 
       if (uniqueImageUrls.length > 0) {
         setSyncStatusText(`Downloading ${uniqueImageUrls.length} images for full offline access (0/${uniqueImageUrls.length})...`);
 
         let lastFullProgressTime = 0;
-        const stats = await cacheProductImages(uniqueImageUrls, (done, total) => {
+        await cacheProductImages(uniqueImageUrls, (done, total) => {
           const now = Date.now();
           if (now - lastFullProgressTime > 120 || done === total || done === 1) {
             lastFullProgressTime = now;
@@ -919,55 +956,133 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
             setSyncStatusText(`Downloading offline images (${done}/${total})...`);
           }
         });
-
-        totalImagesDownloaded = stats.totalDownloaded;
-        totalSizeBytesDownloaded = stats.totalSizeBytes;
       }
 
       setProgress(96);
-      setSyncStatusText('Finalizing sync & pre-warming local search & image index...');
+      setSyncStatusText('Performing final verification of offline database & local images...');
 
       // Invalidate & rebuild all in-memory image & search caches
       invalidateImageMemoryMap();
       invalidateProductIndex();
       await prewarmImageCache().catch(() => {});
 
-      // ONLY commit sync timestamp, metadata, and salesrep details when 100% complete
-      const summary = await offlineDB.getImageStorageSummary();
+      // Query actual stored database records directly for strict verification
+      const verifiedProductCount = await offlineDB.getCount('products').catch(() => 0);
+      const verifiedCategoryCount = await offlineDB.getCount('categories').catch(() => 0);
+      const verifiedSubcategoryCount = await offlineDB.getCount('subcategories').catch(() => 0);
+      const verifiedShopCount = await offlineDB.getCount('shops').catch(() => 0);
+      const verifiedOrdersCount = await offlineDB.getCount('orders').catch(() => 0);
+      const summary = await offlineDB.getImageStorageSummary().catch(() => ({ count: 0, totalBytes: 0 }));
       const finalImageMB = Number((summary.totalBytes / (1024 * 1024)).toFixed(2));
-      const newMeta: SyncMetadata = {
-        lastSyncedAt: new Date().toISOString(),
-        totalProducts: formattedProducts.length,
-        totalCategories: formattedCategories.length,
-        totalSubcategories: formattedSubcategories.length,
-        totalShops: formattedShops.length,
-        totalOrders: formattedOrders.length,
-        totalImages: summary.count > 0 ? summary.count : (totalImagesDownloaded > 0 ? totalImagesDownloaded : uniqueImageUrls.length),
-        imageStorageMB: finalImageMB,
-        isIncomplete: false,
-        syncedUserId: user?.id || (user as any)?._id || (user?.email ? String(user.email) : ''),
-        syncedUserEmail: user?.email || '',
-        syncedUserName: user?.name || '',
-      };
 
-      await offlineDB.setMeta(newMeta);
-      if (user?.email) {
-        await offlineDB.saveSecure('synced_user_email', user.email.toLowerCase().trim());
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('matrices_last_synced_user_email', user.email);
-          if (user?.name) localStorage.setItem('matrices_last_synced_user_name', user.name);
+      const totalExpectedImages = uniqueImageUrls.length;
+      const actualStoredImages = summary.count;
+      const minimumRequiredImages = totalExpectedImages > 0 ? Math.floor(totalExpectedImages * 0.95) : 0;
+
+      const isProductsValid = verifiedProductCount > 0 && verifiedProductCount >= formattedProducts.length;
+      const isShopsValid = verifiedShopCount >= formattedShops.length;
+      const isImagesValid = totalExpectedImages === 0 || actualStoredImages >= minimumRequiredImages;
+      const isFullyVerified = isProductsValid && isShopsValid && isImagesValid;
+
+      if (isFullyVerified) {
+        const newMeta: SyncMetadata = {
+          lastSyncedAt: new Date().toISOString(),
+          totalProducts: verifiedProductCount,
+          totalCategories: verifiedCategoryCount,
+          totalSubcategories: verifiedSubcategoryCount,
+          totalShops: verifiedShopCount,
+          totalOrders: verifiedOrdersCount,
+          totalImages: actualStoredImages,
+          imageStorageMB: finalImageMB,
+          isIncomplete: false,
+          syncedUserId: user?.id || (user as any)?._id || (user?.email ? String(user.email) : ''),
+          syncedUserEmail: user?.email || '',
+          syncedUserName: user?.name || '',
+        };
+
+        await offlineDB.setMeta(newMeta);
+        if (user?.email) {
+          await offlineDB.saveSecure('synced_user_email', user.email.toLowerCase().trim());
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('matrices_last_synced_user_email', user.email);
+            if (user?.name) localStorage.setItem('matrices_last_synced_user_name', user.name);
+          }
         }
+        setMeta(newMeta);
+        setLastSyncedAt(newMeta.lastSyncedAt);
+
+        setProgress(100);
+        setSyncStatusText(`Sync Verified! ${verifiedProductCount} Products, ${verifiedShopCount} Shops, and ${actualStoredImages} Images Ready Offline.`);
+
+        window.dispatchEvent(new Event('matrices-data-mode-change'));
+        window.dispatchEvent(new Event('matrices-sync-stats-updated'));
+
+        return true;
+      } else {
+        const pendingCount = Math.max(0, totalExpectedImages - actualStoredImages);
+        const failReason = !isProductsValid
+          ? `Product count mismatch (Expected ${formattedProducts.length}, verified ${verifiedProductCount})`
+          : !isImagesValid
+          ? `Image sync incomplete (${actualStoredImages} of ${totalExpectedImages} images stored, ${pendingCount} pending)`
+          : `Shop count mismatch (Expected ${formattedShops.length}, verified ${verifiedShopCount})`;
+
+        const incompleteMeta: SyncMetadata = {
+          lastSyncedAt: '',
+          totalProducts: verifiedProductCount,
+          totalCategories: verifiedCategoryCount,
+          totalSubcategories: verifiedSubcategoryCount,
+          totalShops: verifiedShopCount,
+          totalOrders: verifiedOrdersCount,
+          totalImages: actualStoredImages,
+          imageStorageMB: finalImageMB,
+          isIncomplete: true,
+          incompleteReason: failReason,
+          pendingImagesCount: pendingCount,
+          syncedUserId: user?.id || (user as any)?._id || (user?.email ? String(user.email) : ''),
+          syncedUserEmail: user?.email || '',
+          syncedUserName: user?.name || '',
+        };
+
+        await offlineDB.setMeta(incompleteMeta);
+        setMeta(incompleteMeta);
+        setLastSyncedAt(null);
+
+        setProgress(100);
+        setSyncStatusText(`Sync Incomplete: ${actualStoredImages}/${totalExpectedImages} images stored. Resume sync to complete.`);
+        window.dispatchEvent(new Event('matrices-sync-stats-updated'));
+
+        Swal.fire({
+          icon: 'warning',
+          title: 'Sync Incomplete',
+          html: `
+            <div style="text-align: left; font-size: 13px;" class="space-y-3">
+              <p style="color: #b45309; font-weight: 700;">${failReason}</p>
+              <div style="background: #fef3c7; padding: 10px 12px; border-radius: 8px; border-left: 4px solid #f59e0b;">
+                <p style="font-weight: 700; color: #92400e;">📦 Verified Offline Data</p>
+                <p style="font-size: 12px; color: #78350f; margin-top: 2px;">
+                  • Products: <strong>${verifiedProductCount}</strong><br/>
+                  • Shops: <strong>${verifiedShopCount}</strong><br/>
+                  • Images Cached: <strong>${actualStoredImages} / ${totalExpectedImages}</strong> (${finalImageMB} MB)
+                </p>
+              </div>
+              <p style="font-size: 12px; color: #475569;">
+                Click <strong>"Resume Balance Sync"</strong> to download the remaining ${pendingCount} images and complete offline setup.
+              </p>
+            </div>
+          `,
+          showCancelButton: true,
+          confirmButtonText: '⚡ Resume Balance Sync',
+          cancelButtonText: 'Close',
+          confirmButtonColor: '#059669',
+          cancelButtonColor: '#64748b',
+        }).then((res) => {
+          if (res.isConfirmed) {
+            executeSync('resume');
+          }
+        });
+
+        return false;
       }
-      setMeta(newMeta);
-      setLastSyncedAt(newMeta.lastSyncedAt);
-
-      setProgress(100);
-      setSyncStatusText('Sync Complete! 100% of data & images available offline.');
-
-      window.dispatchEvent(new Event('matrices-data-mode-change'));
-      window.dispatchEvent(new Event('matrices-sync-stats-updated'));
-
-      return true;
     } catch (err: any) {
       console.error('Error during data sync:', err);
       const errMsg = err?.message || 'Server connection or network interrupted';

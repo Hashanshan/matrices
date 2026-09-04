@@ -12,6 +12,14 @@ interface PaginationProps {
 export default function Pagination({ currentPage, totalPages, onPageChange, className = '' }: PaginationProps) {
   if (totalPages <= 1) return null;
 
+  const handlePageSelect = (page: number) => {
+    if (page < 1 || page > totalPages || page === currentPage) return;
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+    onPageChange(page);
+  };
+
   const pages = [];
   const startPage = Math.max(1, currentPage - 2);
   const endPage = Math.min(totalPages, currentPage + 2);
@@ -23,7 +31,7 @@ export default function Pagination({ currentPage, totalPages, onPageChange, clas
   return (
     <div className={`flex items-center justify-center gap-2 flex-wrap ${className}`}>
       <button
-        onClick={() => onPageChange(currentPage - 1)}
+        onClick={() => handlePageSelect(currentPage - 1)}
         disabled={currentPage <= 1}
         className="px-3.5 py-2 rounded-full font-black text-xs uppercase bg-white/60 hover:bg-white text-[#0f172a] border border-white/60 shadow-xs transition-all disabled:opacity-30 disabled:hover:bg-white/60 flex items-center gap-1 cursor-pointer disabled:cursor-not-allowed"
       >
@@ -33,7 +41,7 @@ export default function Pagination({ currentPage, totalPages, onPageChange, clas
       {startPage > 1 && (
         <>
           <button
-            onClick={() => onPageChange(1)}
+            onClick={() => handlePageSelect(1)}
             className="w-8 h-8 rounded-full font-black text-xs bg-white/60 hover:bg-white text-[#0f172a] border border-white/60 shadow-xs transition-all flex items-center justify-center cursor-pointer"
           >
             1
@@ -45,7 +53,7 @@ export default function Pagination({ currentPage, totalPages, onPageChange, clas
       {pages.map((p) => (
         <button
           key={p}
-          onClick={() => onPageChange(p)}
+          onClick={() => handlePageSelect(p)}
           className={`w-8 h-8 rounded-full font-black text-xs transition-all flex items-center justify-center border shadow-xs cursor-pointer ${
             p === currentPage
               ? 'bg-[#0f172a] text-white border-[#0f172a] shadow-md scale-105'
@@ -60,7 +68,7 @@ export default function Pagination({ currentPage, totalPages, onPageChange, clas
         <>
           {endPage < totalPages - 1 && <span className="text-xs font-black text-[#0f172a]">...</span>}
           <button
-            onClick={() => onPageChange(totalPages)}
+            onClick={() => handlePageSelect(totalPages)}
             className="w-8 h-8 rounded-full font-black text-xs bg-white/60 hover:bg-white text-[#0f172a] border border-white/60 shadow-xs transition-all flex items-center justify-center cursor-pointer"
           >
             {totalPages}
@@ -69,7 +77,7 @@ export default function Pagination({ currentPage, totalPages, onPageChange, clas
       )}
 
       <button
-        onClick={() => onPageChange(currentPage + 1)}
+        onClick={() => handlePageSelect(currentPage + 1)}
         disabled={currentPage >= totalPages}
         className="px-3.5 py-2 rounded-full font-black text-xs uppercase bg-white/60 hover:bg-white text-[#0f172a] border border-white/60 shadow-xs transition-all disabled:opacity-30 disabled:hover:bg-white/60 flex items-center gap-1 cursor-pointer disabled:cursor-not-allowed"
       >

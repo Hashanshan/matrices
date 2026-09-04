@@ -222,6 +222,9 @@ export default function SettingsInvoicesPage() {
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);
     setPage(1);
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   };
 
   const handleSearchChange = (val: string) => {
@@ -232,11 +235,17 @@ export default function SettingsInvoicesPage() {
   const handleFromDateChange = (val: string) => {
     setFromDate(val);
     setPage(1);
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   };
 
   const handleToDateChange = (val: string) => {
     setToDate(val);
     setPage(1);
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   };
 
   const resetFilters = () => {
