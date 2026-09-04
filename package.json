@@ -13,7 +13,9 @@
     "apk:modern": "node scripts/build-apk.mjs modern",
     "apk:build": "node scripts/build-apk.mjs modern",
     "ipa:build": "node scripts/build-mobile.mjs && cap sync ios && npx eas-cli build --platform ios",
-    "package:update": "node scripts/package-update.mjs"
+    "package:update": "node scripts/package-update.mjs",
+    "postinstall": "node scripts/patch-ios-eas.mjs",
+    "eas-build-post-install": "node scripts/patch-ios-eas.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
@@ -50,7 +52,6 @@
     "@types/node": "^24",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "cloudinary": "^2.10.0",
     "cross-env": "^10.1.0",
     "eas-cli": "^16.0.0",
     "postcss": "^8.5",

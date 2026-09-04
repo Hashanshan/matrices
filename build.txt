@@ -6,6 +6,8 @@ npx cap sync android
 npm run apk:build
 
 npm run ipa:build
+npx eas-cli build --platform ios --profile preview
+
 
 npm run apk:modern
 npm run apk:legacy

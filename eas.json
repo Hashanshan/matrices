@@ -9,12 +9,19 @@
       "distribution": "internal"
     },
     "preview": {
-      "distribution": "internal"
+      "node": "22.14.0",
+      "ios": {
+        "image": "latest",
+        "scheme": "App",
+        "simulator": true
+      }
     },
     "production": {
+      "node": "22.14.0",
       "ios": {
+        "image": "latest",
         "scheme": "App",
-        "simulator": false
+        "simulator": true
       }
     }
   }
