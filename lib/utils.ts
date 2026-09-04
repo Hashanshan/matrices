@@ -55,10 +55,10 @@ export function resolveApiUrl(path: string): string {
 
 export function getAuthToken(): string | null {
   if (typeof window === 'undefined') return null;
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem('token') || localStorage.getItem('matrices_token');
   if (token && token !== 'undefined' && token !== 'null') return token;
 
-  const savedUser = localStorage.getItem('user');
+  const savedUser = localStorage.getItem('user') || localStorage.getItem('matrices_user');
   if (savedUser) {
     try {
       const parsed = JSON.parse(savedUser);
@@ -68,10 +68,13 @@ export function getAuthToken(): string | null {
     } catch (e) {}
   }
 
-  const cookieMatch = document.cookie.match(/(?:^|; )\s*token\s*=\s*([^;]+)/);
-  if (cookieMatch) {
-    const val = decodeURIComponent(cookieMatch[1]);
-    if (val && val !== 'undefined' && val !== 'null') return val;
+  // Only check document.cookie if an active user session exists in localStorage
+  if (savedUser) {
+    const cookieMatch = document.cookie.match(/(?:^|; )\s*token\s*=\s*([^;]+)/);
+    if (cookieMatch) {
+      const val = decodeURIComponent(cookieMatch[1]);
+      if (val && val !== 'undefined' && val !== 'null') return val;
+    }
   }
 
   return null;
@@ -96,7 +99,9 @@ export function handleTokenExpiredRedirect(data?: any, status?: number): boolean
     localStorage.removeItem('matrices_user');
     localStorage.removeItem('matrices_token');
     localStorage.removeItem('matrices_login_time');
-    document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+    document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; max-age=0; SameSite=Lax;';
+    document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; max-age=0;';
+    document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; max-age=0;';
 
     const isLoginPage = window.location.pathname === '/';
     if (!isLoginPage) {

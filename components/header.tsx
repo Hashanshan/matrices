@@ -144,6 +144,7 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
     }
 
     logout();
+    router.replace('/');
   };
 
   // nav links shared between hamburger & desktop

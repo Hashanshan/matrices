@@ -960,8 +960,13 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
       if (isAuthError) {
         localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        localStorage.removeItem('matrices_user');
+        localStorage.removeItem('matrices_token');
         localStorage.removeItem('matrices_login_time');
-        document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+        document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; max-age=0; SameSite=Lax;';
+        document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; max-age=0;';
+        document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; max-age=0;';
 
         Swal.fire({
           icon: 'warning',

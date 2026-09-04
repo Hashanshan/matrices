@@ -81,13 +81,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         localStorage.removeItem('user');
         localStorage.removeItem('matrices_user');
         localStorage.removeItem('token');
+        localStorage.removeItem('matrices_token');
         localStorage.removeItem('matrices_login_time');
-        document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+        document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; max-age=0; SameSite=Lax;';
+        document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; max-age=0;';
+        document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; max-age=0;';
         return false;
       }
       const savedUser = localStorage.getItem('user') || localStorage.getItem('matrices_user');
-      const savedToken = localStorage.getItem('token');
-      return Boolean(savedUser || savedToken);
+      const savedToken = localStorage.getItem('token') || localStorage.getItem('matrices_token');
+      return Boolean(savedUser && savedToken);
     }
     return false;
   });
@@ -130,9 +133,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (typeof sessionStorage !== 'undefined') {
       sessionStorage.clear();
     }
-    document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+    document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; max-age=0; SameSite=Lax;';
+    document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; max-age=0;';
+    document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; max-age=0;';
     if (typeof window !== 'undefined') {
-      window.dispatchEvent(new Event('matrices-auth-updated'));
+      window.dispatchEvent(new Event('matrices-cart-updated'));
     }
   };
 
@@ -144,19 +149,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
+      const savedUserStr = localStorage.getItem('user') || localStorage.getItem('matrices_user');
+      const savedToken = localStorage.getItem('token') || localStorage.getItem('matrices_token');
+
+      // If user has explicitly logged out (no saved user and no token in localStorage), do NOT restore!
+      if (!savedUserStr && !savedToken) {
+        setUser(null);
+        setIsLoggedIn(false);
+        return;
+      }
+
       let parsedUser: UserProfile | null = null;
-      const savedUser = localStorage.getItem('user') || localStorage.getItem('matrices_user');
-      if (savedUser) {
+      if (savedUserStr) {
         try {
-          parsedUser = JSON.parse(savedUser);
+          parsedUser = JSON.parse(savedUserStr);
         } catch (e) {}
       }
 
-      const token = getAuthToken();
-      if (parsedUser) {
+      const token = savedToken || (parsedUser as any)?.token || getAuthToken();
+      if (parsedUser && token) {
         setUser(parsedUser);
         setIsLoggedIn(true);
-      } else if (token) {
+      } else if (token && parsedUser) {
         setIsLoggedIn(true);
       } else {
         logout();
@@ -214,7 +228,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     restoreUserSession();
 
     const handleAuthUpdated = () => {
-      restoreUserSession();
+      const hasUserOrToken = Boolean(
+        localStorage.getItem('user') ||
+        localStorage.getItem('matrices_user') ||
+        localStorage.getItem('token') ||
+        localStorage.getItem('matrices_token')
+      );
+      if (hasUserOrToken) {
+        restoreUserSession();
+      }
     };
 
     window.addEventListener('matrices-auth-updated', handleAuthUpdated);
