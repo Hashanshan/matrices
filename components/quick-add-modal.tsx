@@ -220,16 +220,21 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
               </div>
 
               {/* Right Side: Product Details & Add to Cart */}
-              <div className="w-full md:w-1/2 p-6 md:p-8 md:overflow-y-auto md:max-h-[80vh] flex flex-col">
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleAddToCart();
+                }}
+                className="w-full md:w-1/2 p-6 md:p-8 md:overflow-y-auto md:max-h-[80vh] flex flex-col"
+              >
                 {/* Close Button for Desktop */}
-                <motion.button
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.95 }}
+                <button
+                  type="button"
                   onClick={onClose}
-                  className="absolute top-6 right-6 p-2 bg-gray-100 hover:bg-gray-200 rounded-full transition-colors hidden md:block"
+                  className="absolute top-6 right-6 p-2 bg-gray-100 hover:bg-gray-200 rounded-full transition-colors hidden md:block cursor-pointer"
                 >
                   <X size={20} className="text-gray-600" />
-                </motion.button>
+                </button>
 
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
@@ -263,6 +268,7 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
                       <div className="flex gap-3 flex-wrap">
                         {product.variants.colors.map((color) => (
                           <button
+                            type="button"
                             key={color.id}
                             onClick={() => setSelectedColor(color.name)}
                             className={`px-4 py-2.5 rounded-xl border-2 font-bold text-sm transition-all ${selectedColor === color.name
@@ -289,6 +295,7 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
                       <div className="flex gap-3 flex-wrap">
                         {product.variants.sizes.map((size) => (
                           <button
+                            type="button"
                             key={size.id}
                             onClick={() => setSelectedSize(size.name)}
                             className={`px-4 py-2.5 rounded-xl border-2 font-bold text-sm transition-all ${selectedSize === size.name
@@ -328,10 +335,17 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
                         type="text"
                         inputMode="numeric"
                         pattern="[0-9]*"
+                        enterKeyHint="go"
                         value={quantity}
                         onFocus={(e) => e.target.select()}
                         onChange={(e) => handleQuantityChange(e.target.value)}
                         onBlur={handleQuantityBlur}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.keyCode === 13) {
+                            e.preventDefault();
+                            handleAddToCart();
+                          }
+                        }}
                         placeholder="1"
                         className="w-16 text-center font-black text-lg text-[#0f172a] bg-transparent focus:outline-none"
                       />
@@ -385,6 +399,13 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
                     <textarea
                       value={notes}
                       onChange={(e) => setNotes(e.target.value)}
+                      enterKeyHint="go"
+                      onKeyDown={(e) => {
+                        if ((e.key === 'Enter' || e.keyCode === 13) && !e.shiftKey) {
+                          e.preventDefault();
+                          handleAddToCart();
+                        }
+                      }}
                       placeholder="Type custom note or select packaging above..."
                       className="w-full px-4 py-3 rounded-xl border-2 border-gray-100 bg-gray-50 text-[#0f172a] font-medium placeholder-gray-400 focus:outline-none focus:border-[#0f172a] focus:bg-white transition-colors resize-none h-20 text-xs"
                     />
@@ -395,6 +416,7 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
                 <div className="mt-8 pt-6 border-t border-gray-100">
                   <div className="flex gap-4 flex-col sm:flex-row">
                     <button
+                      type="button"
                       onClick={onClose}
                       disabled={isSubmitting}
                       className="px-6 py-4 rounded-xl border-2 border-gray-200 text-gray-600 font-bold hover:border-gray-300 hover:bg-gray-50 transition-all text-center cursor-pointer"
@@ -402,7 +424,7 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
                       Cancel
                     </button>
                     <button
-                      onClick={handleAddToCart}
+                      type="submit"
                       disabled={isSubmitting}
                       className="flex-1 bg-[#0f172a] hover:bg-[#1e293b] text-white font-bold py-4 px-6 rounded-xl flex items-center justify-center gap-2 transition-all hover:shadow-lg disabled:opacity-50 overflow-hidden cursor-pointer"
                     >
@@ -420,7 +442,7 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
                   </div>
                 </div>
 
-              </div>
+              </form>
             </div>
           </motion.div>
 

@@ -733,19 +733,28 @@ export default function CartPage() {
                 <>
                   {/* Product Search Input (With Default Numeric Keyboard & ABC Toggle) */}
                   <div className="space-y-2">
-                    <div className="relative flex items-center">
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        if (mtxFilteredProducts.length > 0) {
+                          handleSelectProduct(mtxFilteredProducts[0]);
+                        }
+                      }}
+                      className="relative flex items-center"
+                    >
                       <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                       <input
                         ref={modalSearchInputRef}
                         type="text"
                         inputMode={searchKeyboardMode}
+                        enterKeyHint="go"
                         autoComplete="off"
                         autoCorrect="off"
                         spellCheck={false}
                         value={productSearch}
                         onChange={e => setProductSearch(e.target.value)}
                         onKeyDown={e => {
-                          if (e.key === 'Enter') {
+                          if (e.key === 'Enter' || e.keyCode === 13) {
                             e.preventDefault();
                             if (mtxFilteredProducts.length > 0) {
                               handleSelectProduct(mtxFilteredProducts[0]);
@@ -790,7 +799,7 @@ export default function CartPage() {
                           {searchKeyboardMode === 'numeric' ? '123' : 'ABC'}
                         </button>
                       </div>
-                    </div>
+                    </form>
 
                     {/* Quick Mode Switch Helper */}
                     <div className="flex items-center justify-between px-1 text-[11px] font-bold">
@@ -851,7 +860,13 @@ export default function CartPage() {
                 </>
               ) : (
                 /* VIEW 2: SELECTED PRODUCT QUANTITY & NOTE CONFIG VIEW (Search bar is hidden as requested!) */
-                <div className="space-y-4 pt-2">
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    handleConfirmAddProduct();
+                  }}
+                  className="space-y-4 pt-2"
+                >
                   <div className="p-4 bg-slate-50/90 rounded-2xl border border-slate-200 space-y-1">
                     <h4 className="text-base font-black text-[#0f172a] uppercase">{selectedProductForAdd.name}</h4>
                     <div className="flex items-center justify-between text-xs font-bold">
@@ -871,13 +886,14 @@ export default function CartPage() {
                         type="text"
                         inputMode="numeric"
                         pattern="[0-9]*"
+                        enterKeyHint="go"
                         value={addQuantity}
                         onFocus={e => e.target.select()}
                         onChange={e => handleAddQuantityChange(e.target.value)}
                         onBlur={handleAddQuantityBlur}
                         placeholder="1"
                         onKeyDown={e => {
-                          if (e.key === 'Enter') {
+                          if (e.key === 'Enter' || e.keyCode === 13) {
                             e.preventDefault();
                             handleConfirmAddProduct();
                           } else if (e.key === 'ArrowDown') {
@@ -940,9 +956,10 @@ export default function CartPage() {
                       type="text"
                       value={addNote}
                       onChange={e => setAddNote(e.target.value)}
+                      enterKeyHint="go"
                       placeholder="Type note or tap pack suggestion above..."
                       onKeyDown={e => {
-                        if (e.key === 'Enter') {
+                        if (e.key === 'Enter' || e.keyCode === 13) {
                           e.preventDefault();
                           handleConfirmAddProduct();
                         } else if (e.key === 'ArrowUp') {
@@ -964,14 +981,13 @@ export default function CartPage() {
                       BACK TO SEARCH
                     </button>
                     <button
-                      type="button"
-                      onClick={handleConfirmAddProduct}
+                      type="submit"
                       className="w-1/2 py-3.5 bg-[#0f172a] text-white font-black text-xs uppercase rounded-full hover:bg-[#1e293b] shadow-md transition-all cursor-pointer active:scale-95"
                     >
                       ADD TO CART (ENTER)
                     </button>
                   </div>
-                </div>
+                </form>
               )}
 
             </motion.div>
