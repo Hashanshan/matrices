@@ -253,80 +253,9 @@ export function useViewProducts(options: UseViewProductsOptions = {}) {
           setProducts([...productStoreRef.current]);
         }
 
-        // 3. If catalog has 3+ pages, also proactively pre-fetch Page 2 and Penultimate Page
-        if (totalPages > 2) {
-          const bufferPromises: Promise<any>[] = [];
-          if (!loadedPagesRef.current.has(2)) {
-            bufferPromises.push(
-              fetchPage(2, effectiveLimit, abortController.signal).then((res) => {
-                if (res && Array.isArray(res.data)) {
-                  const startIdx = effectiveLimit;
-                  res.data.forEach((p, i) => {
-                    const idx = startIdx + i;
-                    if (idx < total) productStoreRef.current[idx] = p;
-                  });
-                }
-              })
-            );
-          }
-          if (totalPages > 3 && !loadedPagesRef.current.has(totalPages - 1)) {
-            bufferPromises.push(
-              fetchPage(totalPages - 1, effectiveLimit, abortController.signal).then((res) => {
-                if (res && Array.isArray(res.data)) {
-                  const startIdx = (totalPages - 2) * effectiveLimit;
-                  res.data.forEach((p, i) => {
-                    const idx = startIdx + i;
-                    if (idx < total) productStoreRef.current[idx] = p;
-                  });
-                }
-              })
-            );
-          }
-
-          await Promise.all(bufferPromises);
-          if (!isCancelled) {
-            setProducts([...productStoreRef.current]);
-          }
+        if (!isCancelled) {
+          setIsValidating(false);
         }
-
-        // 4. Silently stream all remaining pages in the background
-        const remainingPages: number[] = [];
-        for (let p = 3; p < lastPageNumber - 1; p++) {
-          if (!loadedPagesRef.current.has(p)) {
-            remainingPages.push(p);
-          }
-        }
-
-        const runBackgroundQueue = async () => {
-          for (const pageNum of remainingPages) {
-            if (isCancelled || abortController.signal.aborted) break;
-            if (loadedPagesRef.current.has(pageNum)) continue;
-
-            await new Promise((r) => setTimeout(r, 80));
-            if (isCancelled || abortController.signal.aborted) break;
-
-            const pageRes = await fetchPage(pageNum, effectiveLimit, abortController.signal);
-            if (!isCancelled && pageRes && Array.isArray(pageRes.data)) {
-              const batch = pageRes.data;
-              const startIndex = (pageNum - 1) * effectiveLimit;
-
-              for (let i = 0; i < batch.length; i++) {
-                const targetIdx = startIndex + i;
-                if (targetIdx < total) {
-                  productStoreRef.current[targetIdx] = batch[i];
-                }
-              }
-
-              setProducts([...productStoreRef.current]);
-            }
-          }
-
-          if (!isCancelled) {
-            setIsValidating(false);
-          }
-        };
-
-        runBackgroundQueue().catch(() => {});
       } catch (err: any) {
         if (!isCancelled) {
           setError(err);

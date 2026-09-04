@@ -238,26 +238,31 @@ export default function FullscreenProductViewer({
 
   const currentProduct = validProducts[currentIndex] || validProducts[0] || null;
 
-  // Proactive bidirectional on-demand page loading for uninterrupted forward and reverse swiping
+  // Direction-aware on-demand page loading based on user swipe direction
   useEffect(() => {
     if (!prioritizeIndex || !validProducts || validProducts.length === 0) return;
 
-    // 1. Prioritize current index immediately
-    prioritizeIndex(currentIndex);
-
-    // 2. Prefetch forward buffer (+20 items ahead)
-    const forwardIdx = (currentIndex + 20) % validProducts.length;
-    if (validProducts[forwardIdx]?.isPlaceholder) {
-      prioritizeIndex(forwardIdx);
+    // 1. If current product is a placeholder, prioritize loading it immediately
+    if (validProducts[currentIndex]?.isPlaceholder) {
+      prioritizeIndex(currentIndex);
     }
 
-    // 3. Prefetch reverse buffer (-20 items behind)
-    let reverseIdx = (currentIndex - 20) % validProducts.length;
-    if (reverseIdx < 0) reverseIdx += validProducts.length;
-    if (validProducts[reverseIdx]?.isPlaceholder) {
-      prioritizeIndex(reverseIdx);
+    // 2. Prefetch ahead ONLY in the direction the user is currently swiping
+    if (direction === 'left') {
+      // Swiping forward (next items)
+      const forwardIdx = (currentIndex + 15) % validProducts.length;
+      if (validProducts[forwardIdx]?.isPlaceholder) {
+        prioritizeIndex(forwardIdx);
+      }
+    } else {
+      // Swiping backward / reverse (previous items)
+      let reverseIdx = (currentIndex - 15) % validProducts.length;
+      if (reverseIdx < 0) reverseIdx += validProducts.length;
+      if (validProducts[reverseIdx]?.isPlaceholder) {
+        prioritizeIndex(reverseIdx);
+      }
     }
-  }, [currentIndex, validProducts, prioritizeIndex]);
+  }, [currentIndex, direction, validProducts, prioritizeIndex]);
 
   // Predictive GPU pre-decoding for adjacent slides (±6 surrounding images)
   useEffect(() => {
