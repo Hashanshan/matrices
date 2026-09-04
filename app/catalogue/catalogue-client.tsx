@@ -12,7 +12,7 @@ import { useSync } from '@/lib/contexts/sync-context';
 import SmartImage from '@/components/smart-image';
 import BackButton from '@/components/back-button';
 import { useBackHandler, triggerBack } from '@/lib/utils/back-navigation';
-import { prewarmImageCache } from '@/lib/offline/image-cache';
+import { prewarmImageCache, preloadAdjacentImages } from '@/lib/offline/image-cache';
 
 export default function CategoriesPage({ fallbackData }: { fallbackData?: any } = {}) {
   const router = useRouter();
@@ -48,12 +48,7 @@ export default function CategoriesPage({ fallbackData }: { fallbackData?: any } 
         }
       });
       if (urls.length > 0 && typeof window !== 'undefined') {
-        urls.forEach((url) => {
-          if (url) {
-            const img = new window.Image();
-            img.src = url;
-          }
-        });
+        preloadAdjacentImages(urls);
       }
     }
   }, [categories]);

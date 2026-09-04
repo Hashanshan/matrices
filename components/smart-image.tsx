@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { getCachedImageUrlSync, getCachedImageUrl, evictFromImageMemoryMap } from '@/lib/offline/image-cache';
+import { getCachedImageUrlSync, getCachedImageUrl, evictFromImageMemoryMap, isLocalUri } from '@/lib/offline/image-cache';
 import { resolveApiUrl } from '@/lib/utils';
 
 interface SmartImageProps {
@@ -17,17 +17,6 @@ interface SmartImageProps {
   showShimmer?: boolean;
   fill?: boolean;
   sizes?: string;
-}
-
-/** Returns true if the URL is already a local/native URI that never needs Next.js optimization */
-function isLocalUri(url: string): boolean {
-  return (
-    url.startsWith('data:') ||
-    url.startsWith('blob:') ||
-    url.startsWith('capacitor://') ||
-    url.startsWith('file://') ||
-    url.startsWith('http://localhost')
-  );
 }
 
 export default function SmartImage({
@@ -56,7 +45,7 @@ export default function SmartImage({
 
     // Try the in-memory map (O(1), synchronous)
     const synced = getCachedImageUrlSync(raw);
-    if (synced && !synced.startsWith('blob:')) return synced;
+    if (synced) return synced;
 
     // Prevent 30-second browser socket hang when device is offline
     const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
@@ -93,7 +82,7 @@ export default function SmartImage({
     }
 
     const synced = getCachedImageUrlSync(raw);
-    if (synced && !synced.startsWith('blob:') && synced !== imgSrc) {
+    if (synced && synced !== imgSrc) {
       setImgSrc(synced);
       setFailed(false);
       return;
@@ -103,8 +92,10 @@ export default function SmartImage({
     getCachedImageUrl(raw)
       .then((resolved) => {
         if (!cancelled && mountedRef.current) {
-          if (resolved && !resolved.startsWith('blob:') && resolved !== imgSrc) {
-            setImgSrc(resolved);
+          if (resolved && (resolved !== raw || isLocalUri(resolved))) {
+            if (resolved !== imgSrc) {
+              setImgSrc(resolved);
+            }
             setFailed(false);
           } else if (!resolved || (resolved === raw && typeof navigator !== 'undefined' && !navigator.onLine)) {
             // Offline and no local cached copy available in IndexedDB
@@ -114,8 +105,8 @@ export default function SmartImage({
             const onlineUrl = getOnlineUrl(raw);
             if (onlineUrl !== imgSrc) {
               setImgSrc(onlineUrl);
-              setFailed(false);
             }
+            setFailed(false);
           }
         }
       })

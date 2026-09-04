@@ -1,27 +1,39 @@
 # Dependencies
 node_modules/
+.pnpm-store/
 
 # Next.js build output
 .next/
 out/
 
 # Capacitor native & synced files
-ios/App/App/public
+ios/App/App/public/
 ios/App/Pods/
 ios/App/Podfile.lock
+ios/Pods/
+ios/Podfile.lock
 ios/App/App/build/
-ios/App/*.xcworkspace/xcuserdata
-ios/App/*.xcodeproj/xcuserdata
+ios/build/
+ios/DerivedData/
 
+# Xcode user-specific data (exclude user data, preserve shared schemes for EAS)
+*.xcuserdata
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+!**/xcshareddata/**
+
+# Android build outputs
 android/.gradle/
 android/app/build/
 android/build/
+android/local.properties
 
 # EAS & Build artifacts
 .eas/
 *.apk
 *.aab
 *.ipa
+*.tar.gz
 
 # Environment files
 .env*.local

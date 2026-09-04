@@ -9,18 +9,20 @@ export interface PermissionResult {
 }
 
 async function loadCapacitorFilesystem(): Promise<any> {
+  if (typeof window === 'undefined') return null;
   try {
-    const dynamicImport = new Function('modulePath', 'return import(modulePath)');
-    return await dynamicImport('@capacitor/filesystem');
+    const { Filesystem } = await import('@capacitor/filesystem');
+    return { Filesystem };
   } catch {
     return null;
   }
 }
 
 async function loadCapacitorCamera(): Promise<any> {
+  if (typeof window === 'undefined') return null;
   try {
-    const dynamicImport = new Function('modulePath', 'return import(modulePath)');
-    return await dynamicImport('@capacitor/camera');
+    const { Camera } = await import('@capacitor/camera');
+    return { Camera };
   } catch {
     return null;
   }

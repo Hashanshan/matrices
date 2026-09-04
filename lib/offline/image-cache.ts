@@ -17,6 +17,61 @@ const imageMemoryMap: Map<string, string> = new Map();
 let isPrewarmingPromise: Promise<Map<string, string>> | null = null;
 let isPrewarmed = false;
 
+/** Returns true if the URL is already a local/native URI that doesn't need a remote lookup */
+export function isLocalUri(url: string | null | undefined): boolean {
+  if (!url || typeof url !== 'string') return false;
+  return (
+    url.startsWith('data:') ||
+    url.startsWith('blob:') ||
+    url.startsWith('capacitor://') ||
+    url.startsWith('file://') ||
+    url.startsWith('http://localhost') ||
+    url.startsWith('https://localhost')
+  );
+}
+
+/** Extracts the clean relative path from any full URL to support flexible key matching */
+export function normalizeUrlKey(url: string | null | undefined): string {
+  if (!url || typeof url !== 'string') return '';
+  const trimmed = url.trim();
+  if (isLocalUri(trimmed)) return trimmed;
+  try {
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+      const parsed = new URL(trimmed);
+      return parsed.pathname;
+    }
+  } catch {}
+  return trimmed;
+}
+
+/** Add/update an entry across all its canonical key variations in memory */
+export function registerInImageMemoryMap(url: string, localSrc: string): void {
+  if (!url || !localSrc) return;
+  imageMemoryMap.set(url, localSrc);
+
+  const resolved = resolveApiUrl(url);
+  if (resolved && resolved !== url) {
+    imageMemoryMap.set(resolved, localSrc);
+  }
+
+  const normalized = normalizeUrlKey(url);
+  if (normalized && normalized !== url) {
+    imageMemoryMap.set(normalized, localSrc);
+  }
+
+  // Strip query parameters for query-independent matching
+  const noQueryUrl = url.split('?')[0];
+  if (noQueryUrl && noQueryUrl !== url) {
+    imageMemoryMap.set(noQueryUrl, localSrc);
+  }
+  if (resolved) {
+    const noQueryResolved = resolved.split('?')[0];
+    if (noQueryResolved && noQueryResolved !== resolved) {
+      imageMemoryMap.set(noQueryResolved, localSrc);
+    }
+  }
+}
+
 /** Pre-warm helper that loads all mapped images into memory upfront */
 async function ensureImageMemoryMap(): Promise<Map<string, string>> {
   if (typeof window === 'undefined') return imageMemoryMap;
@@ -25,22 +80,43 @@ async function ensureImageMemoryMap(): Promise<Map<string, string>> {
 
   isPrewarmingPromise = (async () => {
     try {
-      // 1. Load all ImageMapRecords from IndexedDB in bulk (one transaction)
+      // 1. Load all ImageMapRecords from IndexedDB in bulk (one single transaction)
       const records = await offlineDB.getAllImageMaps().catch(() => []);
-      const cap = getCapacitorCore();
+      const cap = await getCapacitorCore();
       const isNative = cap?.isNativePlatform?.() ?? false;
 
-      records.forEach((rec) => {
-        if (rec?.url && rec?.localSrc) {
-          // In native capacitor, native URIs are persistent file:// or capacitor://
-          if (isNative || !rec.localSrc.startsWith('blob:')) {
-            imageMemoryMap.set(rec.url, rec.localSrc);
+      for (const rec of records) {
+        if (!rec?.url) continue;
+
+        // A. If an actual binary Blob was stored in IndexedDB, generate an active session Object URL
+        if (rec.blob && rec.blob instanceof Blob) {
+          try {
+            const objUrl = URL.createObjectURL(rec.blob);
+            registerInImageMemoryMap(rec.url, objUrl);
+            continue;
+          } catch (e) {
+            console.warn('Error creating object URL from stored blob:', e);
           }
         }
-      });
 
-      // 2. In Web mode, read from CacheStorage to create valid active Blob Object URLs
-      if (!isNative && typeof window !== 'undefined' && 'caches' in window) {
+        // B. If native Capacitor URI or Base64 data URL
+        if (rec.localSrc) {
+          if (
+            rec.localSrc.startsWith('data:') ||
+            rec.localSrc.startsWith('capacitor://') ||
+            rec.localSrc.startsWith('file://') ||
+            rec.localSrc.startsWith('http://localhost') ||
+            rec.localSrc.startsWith('https://localhost') ||
+            (isNative && !rec.localSrc.startsWith('blob:'))
+          ) {
+            registerInImageMemoryMap(rec.url, rec.localSrc);
+            continue;
+          }
+        }
+      }
+
+      // 2. In Web mode or fallback, read from CacheStorage to create valid active Blob Object URLs
+      if (typeof window !== 'undefined' && 'caches' in window) {
         try {
           const cache = await caches.open(IMAGE_CACHE_NAME);
           const keys = await cache.keys();
@@ -52,7 +128,7 @@ async function ensureImageMemoryMap(): Promise<Map<string, string>> {
               if (res) {
                 const blob = await res.blob();
                 const objUrl = URL.createObjectURL(blob);
-                imageMemoryMap.set(url, objUrl);
+                registerInImageMemoryMap(url, objUrl);
               }
             })
           );
@@ -84,43 +160,38 @@ export function invalidateImageMemoryMap(): void {
 export async function evictFromImageMemoryMap(url: string): Promise<void> {
   if (!url) return;
   imageMemoryMap.delete(url);
+  const resolved = resolveApiUrl(url);
+  if (resolved) imageMemoryMap.delete(resolved);
+  const normalized = normalizeUrlKey(url);
+  if (normalized) imageMemoryMap.delete(normalized);
+
   try {
     await offlineDB.deleteById('image_map', url);
+    if (resolved && resolved !== url) await offlineDB.deleteById('image_map', resolved);
+    if (normalized && normalized !== url) await offlineDB.deleteById('image_map', normalized);
   } catch {}
-}
-
-/** Add/update a single entry in the in-memory map */
-function updateImageMemoryMap(url: string, localSrc: string): void {
-  if (url && localSrc) {
-    imageMemoryMap.set(url, localSrc);
-  }
 }
 
 // ── Capacitor / Native helpers ────────────────────────────────────────────────
 
 async function loadCapacitorFilesystem(): Promise<any> {
+  if (typeof window === 'undefined') return null;
   try {
-    const dynamicImport = new Function('modulePath', 'return import(modulePath)');
-    return await dynamicImport('@capacitor/filesystem');
+    const { Filesystem, Directory } = await import('@capacitor/filesystem');
+    return { Filesystem, Directory };
   } catch {
     return null;
   }
 }
 
-function getCapacitorCore(): any {
+async function getCapacitorCore(): Promise<any> {
   if (typeof window === 'undefined') return null;
-  return (window as any).Capacitor;
-}
-
-/** Returns true if the URL is already a local/native URI that doesn't need a lookup */
-function isLocalUri(url: string): boolean {
-  return (
-    url.startsWith('data:') ||
-    url.startsWith('blob:') ||
-    url.startsWith('capacitor://') ||
-    url.startsWith('file://') ||
-    url.startsWith('http://localhost')
-  );
+  try {
+    const { Capacitor } = await import('@capacitor/core');
+    return Capacitor;
+  } catch {
+    return (window as any).Capacitor || null;
+  }
 }
 
 // Simple hash generator for filenames
@@ -153,11 +224,10 @@ export async function downloadAndSaveImage(url: string, retries = 2): Promise<st
   if (!url || isLocalUri(url)) return url;
 
   // Check in-memory map first (O(1))
-  const map = await ensureImageMemoryMap();
-  const cached = map.get(url);
+  const cached = getCachedImageUrlSync(url);
   if (cached) return cached;
 
-  const cap = getCapacitorCore();
+  const cap = await getCapacitorCore();
   const isNative = cap?.isNativePlatform?.() ?? false;
   const targetFetchUrl = resolveApiUrl(url);
 
@@ -186,44 +256,51 @@ export async function downloadAndSaveImage(url: string, retries = 2): Promise<st
             recursive: true,
           });
 
-          const nativeUri = cap.convertFileSrc ? cap.convertFileSrc(writeResult.uri) : writeResult.uri;
+          const nativeUri = cap?.convertFileSrc ? cap.convertFileSrc(writeResult.uri) : writeResult.uri;
 
           const record: ImageMapRecord = {
             url,
             localSrc: nativeUri,
+            blob,
             sizeBytes,
             updatedAt: new Date().toISOString(),
           };
 
           await offlineDB.saveImageMap(record);
-          updateImageMemoryMap(url, nativeUri);
+          registerInImageMemoryMap(url, nativeUri);
           return nativeUri;
         }
       }
 
       // Web / Browser mode: Store in CacheStorage (disk-backed binary) and session Object URL
-      if ('caches' in window) {
+      if (typeof window !== 'undefined' && 'caches' in window) {
         try {
           const cache = await caches.open(IMAGE_CACHE_NAME);
           await cache.put(url, new Response(blob.slice(0), {
             headers: { 'Content-Type': blob.type || 'image/jpeg' },
           }));
+          if (targetFetchUrl && targetFetchUrl !== url) {
+            await cache.put(targetFetchUrl, new Response(blob.slice(0), {
+              headers: { 'Content-Type': blob.type || 'image/jpeg' },
+            }));
+          }
         } catch (e) {
           console.warn('CacheStorage put warning:', e);
         }
       }
 
-      // In IndexedDB, store metadata with clean sizeBytes. Object URL is created for zero-overhead in-memory pointer.
+      // In IndexedDB, store binary blob directly. Object URL is created for active in-memory pointer.
       const objectUrl = URL.createObjectURL(blob);
       const record: ImageMapRecord = {
         url,
         localSrc: objectUrl,
+        blob,
         sizeBytes,
         updatedAt: new Date().toISOString(),
       };
 
       await offlineDB.saveImageMap(record);
-      updateImageMemoryMap(url, objectUrl);
+      registerInImageMemoryMap(url, objectUrl);
 
       return objectUrl;
     } catch (err) {
@@ -245,8 +322,8 @@ export async function downloadAndSaveImage(url: string, retries = 2): Promise<st
 export async function getUncachedImageUrls(imageUrls: string[]): Promise<string[]> {
   if (typeof window === 'undefined') return [];
   const uniqueUrls = Array.from(new Set(imageUrls.filter(Boolean)));
-  const map = await ensureImageMemoryMap();
-  return uniqueUrls.filter((url) => !map.has(url) && !isLocalUri(url));
+  await ensureImageMemoryMap();
+  return uniqueUrls.filter((url) => !getCachedImageUrlSync(url) && !isLocalUri(url));
 }
 
 /**
@@ -264,10 +341,10 @@ export async function cacheProductImages(
   let failedCount = 0;
 
   // Pre-load map so per-image checks are synchronous
-  const map = await ensureImageMemoryMap();
+  await ensureImageMemoryMap();
 
   // Filter out already-cached URLs
-  const uncachedUrls = uniqueUrls.filter((url) => !map.has(url) && !isLocalUri(url));
+  const uncachedUrls = uniqueUrls.filter((url) => !getCachedImageUrlSync(url) && !isLocalUri(url));
   const alreadyCachedCount = uniqueUrls.length - uncachedUrls.length;
 
   if (alreadyCachedCount > 0) {
@@ -313,47 +390,57 @@ export async function cacheProductImages(
 
 /**
  * Retrieves the local offline image source for a given remote URL.
- * Uses in-memory map for instant synchronous-like lookup.
+ * Uses in-memory map for instant synchronous lookup with multi-key normalization and IndexedDB fallback.
  */
 export async function getCachedImageUrl(url: string): Promise<string> {
   if (typeof window === 'undefined' || !url) return url;
-  if (isLocalUri(url) && !url.startsWith('blob:')) return url;
+  if (isLocalUri(url)) return url;
 
   try {
     // 1. In-memory map (0ms instant)
-    if (imageMemoryMap.has(url)) {
-      return imageMemoryMap.get(url)!;
-    }
+    const syncMatch = getCachedImageUrlSync(url);
+    if (syncMatch) return syncMatch;
 
     // Ensure memory map is populated
     await ensureImageMemoryMap();
-    if (imageMemoryMap.has(url)) {
-      return imageMemoryMap.get(url)!;
-    }
+    const postPrewarmMatch = getCachedImageUrlSync(url);
+    if (postPrewarmMatch) return postPrewarmMatch;
 
-    // 2. Fast single-key IndexedDB lookup
-    const record = await offlineDB.getImageMap(url).catch(() => null);
-    if (record?.localSrc && !record.localSrc.startsWith('blob:')) {
-      updateImageMemoryMap(url, record.localSrc);
-      return record.localSrc;
+    // 2. Fast single-key IndexedDB lookup with key variations
+    const keysToCheck = [
+      url,
+      resolveApiUrl(url),
+      normalizeUrlKey(url),
+      url.split('?')[0],
+    ].filter(Boolean);
+
+    for (const key of keysToCheck) {
+      const record = await offlineDB.getImageMap(key).catch(() => null);
+      if (record) {
+        if (record.blob && record.blob instanceof Blob) {
+          const objUrl = URL.createObjectURL(record.blob);
+          registerInImageMemoryMap(url, objUrl);
+          return objUrl;
+        }
+        if (record.localSrc && isLocalUri(record.localSrc)) {
+          registerInImageMemoryMap(url, record.localSrc);
+          return record.localSrc;
+        }
+      }
     }
 
     // 3. CacheStorage fallback (Web / session recovery)
     if ('caches' in window) {
       const cache = await caches.open(IMAGE_CACHE_NAME);
-      const match = await cache.match(url);
-      if (match) {
-        const blob = await match.blob();
-        const objUrl = URL.createObjectURL(blob);
-        updateImageMemoryMap(url, objUrl);
-        return objUrl;
+      for (const key of keysToCheck) {
+        const match = await cache.match(key);
+        if (match) {
+          const blob = await match.blob();
+          const objUrl = URL.createObjectURL(blob);
+          registerInImageMemoryMap(url, objUrl);
+          return objUrl;
+        }
       }
-    }
-
-    // 4. If record exists with localSrc
-    if (record?.localSrc && !record.localSrc.startsWith('blob:')) {
-      updateImageMemoryMap(url, record.localSrc);
-      return record.localSrc;
     }
   } catch (e) {
     console.warn(`Error resolving cached image for ${url}`, e);
@@ -366,8 +453,16 @@ export async function getCachedImageUrl(url: string): Promise<string> {
  * Synchronous version — returns cached URL immediately if already in memory map, else null.
  */
 export function getCachedImageUrlSync(url: string): string | null {
-  if (!url || isLocalUri(url)) return url;
-  return imageMemoryMap.get(url) || null;
+  if (!url) return null;
+  if (isLocalUri(url)) return url;
+
+  return (
+    imageMemoryMap.get(url) ||
+    imageMemoryMap.get(resolveApiUrl(url)) ||
+    imageMemoryMap.get(normalizeUrlKey(url)) ||
+    imageMemoryMap.get(url.split('?')[0]) ||
+    null
+  );
 }
 
 /**
@@ -456,7 +551,7 @@ export async function getStorageStats(): Promise<StorageStats> {
  * Deletes the entire native 'Matrices' folder and recreates a clean, fresh directory
  */
 export async function clearMatricesFolder(): Promise<void> {
-  const cap = getCapacitorCore();
+  const cap = await getCapacitorCore();
   const isNative = cap?.isNativePlatform?.() ?? false;
   if (isNative) {
     try {

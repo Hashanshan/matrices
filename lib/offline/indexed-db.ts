@@ -26,6 +26,7 @@ export interface SyncMetadata {
 export interface ImageMapRecord {
   url: string;
   localSrc: string;
+  blob?: Blob;
   sizeBytes: number;
   updatedAt: string;
 }

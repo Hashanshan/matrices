@@ -493,8 +493,9 @@ export async function getOfflineFilters(timeFilter?: string): Promise<FiltersRes
   if (cutoff === 0 && dbCategories.length > 0) {
     for (const c of dbCategories) {
       const cName = (c.name || c.categoryName || '').trim().toUpperCase();
+      const cImg = c.image || c.imageUrl || c.categoryImage || '';
+
       if (cName && !catMap.has(cName)) {
-        const cImg = c.image || c.imageUrl || c.categoryImage || '';
         const subMap = new Map<string, { name: string; image: string; count: number }>();
         if (Array.isArray(c.subcategories)) {
           c.subcategories.forEach((s: any) => {
@@ -514,6 +515,23 @@ export async function getOfflineFilters(timeFilter?: string): Promise<FiltersRes
           totalCount: Number(c.totalCount || 0),
           subcats: subMap,
         });
+      } else if (cName && catMap.has(cName)) {
+        const existingCat = catMap.get(cName)!;
+        if (!existingCat.image && cImg) {
+          existingCat.image = cImg;
+        }
+        if (Array.isArray(c.subcategories)) {
+          c.subcategories.forEach((s: any) => {
+            const sName = (typeof s === 'string' ? s : s.name || s.subcategoryName || '').trim().toUpperCase();
+            const sImg = (typeof s === 'object' ? s.image || s.imageUrl : '') || '';
+            if (sName && existingCat.subcats.has(sName)) {
+              const existingSub = existingCat.subcats.get(sName)!;
+              if (!existingSub.image && sImg) {
+                existingSub.image = sImg;
+              }
+            }
+          });
+        }
       }
     }
   }
