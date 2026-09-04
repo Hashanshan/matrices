@@ -105,12 +105,12 @@ export default function CartPage() {
 
   const CART_PACK_SUGGESTIONS = [
     'Box Pack',
-    'Poly Pack',
-    '1 Dozen Pack',
-    'Half Dozen Pack',
+    // 'Poly Pack',
+    // '1 Dozen Pack',
+    // 'Half Dozen Pack',
     'Mixed Colors',
-    'Urgent Delivery',
-    'Sample',
+    // 'Urgent Delivery',
+    // 'Sample',
   ];
 
   const handleToggleAddNoteSuggestion = (sug: string) => {
@@ -789,11 +789,10 @@ export default function CartPage() {
                               modalSearchInputRef.current?.focus();
                             }, 50);
                           }}
-                          className={`px-2.5 py-1 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1 cursor-pointer shadow-xs border ${
-                            searchKeyboardMode === 'numeric'
-                              ? 'bg-sky-500 text-white border-sky-600 hover:bg-sky-600'
-                              : 'bg-[#0f172a] text-white border-[#0f172a] hover:bg-[#1e293b]'
-                          }`}
+                          className={`px-2.5 py-1 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1 cursor-pointer shadow-xs border ${searchKeyboardMode === 'numeric'
+                            ? 'bg-sky-500 text-white border-sky-600 hover:bg-sky-600'
+                            : 'bg-[#0f172a] text-white border-[#0f172a] hover:bg-[#1e293b]'
+                            }`}
                           title={`Click to switch keyboard to ${searchKeyboardMode === 'numeric' ? 'Text (ABC)' : 'Numeric (123)'}`}
                         >
                           {searchKeyboardMode === 'numeric' ? '123' : 'ABC'}
@@ -919,11 +918,10 @@ export default function CartPage() {
                                 quantityInputRef.current?.focus();
                                 quantityInputRef.current?.select();
                               }}
-                              className={`px-2 py-0.5 rounded-lg text-[11px] font-black transition-all cursor-pointer border ${
-                                isSelected
-                                  ? 'bg-[#0f172a] text-white border-[#0f172a]'
-                                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
-                              }`}
+                              className={`px-2 py-0.5 rounded-lg text-[11px] font-black transition-all cursor-pointer border ${isSelected
+                                ? 'bg-[#0f172a] text-white border-[#0f172a]'
+                                : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
+                                }`}
                             >
                               {preset === 12 ? '12 (1 Doz)' : preset}
                             </button>
@@ -965,11 +963,10 @@ export default function CartPage() {
                             key={sug}
                             type="button"
                             onClick={() => handleToggleAddNoteSuggestion(sug)}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
-                              isSelected
-                                ? 'bg-[#0f172a] text-white border-[#0f172a] shadow-xs'
-                                : 'bg-slate-50 hover:bg-slate-100 text-gray-700 border-slate-200'
-                            }`}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer border ${isSelected
+                              ? 'bg-[#0f172a] text-white border-[#0f172a] shadow-xs'
+                              : 'bg-slate-50 hover:bg-slate-100 text-gray-700 border-slate-200'
+                              }`}
                           >
                             {isSelected ? `✓ ${sug}` : `+ ${sug}`}
                           </button>

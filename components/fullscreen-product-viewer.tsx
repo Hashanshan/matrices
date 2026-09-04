@@ -498,110 +498,115 @@ export default function FullscreenProductViewer({
           <ChevronRight size={24} className="sm:w-7 sm:h-7" />
         </motion.button>
 
-        {/* Top Left: Responsive Stylish Back Button & Counter */}
+        {/* Unified Responsive Top Navigation Bar */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="absolute top-6 left-6 sm:top-8 sm:left-8 flex items-center gap-3 z-99"
+          className="absolute top-4 sm:top-8 left-3 sm:left-8 right-3 sm:right-8 flex items-center justify-between gap-2 z-40"
         >
-          <BackButton />
-          <div className="bg-white/30 backdrop-blur-2xl text-[#0f172a] px-5 py-2.5 rounded-full shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] border border-white/60">
-            <p className="text-sm font-bold tracking-wider">{String(currentIndex + 1).padStart(2, '0')} / {String(totalCount).padStart(2, '0')}</p>
+          {/* Top Left: Back Button & Counter */}
+          <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+            <BackButton />
+            <div className="bg-white/40 backdrop-blur-2xl text-[#0f172a] px-3 sm:px-5 py-2 sm:py-2.5 rounded-full shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] border border-white/60">
+              <p className="text-xs sm:text-sm font-bold tracking-wider whitespace-nowrap">
+                {String(currentIndex + 1).padStart(2, '0')} / {String(totalCount).padStart(2, '0')}
+              </p>
+            </div>
           </div>
-        </motion.div>
 
-        {/* Action Buttons - Top Right */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="absolute top-6 sm:top-8 right-6 sm:right-8 flex gap-3 z-20"
-        >
-          {/* Expandable Search */}
-          <motion.div className="flex items-center gap-0">
-            <AnimatePresence>
-              {searchOpen && (
-                <motion.div
-                  initial={{ width: 0, opacity: 0 }}
-                  animate={{ width: 240, opacity: 1 }}
-                  exit={{ width: 0, opacity: 0 }}
-                  transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-                  className="overflow-hidden"
-                >
-                  <input
-                    ref={searchInputRef}
-                    type="text"
-                    value={viewerSearchQuery}
-                    onChange={(e) => setViewerSearchQuery(e.target.value)}
-                    placeholder="SEARCH PRODUCTS..."
-                    className="w-full px-4 py-2.5 text-sm bg-white/40 backdrop-blur-2xl border border-white/60 rounded-full text-[#0f172a] placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-[#0f172a]/30 shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] uppercase font-semibold"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') triggerSearch();
-                      if (e.key === 'Escape') {
-                        setSearchOpen(false);
-                        setViewerSearchQuery('');
-                        onSearch('');
-                      }
-                    }}
-                  />
-                </motion.div>
-              )}
-            </AnimatePresence>
-            <motion.button
-              onClick={() => {
-                if (searchOpen) {
-                  triggerSearch();
-                } else {
-                  setMenuOpen(false);
-                  setSearchOpen(true);
-                }
-              }}
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.95 }}
-              className={`p-3.5 rounded-full backdrop-blur-2xl text-[#0f172a] transition-all shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] border border-white/60 ${searchOpen ? 'bg-white/60' : 'bg-white/30 hover:bg-white/60'}`}
-            >
-              <Search size={20} />
-            </motion.button>
-            {searchOpen && (
+          {/* Top Right: Action Buttons (Search, Wishlist, Time, Menu) */}
+          <div className="flex items-center gap-1.5 sm:gap-3 flex-shrink-0">
+            {/* Expandable Search */}
+            <div className="flex items-center gap-1 sm:gap-1.5">
+              <AnimatePresence>
+                {searchOpen && (
+                  <motion.div
+                    initial={{ width: 0, opacity: 0 }}
+                    animate={{ width: 140, opacity: 1 }}
+                    exit={{ width: 0, opacity: 0 }}
+                    transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                    className="overflow-hidden sm:!w-[240px]"
+                  >
+                    <input
+                      ref={searchInputRef}
+                      type="text"
+                      value={viewerSearchQuery}
+                      onChange={(e) => setViewerSearchQuery(e.target.value)}
+                      placeholder="SEARCH..."
+                      className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm bg-white/40 backdrop-blur-2xl border border-white/60 rounded-full text-[#0f172a] placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-[#0f172a]/30 shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] uppercase font-semibold"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') triggerSearch();
+                        if (e.key === 'Escape') {
+                          setSearchOpen(false);
+                          setViewerSearchQuery('');
+                          onSearch('');
+                        }
+                      }}
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
               <motion.button
                 onClick={() => {
-                  setSearchOpen(false);
-                  setViewerSearchQuery('');
-                  onSearch('');
+                  if (searchOpen) {
+                    triggerSearch();
+                  } else {
+                    setMenuOpen(false);
+                    setSearchOpen(true);
+                  }
                 }}
-                className="p-3.5 bg-white/30 backdrop-blur-2xl rounded-full text-[#0f172a] ml-2 border border-white/60"
+                whileHover={{ scale: 1.08 }}
+                whileTap={{ scale: 0.95 }}
+                className={`p-2.5 sm:p-3.5 rounded-full backdrop-blur-2xl text-[#0f172a] transition-all shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] border border-white/60 ${searchOpen ? 'bg-white/60' : 'bg-white/30 hover:bg-white/60'}`}
+                title="Search Products"
               >
-                <X size={18} />
+                <Search size={18} className="sm:w-5 sm:h-5" />
               </motion.button>
-            )}
-          </motion.div>
-
-          <AnimatePresence>
-            {!searchOpen && (
-              <motion.div
-                initial={{ opacity: 1, scale: 1 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.8 }}
-                transition={{ duration: 0.2 }}
-                className="flex items-center gap-3"
-              >
+              {searchOpen && (
                 <motion.button
                   onClick={() => {
-                    if (currentProduct) {
-                      const prodId = currentProduct.productId || currentProduct.id;
-                      if (prodId) toggleProductWishlist(prodId);
-                    }
+                    setSearchOpen(false);
+                    setViewerSearchQuery('');
+                    onSearch('');
                   }}
-                  whileHover={{ scale: 1.1 }}
+                  whileHover={{ scale: 1.08 }}
                   whileTap={{ scale: 0.95 }}
-                  className="p-3.5 rounded-full bg-white/30 backdrop-blur-2xl hover:bg-white/60 text-[#0f172a] transition-all shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] border border-white/60"
-                  title={currentProduct && isProductWishlisted(currentProduct.productId || currentProduct.id) ? "Remove from Wishlist" : "Add to Wishlist"}
+                  className="p-2.5 sm:p-3.5 bg-white/30 backdrop-blur-2xl rounded-full text-[#0f172a] border border-white/60"
+                  title="Close Search"
                 >
-                  <Heart
-                    size={20}
-                    fill={currentProduct && isProductWishlisted(currentProduct.productId || currentProduct.id) ? '#ef4444' : 'none'}
-                    className={currentProduct && isProductWishlisted(currentProduct.productId || currentProduct.id) ? 'text-red-500' : ''}
-                  />
+                  <X size={16} className="sm:w-[18px] sm:h-[18px]" />
                 </motion.button>
+              )}
+            </div>
+
+            <AnimatePresence>
+              {!searchOpen && (
+                <motion.div
+                  initial={{ opacity: 1, scale: 1 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.8 }}
+                  transition={{ duration: 0.15 }}
+                  className="flex items-center gap-1.5 sm:gap-3"
+                >
+                  <motion.button
+                    onClick={() => {
+                      if (currentProduct) {
+                        const prodId = currentProduct.productId || currentProduct.id;
+                        if (prodId) toggleProductWishlist(prodId);
+                      }
+                    }}
+                    whileHover={{ scale: 1.08 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="p-2.5 sm:p-3.5 rounded-full bg-white/30 backdrop-blur-2xl hover:bg-white/60 text-[#0f172a] transition-all shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] border border-white/60"
+                    title={currentProduct && isProductWishlisted(currentProduct.productId || currentProduct.id) ? "Remove from Wishlist" : "Add to Wishlist"}
+                  >
+                    <Heart
+                      size={18}
+                      className="sm:w-5 sm:h-5"
+                      fill={currentProduct && isProductWishlisted(currentProduct.productId || currentProduct.id) ? '#ef4444' : 'none'}
+                      color={currentProduct && isProductWishlisted(currentProduct.productId || currentProduct.id) ? '#ef4444' : 'currentColor'}
+                    />
+                  </motion.button>
 
                 {/* Time Filter Button & Popover */}
                 {onTimeFilterChange && (
@@ -611,18 +616,18 @@ export default function FullscreenProductViewer({
                         setMenuOpen(false);
                         setTimeFilterOpen(!timeFilterOpen);
                       }}
-                      whileHover={{ scale: 1.1 }}
+                      whileHover={{ scale: 1.08 }}
                       whileTap={{ scale: 0.95 }}
-                      className={`p-3.5 rounded-full backdrop-blur-2xl transition-all shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] border border-white/60 flex items-center gap-1.5 ${
+                      className={`p-2.5 sm:p-3.5 rounded-full backdrop-blur-2xl transition-all shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] border border-white/60 flex items-center gap-1 sm:gap-1.5 ${
                         activeTimeFilter && activeTimeFilter !== 'all'
                           ? 'bg-[#0f172a] text-white'
                           : 'bg-white/30 hover:bg-white/60 text-[#0f172a]'
                       }`}
                       title="Filter by Updated Time"
                     >
-                      <Clock size={20} />
+                      <Clock size={18} className="sm:w-5 sm:h-5" />
                       {activeTimeFilter && activeTimeFilter !== 'all' && (
-                        <span className="text-xs font-black uppercase">
+                        <span className="text-[10px] sm:text-xs font-black uppercase">
                           {activeTimeFilter === '1week' ? '1W' : activeTimeFilter === '2week' ? '2W' : activeTimeFilter === '3week' ? '3W' : ''}
                         </span>
                       )}
@@ -634,7 +639,7 @@ export default function FullscreenProductViewer({
                           initial={{ opacity: 0, scale: 0.9, y: -20, originX: 1, originY: 0 }}
                           animate={{ opacity: 1, scale: 1, y: 0 }}
                           exit={{ opacity: 0, scale: 0.9, y: -20 }}
-                          className="absolute rounded-[1rem] top-16 right-0 bg-white/70 backdrop-blur-2xl border border-white/60 shadow-[0_8px_32px_0_rgba(31,38,135,0.15)] p-3 w-56 flex flex-col gap-1.5 overflow-hidden z-30"
+                          className="absolute rounded-[1rem] top-14 sm:top-16 right-0 bg-white/70 backdrop-blur-2xl border border-white/60 shadow-[0_8px_32px_0_rgba(31,38,135,0.15)] p-3 w-52 sm:w-56 flex flex-col gap-1.5 overflow-hidden z-50"
                         >
                           <div className="px-3 py-1 text-[11px] font-black uppercase tracking-widest text-[#0f172a]/60 border-b border-black/5 pb-2 mb-1">
                             Updated Time Limit
@@ -671,29 +676,15 @@ export default function FullscreenProductViewer({
                   </div>
                 )}
 
-                {/* {onClearFilters && Boolean(activeCategory || activeSubcategory || (activeSortBy && activeSortBy !== 'newest' && activeSortBy !== 'view') || (viewerSearchQuery && viewerSearchQuery.trim() !== '')) && (
-                  <motion.button
-                    onClick={() => {
-                      onClearFilters();
-                      setViewerSearchQuery('');
-                    }}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-full bg-red-50 text-red-600 font-bold text-xs border border-red-200 shadow-sm cursor-pointer"
-                  >
-                    <X size={14} />
-                    Clear Filters
-                  </motion.button>
-                )} */}
-
                 <motion.div className="relative">
                   <motion.button
                     onClick={() => setMenuOpen(!menuOpen)}
-                    whileHover={{ scale: 1.1 }}
+                    whileHover={{ scale: 1.08 }}
                     whileTap={{ scale: 0.95 }}
-                    className="p-3.5 rounded-full bg-white/30 backdrop-blur-2xl hover:bg-white/60 text-[#0f172a] transition-all shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] border border-white/60"
+                    className="p-2.5 sm:p-3.5 rounded-full bg-white/30 backdrop-blur-2xl hover:bg-white/60 text-[#0f172a] transition-all shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] border border-white/60"
+                    title="Menu"
                   >
-                    {menuOpen ? <X size={24} /> : <Menu size={24} />}
+                    {menuOpen ? <X size={18} className="sm:w-5 sm:h-5" /> : <Menu size={18} className="sm:w-5 sm:h-5" />}
                   </motion.button>
 
                   {/* Expanded Menu */}
@@ -703,7 +694,7 @@ export default function FullscreenProductViewer({
                         initial={{ opacity: 0, scale: 0.9, y: -20, originX: 1, originY: 0 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.9, y: -20 }}
-                        className="absolute rounded-[1rem] top-16 right-0  backdrop-blur-2xl border border-white/60 rounded-2xl shadow-[0_8px_32px_0_rgba(31,38,135,0.1)] p-4 w-48 flex flex-col gap-2 overflow-hidden"
+                        className="absolute rounded-[1rem] top-14 sm:top-16 right-0 bg-white/70 backdrop-blur-2xl border border-white/60 shadow-[0_8px_32px_0_rgba(31,38,135,0.1)] p-4 w-48 flex flex-col gap-2 overflow-hidden z-50"
                       >
                         {[
                           { href: '/catalogue', label: 'HOME', icon: Home },
@@ -725,9 +716,10 @@ export default function FullscreenProductViewer({
                     )}
                   </AnimatePresence>
                 </motion.div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         </motion.div>
 
         {/* Product Info Overlay - Capitalized */}
