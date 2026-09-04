@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Product } from '@/lib/types';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -26,6 +26,9 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
   const [isZoomed, setIsZoomed] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [displayImg, setDisplayImg] = useState<string>(product?.image || product?.imageUrl || '');
+  const quantityInputRef = useRef<HTMLInputElement>(null);
+
+  const QUANTITY_PRESETS = [1, 2, 6, 12, 24, 50];
 
   const PACK_SUGGESTIONS = [
     'Box Pack',
@@ -91,7 +94,7 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
     setMounted(true);
   }, []);
 
-  // Pre-fill quantity, notes, color, size if already in cart
+  // Pre-fill quantity, notes, color, size if already in cart & auto-focus/select quantity input
   useEffect(() => {
     if (isOpen && product) {
       const item = getCartItem(product.productId || product.id);
@@ -106,6 +109,12 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
         setSelectedColor(product.variants?.colors?.[0]?.name || '');
         setSelectedSize(product.variants?.sizes?.[0]?.name || '');
       }
+
+      // Auto-focus and highlight quantity input immediately for fast typing
+      setTimeout(() => {
+        quantityInputRef.current?.focus();
+        quantityInputRef.current?.select();
+      }, 120);
     }
   }, [isOpen, product, getCartItem]);
 
@@ -313,16 +322,41 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
                     </motion.div>
                   )}
 
-                  {/* Quantity (Fully clearable, typable, numeric keyboard, auto-select) */}
-                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-                    <div className="flex items-center justify-between mb-2">
+                  {/* Quantity (Fully clearable, typable, numeric keyboard, auto-select & presets) */}
+                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="space-y-2">
+                    <div className="flex items-center justify-between mb-1">
                       <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest">
                         Quantity
                       </label>
                       <span className="text-[11px] text-gray-400 font-bold">
-                        Click to type or use +/-
+                        Click/type or tap preset below
                       </span>
                     </div>
+
+                    {/* Quick Quantity Presets */}
+                    {/* <div className="flex flex-wrap gap-1.5 pb-1">
+                      {QUANTITY_PRESETS.map((preset) => {
+                        const isSelected = Number(quantity) === preset;
+                        return (
+                          <button
+                            key={preset}
+                            type="button"
+                            onClick={() => {
+                              setQuantity(preset);
+                              quantityInputRef.current?.focus();
+                              quantityInputRef.current?.select();
+                            }}
+                            className={`px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer border ${isSelected
+                                ? 'bg-[#0f172a] text-white border-[#0f172a] shadow-xs'
+                                : 'bg-gray-100/80 hover:bg-gray-200 text-gray-700 border-gray-200'
+                              }`}
+                          >
+                            {preset === 12 ? '12 (1 Doz)' : preset === 24 ? '24 (2 Doz)' : preset}
+                          </button>
+                        );
+                      })}
+                    </div> */}
+
                     <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-xl p-2 w-fit">
                       <button
                         type="button"
@@ -332,11 +366,13 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
                         <Minus size={18} />
                       </button>
                       <input
+                        ref={quantityInputRef}
                         type="text"
                         inputMode="numeric"
                         pattern="[0-9]*"
                         enterKeyHint="go"
                         value={quantity}
+                        onClick={(e) => (e.target as HTMLInputElement).select()}
                         onFocus={(e) => e.target.select()}
                         onChange={(e) => handleQuantityChange(e.target.value)}
                         onBlur={handleQuantityBlur}

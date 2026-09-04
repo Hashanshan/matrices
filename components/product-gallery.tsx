@@ -30,6 +30,7 @@ function CategorySection({
   toggleSection,
   accurateCount,
   gridClass,
+  columnsCount = 4,
   timeFilter,
   onGlobalLoadMore,
 }: {
@@ -40,13 +41,29 @@ function CategorySection({
   toggleSection: (cat: string) => void;
   accurateCount: number;
   gridClass: string;
+  columnsCount?: number;
   timeFilter?: string;
   onGlobalLoadMore?: () => void;
 }) {
-  const [visibleCount, setVisibleCount] = useState(20);
+  // Initial size is 2 full rows (4 cols -> 8, 3 cols -> 6, 2 cols -> 4)
+  // Step size is 1 full row (4 cols -> 4, 3 cols -> 3, 2 cols -> 2)
+  // Resulting counts for 4 columns: 8, 12, 16, 20, 24, 28, 32...
+  // Resulting counts for 3 columns: 6, 9, 12, 15, 18, 21, 24...
+  // Resulting counts for 2 columns: 4, 6, 8, 10, 12, 14, 16...
+  const initialSize = columnsCount * 2;
+  const stepSize = columnsCount;
+  const [visibleCount, setVisibleCount] = useState(initialSize);
   const [extraCategoryProducts, setExtraCategoryProducts] = useState<any[]>([]);
   const [isLoadingCategoryMore, setIsLoadingCategoryMore] = useState(false);
   const { dataMode } = useDataMode();
+
+  // When column count changes, adjust visibleCount to the nearest full row multiple
+  useEffect(() => {
+    setVisibleCount(prev => {
+      const rows = Math.max(2, Math.ceil(prev / columnsCount));
+      return rows * columnsCount;
+    });
+  }, [columnsCount]);
 
   // Combine parent products with any specifically loaded category products (deduplicated by product id/code)
   const combinedProducts = useMemo(() => {
@@ -62,94 +79,95 @@ function CategorySection({
     return Array.from(map.values());
   }, [categoryProducts, extraCategoryProducts]);
 
+  const targetTotalCount = Math.max(accurateCount, combinedProducts.length);
+
   // Actual list of products currently visible
   const visibleProducts = useMemo(() => {
     return combinedProducts.slice(0, visibleCount);
   }, [combinedProducts, visibleCount]);
 
-  const currentShowingCount = visibleProducts.length;
-  const targetTotalCount = Math.max(accurateCount, combinedProducts.length);
+  const currentShowingCount = Math.min(visibleProducts.length, targetTotalCount);
 
   // If showing count is less than top count -> hasMore is true
   const hasMore = currentShowingCount < targetTotalCount;
 
+  const fetchCategoryProducts = useCallback(async (neededTarget?: number) => {
+    if (isLoadingCategoryMore) return;
+    setIsLoadingCategoryMore(true);
+    try {
+      const isOffline = dataMode === 'offline' || (typeof navigator !== 'undefined' && !navigator.onLine);
+      if (isOffline) {
+        // Query IndexedDB directly for all products in this category
+        const allRaw = await offlineDB.getAll<any>('products').catch(() => []);
+        let timeCutoff = 0;
+        if (timeFilter && timeFilter !== 'all' && timeFilter !== 'null') {
+          const now = Date.now();
+          if (timeFilter === '1week' || timeFilter === '1w' || timeFilter === '7d') timeCutoff = now - 7 * 24 * 60 * 60 * 1000;
+          else if (timeFilter === '2week' || timeFilter === '2w' || timeFilter === '14d') timeCutoff = now - 14 * 24 * 60 * 60 * 1000;
+          else if (timeFilter === '3week' || timeFilter === '3w' || timeFilter === '21d') timeCutoff = now - 21 * 24 * 60 * 60 * 1000;
+        }
+
+        const catMatches = allRaw.filter((p: any) => {
+          if (p.isDeleted) return false;
+          if (timeCutoff > 0) {
+            const pTime = p.updatedAt ? new Date(p.updatedAt).getTime() : (p.createdAt ? new Date(p.createdAt).getTime() : 0);
+            if (pTime < timeCutoff) return false;
+          }
+          const pCat = String(p.category || p.categoryName || p.categories || (typeof p.category === 'object' ? p.category?.name : '') || '').trim().toUpperCase();
+          return pCat === category.toUpperCase();
+        });
+
+        if (catMatches.length > 0) {
+          setExtraCategoryProducts(catMatches);
+        }
+      } else {
+        // Fetch from Online API endpoint with limit matching needed batch
+        const token = getAuthToken();
+        const timeParam = timeFilter && timeFilter !== 'all' && timeFilter !== 'null' ? `&timeFilter=${encodeURIComponent(timeFilter)}` : '';
+        const fetchLimit = Math.max(neededTarget || 50, 50);
+        const targetUrl = resolveApiUrl(`/api/products?category=${encodeURIComponent(category)}${timeParam}&limit=${fetchLimit}&page=1`);
+        const res = await fetch(targetUrl, {
+          headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const items = data.data || data.products || [];
+          if (items.length > 0) {
+            setExtraCategoryProducts(prev => {
+              const existingIds = new Set(prev.map(p => String(p.productId || p.id)));
+              const newUnique = items.filter((p: any) => !existingIds.has(String(p.productId || p.id)));
+              return [...prev, ...newUnique];
+            });
+          }
+        }
+      }
+    } catch (err) {
+      console.error(`Failed to load products for category ${category}:`, err);
+    } finally {
+      setIsLoadingCategoryMore(false);
+    }
+  }, [category, dataMode, timeFilter, isLoadingCategoryMore]);
+
+  // Auto-fetch if we have fewer products in memory than visibleCount
+  useEffect(() => {
+    if (combinedProducts.length < visibleCount && combinedProducts.length < targetTotalCount && !isLoadingCategoryMore) {
+      fetchCategoryProducts(visibleCount);
+    }
+  }, [category, visibleCount, combinedProducts.length, targetTotalCount, isLoadingCategoryMore, fetchCategoryProducts]);
+
   // Handle manual "Load More" button click (and auto-scroll)
   const handleLoadMore = async () => {
     if (isLoadingCategoryMore) return;
+    const nextTarget = visibleCount + stepSize;
+    setVisibleCount(nextTarget);
 
-    // 1. If we already have more products loaded in memory, just expand visibleCount
-    if (visibleCount < combinedProducts.length) {
-      setVisibleCount(prev => Math.min(prev + 20, combinedProducts.length));
-      return;
+    if (combinedProducts.length < nextTarget && combinedProducts.length < targetTotalCount) {
+      await fetchCategoryProducts(nextTarget);
     }
 
-    // 2. If we need to fetch more products for this specific category (both online and offline)
-    if (combinedProducts.length < targetTotalCount) {
-      setIsLoadingCategoryMore(true);
-      try {
-        const isOffline = dataMode === 'offline' || (typeof navigator !== 'undefined' && !navigator.onLine);
-        if (isOffline) {
-          // Fetch from IndexedDB with timeFilter
-          const offlineRes = await getOfflineProducts({
-            category: category,
-            timeFilter: timeFilter,
-            limit: 100,
-          });
-          if (offlineRes && offlineRes.data && offlineRes.data.length > 0) {
-            setExtraCategoryProducts(prev => [...prev, ...offlineRes.data]);
-            setVisibleCount(prev => prev + 20);
-          } else {
-            // Also try fallback direct query from offlineDB products store with timeFilter
-            const allRaw = await offlineDB.getAll<any>('products').catch(() => []);
-            let timeCutoff = 0;
-            if (timeFilter && timeFilter !== 'all' && timeFilter !== 'null') {
-              const now = Date.now();
-              if (timeFilter === '1week' || timeFilter === '1w' || timeFilter === '7d') timeCutoff = now - 7 * 24 * 60 * 60 * 1000;
-              else if (timeFilter === '2week' || timeFilter === '2w' || timeFilter === '14d') timeCutoff = now - 14 * 24 * 60 * 60 * 1000;
-              else if (timeFilter === '3week' || timeFilter === '3w' || timeFilter === '21d') timeCutoff = now - 21 * 24 * 60 * 60 * 1000;
-            }
-
-            const catMatches = allRaw.filter((p: any) => {
-              if (p.isDeleted) return false;
-              if (timeCutoff > 0) {
-                const pTime = p.updatedAt ? new Date(p.updatedAt).getTime() : (p.createdAt ? new Date(p.createdAt).getTime() : 0);
-                if (pTime < timeCutoff) return false;
-              }
-              const pCat = String(p.category || p.categoryName || p.categories || '').trim().toUpperCase();
-              return pCat === category.toUpperCase();
-            });
-            if (catMatches.length > 0) {
-              setExtraCategoryProducts(prev => [...prev, ...catMatches]);
-              setVisibleCount(prev => prev + 20);
-            }
-          }
-        } else {
-          // Fetch from Online API endpoint with timeFilter
-          const token = getAuthToken();
-          const timeParam = timeFilter && timeFilter !== 'all' && timeFilter !== 'null' ? `&timeFilter=${encodeURIComponent(timeFilter)}` : '';
-          const targetUrl = resolveApiUrl(`/api/products?category=${encodeURIComponent(category)}${timeParam}&limit=50&page=${Math.floor(combinedProducts.length / 50) + 1}`);
-          const res = await fetch(targetUrl, {
-            headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) }
-          });
-          if (res.ok) {
-            const data = await res.json();
-            const items = data.data || data.products || [];
-            if (items.length > 0) {
-              setExtraCategoryProducts(prev => [...prev, ...items]);
-              setVisibleCount(prev => prev + 20);
-            }
-          }
-        }
-
-        // Also trigger parent global hook to advance cursor
-        if (onGlobalLoadMore) {
-          onGlobalLoadMore();
-        }
-      } catch (err) {
-        console.error(`Failed to load more products for category ${category}:`, err);
-      } finally {
-        setIsLoadingCategoryMore(false);
-      }
+    // Also trigger parent global hook to advance cursor if available
+    if (onGlobalLoadMore) {
+      onGlobalLoadMore();
     }
   };
 
@@ -334,6 +352,15 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
     : filters.sortBy === 'price-high' ? 'price-high'
       : undefined; // default = newest
 
+  const actualGridSize = sidebarOpen && filters.gridSize === 4 ? 3 : (filters.gridSize || 4);
+
+  const gridClass =
+    actualGridSize === 2
+      ? 'grid-cols-2'
+      : actualGridSize === 3
+      ? 'grid-cols-2 sm:grid-cols-3'
+      : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4';
+
   // Use SWR paginated hook — cached, instant on revisit, now fully backend-filtered
   const {
     products,
@@ -348,7 +375,7 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
   } = useProducts({
     sort: backendSort,
     timeFilter: filters.timeFilter,
-    limit: 20,
+    limit: Math.max(actualGridSize * 5, 20),
     category: filters.categories.length > 0 ? filters.categories : undefined,
     subcategory: filters.subcategories.length > 0 ? filters.subcategories : undefined,
     search: filters.searchQuery || searchQuery || undefined,
@@ -573,13 +600,6 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
         type === 'min' ? [value, prev.priceRange[1]] : [prev.priceRange[0], value],
     }));
   };
-
-  const actualGridSize = sidebarOpen ? Math.min(filters.gridSize, 3) : Math.min(filters.gridSize, 4);
-  const gridClass = actualGridSize === 2
-    ? 'grid-cols-1 sm:grid-cols-2'
-    : actualGridSize === 3
-      ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'
-      : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4';
 
   // Show full spinner only on initial load with no cached data
   if (isLoading && products.length === 0) {
@@ -967,6 +987,7 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
                     toggleSection={toggleSection}
                     accurateCount={accurateCount}
                     gridClass={gridClass}
+                    columnsCount={actualGridSize}
                     timeFilter={filters.timeFilter}
                     onGlobalLoadMore={loadMore}
                   />

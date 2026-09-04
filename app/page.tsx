@@ -482,16 +482,38 @@ function LoginFormContent() {
           window.dispatchEvent(new Event('matrices-data-mode-change'));
           window.dispatchEvent(new Event('matrices-sync-stats-updated'));
         } else if (isHalfSyncedOrphaned && !isDifferentUser) {
-          // Auto-clean orphaned images / half-synced storage from previous interrupted attempt
-          await offlineDB.clearAllData().catch(() => { });
-          await clearMatricesFolder().catch(() => { });
-          invalidateImageMemoryMap();
-          invalidateProductIndex();
-          localStorage.setItem('matrices_data_mode', 'online');
-          localStorage.removeItem('matrices_last_synced_user_email');
-          localStorage.removeItem('matrices_last_synced_user_name');
-          window.dispatchEvent(new Event('matrices-data-mode-change'));
-          window.dispatchEvent(new Event('matrices-sync-stats-updated'));
+          // Incomplete sync detected for same user -> prompt confirmation to clear orphaned storage
+          const SwalModule = await import('sweetalert2');
+          const Swal = SwalModule.default;
+          const imageSizeMB = (imageSummary.totalBytes / (1024 * 1024)).toFixed(1);
+
+          const halfSyncChoice = await Swal.fire({
+            icon: 'warning',
+            title: 'Incomplete Sync Found',
+            html: `
+              <div style="text-align: left; font-size: 13px; line-height: 1.6; color: #1e293b;">
+                <p>This device has <strong>${imageSummary.count} partially downloaded images</strong> (${imageSizeMB} MB) from an earlier interrupted sync.</p>
+                <p style="margin-top: 8px;">Would you like to clear this incomplete storage now to keep your device clean?</p>
+              </div>
+            `,
+            showCancelButton: true,
+            confirmButtonText: '🧹 Clear Incomplete Data',
+            cancelButtonText: 'Keep & Continue',
+            confirmButtonColor: '#0f172a',
+            cancelButtonColor: '#64748b',
+          });
+
+          if (halfSyncChoice.isConfirmed) {
+            await offlineDB.clearAllData().catch(() => { });
+            await clearMatricesFolder().catch(() => { });
+            invalidateImageMemoryMap();
+            invalidateProductIndex();
+            localStorage.setItem('matrices_data_mode', 'online');
+            localStorage.removeItem('matrices_last_synced_user_email');
+            localStorage.removeItem('matrices_last_synced_user_name');
+            window.dispatchEvent(new Event('matrices-data-mode-change'));
+            window.dispatchEvent(new Event('matrices-sync-stats-updated'));
+          }
         }
 
         router.replace('/catalogue');

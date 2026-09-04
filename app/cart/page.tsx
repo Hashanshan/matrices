@@ -876,7 +876,7 @@ export default function CartPage() {
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
-                    {/* Quantity Input (Fully clearable, typable, numeric keyboard, auto-select) */}
+                    {/* Quantity Input (Fully clearable, typable, numeric keyboard, auto-select & presets) */}
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
                         <label className="text-[11px] font-black text-gray-500 uppercase">Quantity *</label>
@@ -888,6 +888,7 @@ export default function CartPage() {
                         pattern="[0-9]*"
                         enterKeyHint="go"
                         value={addQuantity}
+                        onClick={e => (e.target as HTMLInputElement).select()}
                         onFocus={e => e.target.select()}
                         onChange={e => handleAddQuantityChange(e.target.value)}
                         onBlur={handleAddQuantityBlur}
@@ -904,6 +905,31 @@ export default function CartPage() {
                         }}
                         className="w-full bg-slate-50 border border-slate-300 rounded-2xl p-3.5 text-sm font-black text-[#0f172a] focus:outline-none focus:ring-2 focus:ring-[#0f172a]/20"
                       />
+
+                      {/* Quick Presets */}
+                      <div className="flex flex-wrap gap-1 pt-1">
+                        {[1, 2, 6, 12, 24].map((preset) => {
+                          const isSelected = Number(addQuantity) === preset;
+                          return (
+                            <button
+                              key={preset}
+                              type="button"
+                              onClick={() => {
+                                setAddQuantity(preset);
+                                quantityInputRef.current?.focus();
+                                quantityInputRef.current?.select();
+                              }}
+                              className={`px-2 py-0.5 rounded-lg text-[11px] font-black transition-all cursor-pointer border ${
+                                isSelected
+                                  ? 'bg-[#0f172a] text-white border-[#0f172a]'
+                                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
+                              }`}
+                            >
+                              {preset === 12 ? '12 (1 Doz)' : preset}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
 
                     {/* Price Display */}
