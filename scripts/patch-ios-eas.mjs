@@ -24,7 +24,7 @@ export function patchIosForEas() {
     }
   }
 
-  // 2. Clean up any root ios/App.xcodeproj, ios/App.xcworkspace, ios/App/Info.plist, or ios/Podfile mirrors that break SPM resolution
+  // 2. Clean up any root ios/App.xcodeproj, ios/App.xcworkspace, or ios/App/Info.plist mirrors that break SPM resolution
   const staleTargetProj = path.join(iosDir, 'App.xcodeproj');
   if (fs.existsSync(staleTargetProj)) {
     try {
@@ -55,28 +55,52 @@ export function patchIosForEas() {
     }
   }
 
-  const stalePodfile = path.join(iosDir, 'Podfile');
-  if (fs.existsSync(stalePodfile)) {
-    try {
-      fs.rmSync(stalePodfile, { force: true });
-      console.log('🧹 Removed unused root Podfile (SPM used instead).');
-    } catch (err) {
-      console.warn('Could not remove stale Podfile:', err);
-    }
+  // 3. Ensure ios/Podfile exists for EAS "Install pods" step with target integration disabled (SPM used)
+  const podfilePath = path.join(iosDir, 'Podfile');
+  const podfileContent = `platform :ios, '15.0'
+install! 'cocoapods', :integrate_targets => false
+
+target 'App' do
+  # All plugins are managed via Swift Package Manager (CapApp-SPM)
+end
+`;
+  if (!fs.existsSync(podfilePath) || fs.readFileSync(podfilePath, 'utf8') !== podfileContent) {
+    fs.writeFileSync(podfilePath, podfileContent, 'utf8');
+    console.log('✅ Configured ios/Podfile for EAS pod install step.');
   }
 
-  // 3. Ensure ios/Gymfile is configured to point Fastlane directly to the Capacitor workspace
+  // 4. Configure ios/Gymfile for simulator preview builds (no signing required)
   const gymfilePath = path.join(iosDir, 'Gymfile');
-  const gymfileContent = `# Generated for EAS Build Capacitor iOS SPM workflow
+  const gymfileContent = `# Generated for EAS Build Capacitor iOS SPM simulator workflow
 workspace "./App/App.xcworkspace"
 scheme "App"
+configuration "Release"
+destination "generic/platform=iOS Simulator"
+derived_data_path "./build"
+skip_package_ipa true
+skip_archive true
 `;
   if (!fs.existsSync(gymfilePath) || fs.readFileSync(gymfilePath, 'utf8') !== gymfileContent) {
     fs.writeFileSync(gymfilePath, gymfileContent, 'utf8');
-    console.log('✅ Configured ios/Gymfile with workspace "./App/App.xcworkspace" and scheme "App".');
+    console.log('✅ Configured ios/Gymfile for EAS simulator build.');
   }
 
-  // 4. Patch @expo/config-plugins in node_modules if present (for any legacy globs)
+  // 5. Ensure valid 1024x1024 AppIcon in Assets.xcassets
+  const appIconDest = path.join(iosAppDir, 'App', 'Assets.xcassets', 'AppIcon.appiconset', 'AppIcon-512@2x.png');
+  const sourceIcon = path.join(rootDir, 'public', 'matrices-neon-logo.png');
+  if (fs.existsSync(sourceIcon) && fs.existsSync(path.dirname(appIconDest))) {
+    try {
+      const needsCopy = !fs.existsSync(appIconDest) || fs.readFileSync(appIconDest).length !== fs.readFileSync(sourceIcon).length;
+      if (needsCopy) {
+        fs.copyFileSync(sourceIcon, appIconDest);
+        console.log('✅ Synchronized 1024x1024 AppIcon in Assets.xcassets.');
+      }
+    } catch (err) {
+      console.warn('Could not sync AppIcon:', err);
+    }
+  }
+
+  // 6. Patch @expo/config-plugins in node_modules if present (for any legacy globs)
   const pathsJsPath = path.join(rootDir, 'node_modules', '@expo', 'config-plugins', 'build', 'ios', 'Paths.js');
   if (fs.existsSync(pathsJsPath)) {
     let content = fs.readFileSync(pathsJsPath, 'utf8');
