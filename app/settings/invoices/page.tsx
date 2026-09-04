@@ -61,24 +61,92 @@ const fetcher = async (url: string) => {
       return {
         search: (u.searchParams.get('searchQuery') || '').toLowerCase().trim(),
         status: (u.searchParams.get('status') || '').toLowerCase().trim(),
+        fromDate: (u.searchParams.get('fromDate') || '').trim(),
+        toDate: (u.searchParams.get('toDate') || '').trim(),
+        page: parseInt(u.searchParams.get('page') || '1', 10),
+        limit: parseInt(u.searchParams.get('limit') || '10', 10),
       };
-    } catch { return { search: '', status: '' }; }
+    } catch {
+      return { search: '', status: '', fromDate: '', toDate: '', page: 1, limit: 10 };
+    }
   };
 
   const getOfflineOrders = async () => {
     const rawOrders = await offlineDB.getAll<any>('orders').catch(() => []);
-    const { search, status } = parseQuery();
-    let filtered = rawOrders;
+    const { search, status, fromDate, toDate, page, limit } = parseQuery();
+    let filtered = [...rawOrders];
+
+    // 1. Search Query filter (by orderId, shop name, shopId, or item names)
     if (search) {
       filtered = filtered.filter((o: any) =>
         (o.orderId || '').toLowerCase().includes(search) ||
-        (o.shop?.name || '').toLowerCase().includes(search)
+        (o.shop?.name || '').toLowerCase().includes(search) ||
+        (o.shop?.shopId || '').toLowerCase().includes(search) ||
+        (o.items || []).some((it: any) => (it.name || '').toLowerCase().includes(search))
       );
     }
+
+    // 2. Status filter
     if (status && status !== 'all') {
       filtered = filtered.filter((o: any) => (o.status || '').toLowerCase() === status);
     }
-    return { rawCount: rawOrders.length, response: { success: true, orders: filtered, totalRecords: filtered.length, totalPages: 1 } };
+
+    // 3. Date Range Filter on order.date / order.createdAt
+    if (fromDate || toDate) {
+      let startMs = 0;
+      let endMs = Infinity;
+
+      if (fromDate) {
+        const s = new Date(fromDate);
+        if (!isNaN(s.getTime())) {
+          s.setHours(0, 0, 0, 0);
+          startMs = s.getTime();
+        }
+      }
+
+      if (toDate) {
+        const e = new Date(toDate);
+        if (!isNaN(e.getTime())) {
+          e.setHours(23, 59, 59, 999);
+          endMs = e.getTime();
+        }
+      }
+
+      filtered = filtered.filter((o: any) => {
+        const orderDateStr = o.date || o.createdAt || o.orderDate || o.updatedAt;
+        if (!orderDateStr) return false;
+        const orderTime = new Date(orderDateStr).getTime();
+        if (isNaN(orderTime)) return false;
+        return orderTime >= startMs && orderTime <= endMs;
+      });
+    }
+
+    // 4. Sort: newest orders (by date) or largest orderId on top
+    filtered.sort((a: any, b: any) => {
+      const timeA = a.date ? new Date(a.date).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+      const timeB = b.date ? new Date(b.date).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+      if (timeA !== timeB) return timeB - timeA;
+      return String(b.orderId || '').localeCompare(String(a.orderId || ''));
+    });
+
+    // 5. Pagination
+    const totalRecords = filtered.length;
+    const totalPages = Math.max(1, Math.ceil(totalRecords / limit));
+    const startIndex = (page - 1) * limit;
+    const paginated = filtered.slice(startIndex, startIndex + limit);
+
+    return {
+      rawCount: rawOrders.length,
+      response: {
+        success: true,
+        orders: paginated,
+        totalOrders: totalRecords,
+        totalRecords,
+        totalPages,
+        page,
+        limit,
+      }
+    };
   };
 
   if (mode === 'offline' || isOffline) {

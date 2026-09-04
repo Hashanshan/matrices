@@ -781,11 +781,20 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       const formattedOrders = orders.map((o: any, idx: number) => ({
         id: String(o._id || o.id || o.orderId || `order_${idx}`),
         orderId: String(o.orderId || o._id || o.id || `order_${idx}`),
-        date: o.date || new Date().toISOString(),
+        date: o.date || o.createdAt || o.orderDate || new Date().toISOString(),
+        createdAt: o.createdAt || o.date || o.orderDate || new Date().toISOString(),
         shop: o.shop || {},
         items: o.items || [],
-        total: o.total || 0,
+        subtotal: Number(o.subtotal || 0),
+        discount: Number(o.discount || 0),
+        discountAmount: Number(o.discountAmount || 0),
+        total: Number(o.total || 0),
         status: o.status || 'PENDING',
+        totalPaid: Number(o.totalPaid || 0),
+        remainingAmount: Number(o.remainingAmount || 0),
+        payments: Array.isArray(o.payments) ? o.payments : [],
+        salesrep: o.salesrep || o.salesRep || o.createdBy || null,
+        notes: o.notes || '',
       }));
 
       const rawWishlist = wishlist?.wishlist || wishlist || {};
