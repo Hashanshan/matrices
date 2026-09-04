@@ -101,6 +101,18 @@ export default function PermissionModal({ isOpen, onClose }: PermissionModalProp
                 </p>
               </div>
             </div>
+
+            <div className="flex items-start gap-3 p-3 rounded-2xl bg-secondary/50 border border-border/30">
+              <div className="p-2 bg-indigo-500/10 text-indigo-500 rounded-xl mt-0.5">
+                <ShieldCheck size={18} />
+              </div>
+              <div>
+                <h4 className="font-bold text-xs">Background Data & Screen WakeLock</h4>
+                <p className="text-[11px] text-muted-foreground">
+                  Keeps the device awake during catalogue sync and allows background sync to resume seamlessly when unlocked.
+                </p>
+              </div>
+            </div>
           </div>
 
           {status && (

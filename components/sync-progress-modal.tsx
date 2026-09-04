@@ -258,6 +258,14 @@ export default function SyncProgressModal() {
                     <div className="p-2.5 bg-sky-50 rounded-xl border border-sky-200 text-[0.68rem] font-bold text-sky-900 text-center uppercase flex items-center justify-center gap-1.5">
                       🌐 Online Mode Active — You can continue using the application normally
                     </div>
+                    <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 text-[0.68rem] text-slate-700 leading-relaxed text-left space-y-1">
+                      <div className="flex items-center gap-1.5 font-black text-slate-900 uppercase">
+                        <span>📱 Screen Keep-Awake Active</span>
+                      </div>
+                      <p>
+                        Your screen will stay awake during download. If your phone is locked or minimized, sync will pause in power-saving mode and seamlessly resume when unlocked.
+                      </p>
+                    </div>
                     <button
                       type="button"
                       onClick={() => closeSyncModal()}
