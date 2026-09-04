@@ -2,13 +2,14 @@
   "version": "1.2.0",
   "build": 1,
   "bundleFileName": "app-v1.2.0.zip",
-  "checksum": "3601ea624275376e5637ba522125ffe911a2c5b9859059b821a802cb366c2123",
+  "checksum": "",
   "apkFileName": "matrices-latest.apk",
+  "apkUrl": "",
   "apkVersion": "1.2.0",
   "apkVersionCode": 1,
-  "mandatory": false,
-  "releaseNotes": "Initial release of Matrices offline catalogue & order sync.",
-  "publishedAt": "2026-09-01T16:38:50.671Z",
   "apkFileSizeMb": "23.52 MB",
-  "apkUpdatedAt": "2026-09-04T15:22:57.529Z"
+  "mandatory": false,
+  "releaseNotes": "Matrices Android APK v1.2.0",
+  "publishedAt": "2026-09-04T16:42:22.391Z",
+  "apkUpdatedAt": "2026-09-04T16:42:22.416Z"
 }

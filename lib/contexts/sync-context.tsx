@@ -388,15 +388,32 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     setIsSyncing(true);
     setIsSyncModalOpen(true);
     setProgress(5);
-    setSyncStatusText('Requesting storage permission...');
+    setSyncStatusText('Initializing background keep-alive & requesting storage permission...');
+
+    // Start background keep-alive audio session to prevent OS from suspending downloads when screen is locked
+    NativeAdapter.backgroundKeepAlive.start();
 
     let wakeLock: any = null;
-    if (typeof navigator !== 'undefined' && 'wakeLock' in (navigator as any)) {
-      try {
-        wakeLock = await (navigator as any).wakeLock.request('screen');
-      } catch (e) {
-        console.warn('WakeLock not supported or denied:', e);
+    const requestWakeLock = async () => {
+      if (typeof navigator !== 'undefined' && 'wakeLock' in (navigator as any)) {
+        try {
+          wakeLock = await (navigator as any).wakeLock.request('screen');
+        } catch (e) {
+          console.warn('WakeLock not supported or denied:', e);
+        }
       }
+    };
+
+    await requestWakeLock();
+
+    // Re-acquire screen wake lock automatically if screen is turned on/unlocked
+    const handleVisibilityChange = async () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        await requestWakeLock();
+      }
+    };
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibilityChange);
     }
 
     try {
@@ -1195,6 +1212,10 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
       return false;
     } finally {
+      NativeAdapter.backgroundKeepAlive.stop();
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      }
       if (wakeLock) {
         try {
           await wakeLock.release();

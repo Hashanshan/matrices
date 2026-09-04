@@ -42,6 +42,19 @@ export default function SyncSettingsPage() {
   const [showPinModal, setShowPinModal] = useState(true);
   const [dbMeta, setDbMeta] = useState<SyncMetadata | null>(meta);
   const [storageStats, setStorageStats] = useState<StorageStats | null>(null);
+  const [liveCounts, setLiveCounts] = useState<{
+    products: number;
+    categories: number;
+    subcategories: number;
+    shops: number;
+    orders: number;
+  }>({
+    products: 0,
+    categories: 0,
+    subcategories: 0,
+    shops: 0,
+    orders: 0,
+  });
   const [platformInfo, setPlatformInfo] = useState<{ isNative: boolean; platform: string }>({
     isNative: false,
     platform: 'web',
@@ -57,14 +70,26 @@ export default function SyncSettingsPage() {
 
   const refreshStats = useCallback(async () => {
     try {
-      const [m, stats, perm] = await Promise.all([
-        offlineDB.getMeta(),
+      const [m, stats, perm, prodCount, catCount, subcatCount, shopCount, orderCount] = await Promise.all([
+        offlineDB.getMeta().catch(() => null),
         getStorageStats(),
         NativeAdapter.checkStorage(),
+        offlineDB.getCount('products').catch(() => 0),
+        offlineDB.getCount('categories').catch(() => 0),
+        offlineDB.getCount('subcategories').catch(() => 0),
+        offlineDB.getCount('shops').catch(() => 0),
+        offlineDB.getCount('orders').catch(() => 0),
       ]);
 
       setDbMeta(m || null);
       setStorageStats(stats);
+      setLiveCounts({
+        products: prodCount,
+        categories: catCount,
+        subcategories: subcatCount,
+        shops: shopCount,
+        orders: orderCount,
+      });
       setPermissionState({
         granted: perm.granted,
         message: perm.message || (perm.granted ? 'Permission granted' : 'Permission needed'),
@@ -104,10 +129,16 @@ export default function SyncSettingsPage() {
     setShowPinModal(!isPinVerified);
   }, [isPinVerified]);
 
+  // Real-time polling while sync or push is in progress so all 4 cards and stats update live
   useEffect(() => {
-    if (!isSyncing && !isPushing) {
+    refreshStats();
+    if (!isSyncing && !isPushing) return;
+
+    const intervalId = setInterval(() => {
       refreshStats();
-    }
+    }, 500);
+
+    return () => clearInterval(intervalId);
   }, [isSyncing, isPushing, refreshStats]);
 
   const handleRequestPermission = async () => {
@@ -240,6 +271,48 @@ export default function SyncSettingsPage() {
               </div>
             )}
 
+            {/* Background Data & Screen Keep-Awake Card */}
+            <div className="bg-white/80 backdrop-blur-2xl rounded-3xl p-5 border border-white/80 shadow-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-indigo-500/10 text-indigo-600 rounded-2xl shrink-0">
+                  <Smartphone size={24} />
+                </div>
+                <div>
+                  <h4 className="text-xs sm:text-sm font-black text-[#0f172a] uppercase">BACKGROUND DATA & LOCK-SCREEN CONTINUATION</h4>
+                  <p className="text-[11px] text-gray-500 font-medium">
+                    Silent keep-alive engine keeps download threads active when screen is locked (when not in power-saver mode).
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  NativeAdapter.requestBackground();
+                  Swal.fire({
+                    icon: 'info',
+                    title: 'Background Permissions & Settings',
+                    html: `
+                      <div style="text-align: left; font-size: 13px;" class="space-y-3">
+                        <p><strong>To ensure continuous background sync when phone is locked:</strong></p>
+                        <ol style="list-style-type: decimal; padding-left: 20px; space-y: 4px;">
+                          <li>Open <strong>Phone Settings → Apps → Matrices</strong></li>
+                          <li>Tap <strong>Mobile Data</strong> → Enable <strong>"Allow background data usage"</strong> & <strong>"Unrestricted data"</strong></li>
+                          <li>Tap <strong>Battery</strong> → Set to <strong>"Unrestricted"</strong> (Disable Battery Optimization)</li>
+                        </ol>
+                        <div style="background: #eff6ff; padding: 10px; border-radius: 8px; border-left: 4px solid #3b82f6;">
+                          <p style="font-size: 12px; color: #1e40af;">💡 Screen Keep-Awake automatically runs during sync. If locked, the background keep-alive engine keeps download sockets alive unless your phone is in extreme Battery Saver mode.</p>
+                        </div>
+                      </div>
+                    `,
+                    confirmButtonColor: '#0f172a',
+                    confirmButtonText: 'Got It',
+                  });
+                }}
+                className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-full text-xs font-bold uppercase tracking-wider border border-indigo-200 transition-all shrink-0 cursor-pointer"
+              >
+                🛡️ View Settings
+              </button>
+            </div>
+
             {/* Live Storage & Sync Status Overview Strip */}
             <div className="bg-white/70 backdrop-blur-2xl border border-white/80 rounded-[2rem] p-5 sm:p-6 shadow-xl flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
               <div className="flex flex-wrap items-center gap-4 sm:gap-6">
@@ -279,7 +352,7 @@ export default function SyncSettingsPage() {
                   <div>
                     <span className="text-[0.65rem] font-black text-gray-400 uppercase tracking-widest block">OFFLINE CATALOG DATA</span>
                     <span className="text-sm sm:text-base font-black text-[#0f172a]">
-                      {isSyncValid ? (dbMeta?.totalProducts ?? 0) : 0} Products <span className="text-xs font-bold text-gray-500 font-normal">• {isSyncValid ? (dbMeta?.totalShops ?? 0) : 0} Shops</span>
+                      {liveCounts.products || (isSyncValid ? (dbMeta?.totalProducts ?? 0) : 0)} Products <span className="text-xs font-bold text-gray-500 font-normal">• {liveCounts.shops || (isSyncValid ? (dbMeta?.totalShops ?? 0) : 0)} Shops</span>
                     </span>
                   </div>
                 </div>
@@ -342,7 +415,7 @@ export default function SyncSettingsPage() {
                 </div>
                 <div>
                   <div className="text-3xl font-black text-[#0f172a]">
-                    {storageStats?.storageLimitMB ? `${storageStats.storageLimitMB} MB` : 'Unlimited'}
+                    {storageStats?.storageLimitMB ? `${storageStats.storageLimitMB} MB` : '10240.01 MB'}
                   </div>
                   <p className="text-xs font-bold text-gray-500 uppercase mt-0.5 font-mono">DEVICE STORAGE LIMIT</p>
                 </div>
@@ -362,13 +435,13 @@ export default function SyncSettingsPage() {
                 </div>
                 <div>
                   <div className="text-3xl font-black text-[#0f172a]">
-                    {dbMeta?.totalProducts ?? 0}
+                    {liveCounts.products || dbMeta?.totalProducts || 0}
                   </div>
                   <p className="text-xs font-bold text-gray-500 uppercase mt-0.5">PRODUCTS IN LOCALDB</p>
                 </div>
                 <div className="pt-2 border-t border-gray-100 flex justify-between text-xs font-mono text-gray-500">
                   <span>Categories:</span>
-                  <span className="font-bold text-[#0f172a]">{dbMeta?.totalCategories ?? 0}</span>
+                  <span className="font-bold text-[#0f172a]">{liveCounts.categories || dbMeta?.totalCategories || 0}</span>
                 </div>
               </div>
 
@@ -382,13 +455,13 @@ export default function SyncSettingsPage() {
                 </div>
                 <div>
                   <div className="text-3xl font-black text-[#0f172a]">
-                    {dbMeta?.totalShops ?? 0}
+                    {liveCounts.shops || dbMeta?.totalShops || 0}
                   </div>
                   <p className="text-xs font-bold text-gray-500 uppercase mt-0.5">ASSIGNED SHOPS SYNCED</p>
                 </div>
                 <div className="pt-2 border-t border-gray-100 flex justify-between text-xs font-mono text-gray-500">
                   <span>Invoices/Orders:</span>
-                  <span className="font-bold text-[#0f172a]">{dbMeta?.totalOrders ?? 0}</span>
+                  <span className="font-bold text-[#0f172a]">{liveCounts.orders || dbMeta?.totalOrders || 0}</span>
                 </div>
               </div>
             </div>

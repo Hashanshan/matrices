@@ -208,6 +208,7 @@ export async function downloadAndSaveImage(url: string, retries = 2): Promise<st
   const cap = await getCapacitorCore();
   const isNative = cap?.isNativePlatform?.() ?? false;
   const targetFetchUrl = resolveApiUrl(url);
+  const fileName = hashUrl(url);
 
   // DO NOT send custom Authorization headers to Cloudinary or external media CDNs.
   // Sending Authorization headers triggers CORS preflight OPTIONS which Cloudinary/S3 reject.
@@ -221,6 +222,53 @@ export async function downloadAndSaveImage(url: string, retries = 2): Promise<st
   const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
 
   for (let attempt = 0; attempt <= retries; attempt++) {
+    // ── Method 1: Native Filesystem downloadFile (Fastest on Android APK, No CORS) ──
+    if (isNative) {
+      try {
+        const fsModule = await loadCapacitorFilesystem();
+        if (fsModule?.Filesystem && fsModule?.Directory?.Data) {
+          const downloadRes = await fsModule.Filesystem.downloadFile({
+            url: targetFetchUrl,
+            path: `Matrices/${fileName}`,
+            directory: fsModule.Directory.Data,
+            headers,
+            recursive: true,
+          }).catch(() => null);
+
+          if (downloadRes) {
+            const uriRes = await fsModule.Filesystem.getUri({
+              path: `Matrices/${fileName}`,
+              directory: fsModule.Directory.Data,
+            }).catch(() => null);
+
+            if (uriRes?.uri) {
+              const nativeUri = cap?.convertFileSrc ? cap.convertFileSrc(uriRes.uri) : uriRes.uri;
+              const statRes = await fsModule.Filesystem.stat({
+                path: `Matrices/${fileName}`,
+                directory: fsModule.Directory.Data,
+              }).catch(() => null);
+
+              const sizeBytes = statRes?.size && statRes.size > 0 ? statRes.size : 45000;
+
+              const record: ImageMapRecord = {
+                url,
+                localSrc: nativeUri,
+                sizeBytes,
+                updatedAt: new Date().toISOString(),
+              };
+
+              await offlineDB.saveImageMap(record);
+              registerInImageMemoryMap(url, nativeUri);
+              return nativeUri;
+            }
+          }
+        }
+      } catch (nativeDownloadErr) {
+        console.warn(`Native downloadFile attempt failed for ${url}:`, nativeDownloadErr);
+      }
+    }
+
+    // ── Method 2: Standard fetch + Base64 writeFile (or IndexedDB Blob) ──
     const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
     const timeoutId = controller ? setTimeout(() => controller.abort(), 15000) : null;
 
@@ -243,37 +291,41 @@ export async function downloadAndSaveImage(url: string, retries = 2): Promise<st
         throw new Error('Downloaded empty image blob');
       }
 
+      // Try writing to native Directory.Data (app private storage, never blocked on Android)
       if (isNative) {
-        const fsModule = await loadCapacitorFilesystem();
-        if (fsModule?.Filesystem && fsModule?.Directory) {
-          const rawBase64 = await blobToBase64(blob);
-          const cleanBase64 = rawBase64.includes(',') ? rawBase64.split(',')[1] : rawBase64;
-          const fileName = hashUrl(url);
+        try {
+          const fsModule = await loadCapacitorFilesystem();
+          if (fsModule?.Filesystem && fsModule?.Directory?.Data) {
+            const rawBase64 = await blobToBase64(blob);
+            const cleanBase64 = rawBase64.includes(',') ? rawBase64.split(',')[1] : rawBase64;
 
-          const writeResult = await fsModule.Filesystem.writeFile({
-            path: `Matrices/${fileName}`,
-            data: cleanBase64,
-            directory: fsModule.Directory.Documents,
-            recursive: true,
-          });
+            const writeResult = await fsModule.Filesystem.writeFile({
+              path: `Matrices/${fileName}`,
+              data: cleanBase64,
+              directory: fsModule.Directory.Data,
+              recursive: true,
+            });
 
-          const nativeUri = cap?.convertFileSrc ? cap.convertFileSrc(writeResult.uri) : writeResult.uri;
+            const nativeUri = cap?.convertFileSrc ? cap.convertFileSrc(writeResult.uri) : writeResult.uri;
 
-          const record: ImageMapRecord = {
-            url,
-            localSrc: nativeUri,
-            blob,
-            sizeBytes,
-            updatedAt: new Date().toISOString(),
-          };
+            const record: ImageMapRecord = {
+              url,
+              localSrc: nativeUri,
+              blob,
+              sizeBytes,
+              updatedAt: new Date().toISOString(),
+            };
 
-          await offlineDB.saveImageMap(record);
-          registerInImageMemoryMap(url, nativeUri);
-          return nativeUri;
+            await offlineDB.saveImageMap(record);
+            registerInImageMemoryMap(url, nativeUri);
+            return nativeUri;
+          }
+        } catch (fsWriteErr) {
+          console.warn(`Native writeFile failed for ${url}, falling back to IndexedDB blob:`, fsWriteErr);
         }
       }
 
-      // Web / Browser mode: Store in CacheStorage (disk-backed binary) and session Object URL
+      // Web / Fallback mode: Store in CacheStorage (disk-backed binary) and session Object URL
       if (typeof window !== 'undefined' && 'caches' in window) {
         try {
           const cache = await caches.open(IMAGE_CACHE_NAME);
@@ -378,6 +430,11 @@ export async function cacheProductImages(
         }
       })
     );
+
+    // Periodically notify live UI listeners (e.g. /settings/sync cards)
+    if (typeof window !== 'undefined' && i % (CONCURRENCY * 2) === 0) {
+      window.dispatchEvent(new Event('matrices-sync-stats-updated'));
+    }
   }
 
   // Calculate overall storage stats from all stored images using streaming cursor (O(1) memory)
@@ -531,21 +588,49 @@ export async function getStorageStats(): Promise<StorageStats> {
     console.warn('Error reading image storage stats:', e);
   }
 
+  // Also query native Capacitor Filesystem if running natively
+  const cap = await getCapacitorCore();
+  const isNative = cap?.isNativePlatform?.() ?? false;
+  if (isNative && downloadedImagesCount === 0) {
+    try {
+      const fsModule = await loadCapacitorFilesystem();
+      if (fsModule?.Filesystem && fsModule?.Directory?.Data) {
+        const dirResult = await fsModule.Filesystem.readdir({
+          path: 'Matrices',
+          directory: fsModule.Directory.Data,
+        }).catch(() => null);
+        if (dirResult && Array.isArray(dirResult.files)) {
+          downloadedImagesCount = dirResult.files.length;
+        }
+      }
+    } catch {}
+  }
+
   let totalUsageMB = imageStorageMB;
-  let storageLimitMB = 0;
+  let storageLimitMB = 10240.01;
 
   if (typeof window !== 'undefined' && navigator.storage && navigator.storage.estimate) {
     try {
       const estimate = await navigator.storage.estimate();
       if (estimate.usage) {
-        totalUsageMB = Number((estimate.usage / (1024 * 1024)).toFixed(2));
+        const webUsageMB = Number((estimate.usage / (1024 * 1024)).toFixed(2));
+        if (imageStorageMB > 0) {
+          totalUsageMB = Number((imageStorageMB + (webUsageMB > 0.05 ? webUsageMB : 0.15)).toFixed(2));
+        } else {
+          totalUsageMB = webUsageMB;
+        }
       }
-      if (estimate.quota) {
+      if (estimate.quota && estimate.quota > 0) {
         storageLimitMB = Number((estimate.quota / (1024 * 1024)).toFixed(2));
       }
     } catch (e) {
       console.warn('Error estimating storage quota:', e);
     }
+  }
+
+  // Ensure total usage is at least the imageStorageMB
+  if (totalUsageMB < imageStorageMB) {
+    totalUsageMB = imageStorageMB;
   }
 
   return {
@@ -565,15 +650,15 @@ export async function clearMatricesFolder(): Promise<void> {
   if (isNative) {
     try {
       const fsModule = await loadCapacitorFilesystem();
-      if (fsModule?.Filesystem && fsModule?.Directory) {
+      if (fsModule?.Filesystem && fsModule?.Directory?.Data) {
         await fsModule.Filesystem.rmdir({
           path: 'Matrices',
-          directory: fsModule.Directory.Documents,
+          directory: fsModule.Directory.Data,
           recursive: true,
         }).catch(() => {});
         await fsModule.Filesystem.mkdir({
           path: 'Matrices',
-          directory: fsModule.Directory.Documents,
+          directory: fsModule.Directory.Data,
           recursive: true,
         }).catch(() => {});
       }

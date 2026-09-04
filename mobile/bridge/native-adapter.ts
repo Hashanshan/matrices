@@ -6,6 +6,7 @@
 import { checkStoragePermission, requestStoragePermission, PermissionResult } from '../permissions/storage.permission';
 import { checkCameraPermission, requestCameraPermission } from '../permissions/camera.permission';
 import { checkLocationPermission, requestLocationPermission } from '../permissions/location.permission';
+import { checkBackgroundPermission, requestBackgroundPermission, backgroundKeepAlive } from '../permissions/background.permission';
 
 export interface PlatformInfo {
   isNative: boolean;
@@ -51,6 +52,13 @@ export class NativeAdapter {
    */
   static checkLocation = checkLocationPermission;
   static requestLocation = requestLocationPermission;
+
+  /**
+   * Background Sync & Keep-Alive API
+   */
+  static checkBackground = checkBackgroundPermission;
+  static requestBackground = requestBackgroundPermission;
+  static backgroundKeepAlive = backgroundKeepAlive;
 
   /**
    * Request all mandatory permissions sequentially
