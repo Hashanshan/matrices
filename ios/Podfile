@@ -1,6 +1,0 @@
-platform :ios, '14.0'
-use_frameworks!
-
-target 'App' do
-  project 'App/App.xcodeproj'
-end

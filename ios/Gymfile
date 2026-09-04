@@ -1,0 +1,3 @@
+# Generated for EAS Build Capacitor iOS SPM workflow
+workspace "./App/App.xcworkspace"
+scheme "App"
