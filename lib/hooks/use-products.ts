@@ -33,6 +33,42 @@ export interface ProductsResponse {
 
 // ─── Offline helpers ────────────────────────────────────────────────────────
 
+// In-memory cache for instant offline retrieval (avoids repeated full-table deserialization)
+let cachedRawProducts: any[] | null = null;
+let cachedRawWishlist: any[] | null = null;
+let cachedRawCategories: any[] | null = null;
+let cachedRawSubcategories: any[] | null = null;
+
+async function getRawProductsAndWishlist(): Promise<[any[], any[]]> {
+  if (cachedRawProducts && cachedRawWishlist) {
+    return [cachedRawProducts, cachedRawWishlist];
+  }
+  const [raw, dbWishlist] = await Promise.all([
+    offlineDB.getAll<any>('products').catch(() => []),
+    offlineDB.getAll<any>('wishlist').catch(() => []),
+  ]);
+  cachedRawProducts = raw;
+  cachedRawWishlist = dbWishlist;
+  return [raw, dbWishlist];
+}
+
+async function getRawFiltersData(): Promise<[any[], any[], any[], any[]]> {
+  if (cachedRawCategories && cachedRawSubcategories && cachedRawProducts && cachedRawWishlist) {
+    return [cachedRawCategories, cachedRawSubcategories, cachedRawProducts, cachedRawWishlist];
+  }
+  const [dbCategories, dbSubcategories, dbProducts, dbWishlist] = await Promise.all([
+    offlineDB.getAll<any>('categories').catch(() => []),
+    offlineDB.getAll<any>('subcategories').catch(() => []),
+    cachedRawProducts ? Promise.resolve(cachedRawProducts) : offlineDB.getAll<any>('products').catch(() => []),
+    cachedRawWishlist ? Promise.resolve(cachedRawWishlist) : offlineDB.getAll<any>('wishlist').catch(() => []),
+  ]);
+  cachedRawCategories = dbCategories;
+  cachedRawSubcategories = dbSubcategories;
+  cachedRawProducts = dbProducts;
+  cachedRawWishlist = dbWishlist;
+  return [dbCategories, dbSubcategories, dbProducts, dbWishlist];
+}
+
 /** Shape IndexedDB products into the ProductsResponse format the hooks expect */
 export async function getOfflineProducts(options: {
   sort?: string;
@@ -45,10 +81,7 @@ export async function getOfflineProducts(options: {
   page?: number;
   limit?: number;
 }): Promise<ProductsResponse> {
-  const [raw, dbWishlist] = await Promise.all([
-    offlineDB.getAll<any>('products').catch(() => []),
-    offlineDB.getAll<any>('wishlist').catch(() => []),
-  ]);
+  const [raw, dbWishlist] = await getRawProductsAndWishlist();
 
   const userWishlist = (dbWishlist || []).find((w: any) => w.id === 'user_wishlist') || (dbWishlist || [])[0] || {};
 
@@ -387,12 +420,86 @@ export async function getOfflineProducts(options: {
 
 /** Shape IndexedDB categories into FiltersResponse format (matching backend aggregation) */
 export async function getOfflineFilters(timeFilter?: string): Promise<FiltersResponse> {
-  const [dbCategories, dbSubcategories, dbProducts, dbWishlist] = await Promise.all([
-    offlineDB.getAll<any>('categories').catch(() => []),
-    offlineDB.getAll<any>('subcategories').catch(() => []),
-    offlineDB.getAll<any>('products').catch(() => []),
-    offlineDB.getAll<any>('wishlist').catch(() => []),
-  ]);
+  const hasTimeFilter = Boolean(timeFilter && timeFilter !== 'all' && timeFilter !== 'null');
+
+  // Fast path for default view (no timeFilter): load only categories and wishlist (< 5ms)
+  if (!hasTimeFilter) {
+    if (!cachedRawCategories) {
+      cachedRawCategories = await offlineDB.getAll<any>('categories').catch(() => []);
+    }
+    if (!cachedRawWishlist) {
+      cachedRawWishlist = await offlineDB.getAll<any>('wishlist').catch(() => []);
+    }
+
+    if (cachedRawCategories && cachedRawCategories.length > 0) {
+      const userWishlist = (cachedRawWishlist || []).find((w: any) => w.id === 'user_wishlist') || (cachedRawWishlist || [])[0] || {};
+      const wishlistedCatMap = new Map<string, number>();
+      (userWishlist.categories || []).forEach((c: any, idx: number) => {
+        const cName = typeof c === 'string' ? c : c?.name || c?.categoryName || '';
+        if (cName) wishlistedCatMap.set(String(cName).toUpperCase(), c.order ?? idx);
+      });
+
+      const wishlistedSubMap = new Map<string, number>();
+      (userWishlist.subcategories || []).forEach((s: any, idx: number) => {
+        const sCat = typeof s === 'object' ? s?.category || s?.categoryName : '';
+        const sName = typeof s === 'string' ? s : s?.name || s?.subcategoryName || '';
+        if (sCat && sName) {
+          wishlistedSubMap.set(`${String(sCat).toUpperCase()}>${String(sName).toUpperCase()}`, s.order ?? idx);
+        }
+      });
+
+      const formattedCategories: CategoryFilter[] = cachedRawCategories.map((c: any) => {
+        const cName = (c.name || c.categoryName || '').trim().toUpperCase();
+        const rawSubs = Array.isArray(c.subcategories) ? c.subcategories : [];
+        const sortedSubs: SubcategoryFilter[] = rawSubs.map((s: any) => ({
+          name: (typeof s === 'string' ? s : s.name || s.subcategoryName || '').trim().toUpperCase(),
+          image: (typeof s === 'object' ? s.image || s.imageUrl : '') || '',
+          count: typeof s === 'object' ? Number(s.count || 0) : 0,
+        })).filter((s: SubcategoryFilter) => Boolean(s.name));
+
+        sortedSubs.sort((a, b) => {
+          const keyA = `${cName}>${a.name}`;
+          const keyB = `${cName}>${b.name}`;
+          const aWish = wishlistedSubMap.has(keyA);
+          const bWish = wishlistedSubMap.has(keyB);
+          if (aWish && bWish) {
+            return (wishlistedSubMap.get(keyA) ?? 0) - (wishlistedSubMap.get(keyB) ?? 0);
+          }
+          if (aWish) return -1;
+          if (bWish) return 1;
+          return a.name.localeCompare(b.name);
+        });
+
+        return {
+          name: cName,
+          image: c.image || c.imageUrl || c.categoryImage || '',
+          totalCount: Number(c.totalCount || 0),
+          subcategories: sortedSubs,
+        };
+      });
+
+      // Sort main categories: Wishlisted FIRST (by order), then A-Z
+      formattedCategories.sort((a, b) => {
+        const aWish = wishlistedCatMap.has(a.name);
+        const bWish = wishlistedCatMap.has(b.name);
+        if (aWish && bWish) {
+          return (wishlistedCatMap.get(a.name) ?? 0) - (wishlistedCatMap.get(b.name) ?? 0);
+        }
+        if (aWish) return -1;
+        if (bWish) return 1;
+        return a.name.localeCompare(b.name);
+      });
+
+      return {
+        success: true,
+        categories: formattedCategories,
+        priceRange: { min: 0, max: 60125 },
+      };
+    }
+  }
+
+  // Fallback or when timeFilter is active: compute dynamically across products
+  const [dbCategories, dbSubcategories, dbProducts, dbWishlist] = await getRawFiltersData();
 
   if (dbProducts.length === 0 && dbCategories.length === 0) {
     return {
@@ -631,36 +738,12 @@ const fetcher = async <T = any>(url: string): Promise<T> => {
   const isProductsFilters = url.includes('/api/products/filters');
   const isProducts = url.includes('/api/products') && !isProductsFilters;
   const mode = getDataMode();
-  const isOfflineNetwork = typeof navigator !== 'undefined' && !navigator.onLine;
+  const isOffline = mode === 'offline' || (typeof navigator !== 'undefined' && !navigator.onLine);
 
-  // ── LOCAL DB PRIORITY FIRST: Check local IndexedDB data ───────────────────
-  if (isProducts || isProductsFilters) {
-    try {
-      if (isProductsFilters) {
-        const localFilters = await getOfflineFilters(parseOptions().timeFilter);
-        if (localFilters.categories.length > 0) {
-          return localFilters as unknown as T;
-        }
-      } else if (isProducts) {
-        const localData = await getOfflineProducts(parseOptions());
-        if (localData.data.length > 0) {
-          return localData as unknown as T;
-        }
-      }
-    } catch {
-      /* Fallback to live API if local read fails */
-    }
-
-    if (isOfflineNetwork) {
-      if (isProductsFilters) return getOfflineFilters(parseOptions().timeFilter) as unknown as T;
-      if (isProducts) return getOfflineProducts(parseOptions()) as unknown as T;
-    }
-  }
-
-  // ── No network → final IDB fallback ──────────────────────────────────────────
-  if (isOfflineNetwork) {
-    if (isProductsFilters) return getOfflineFilters(parseOptions().timeFilter) as unknown as T;
-    if (isProducts) return getOfflineProducts(parseOptions()) as unknown as T;
+  // ── OFFLINE MODE / DATA OFF: Instant local IndexedDB return (in-memory cached) ──
+  if (isOffline) {
+    if (isProductsFilters) return (await getOfflineFilters(parseOptions().timeFilter)) as unknown as T;
+    if (isProducts) return (await getOfflineProducts(parseOptions())) as unknown as T;
     return { success: false } as unknown as T;
   }
 
@@ -741,8 +824,8 @@ const fetcher = async <T = any>(url: string): Promise<T> => {
     return data;
   } catch (err) {
     // Network error fallback → return IndexedDB offline data
-    if (isProductsFilters) return getOfflineFilters() as unknown as T;
-    if (isProducts) return getOfflineProducts(parseOptions()) as unknown as T;
+    if (isProductsFilters) return (await getOfflineFilters(parseOptions().timeFilter)) as unknown as T;
+    if (isProducts) return (await getOfflineProducts(parseOptions())) as unknown as T;
     throw err;
   }
 };

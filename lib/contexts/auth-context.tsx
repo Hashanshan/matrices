@@ -177,17 +177,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      // If online and token exists, fetch latest profile from backend to ensure data is 100% fresh
+      // If online and token exists, fetch latest profile from backend to ensure data is 100% fresh (with 3s timeout)
       if (token && typeof navigator !== 'undefined' && navigator.onLine) {
         try {
           const profileUrl = resolveApiUrl('/api/auth/profile');
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 3000);
           const res = await fetch(profileUrl, {
             headers: {
               Authorization: `Bearer ${token}`,
               'Content-Type': 'application/json',
             },
             cache: 'no-store',
+            signal: controller.signal,
           });
+          clearTimeout(timeoutId);
           if (res.ok) {
             const data = await res.json();
             if (data && (data.name || data.email)) {

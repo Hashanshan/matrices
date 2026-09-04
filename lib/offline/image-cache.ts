@@ -72,7 +72,7 @@ export function registerInImageMemoryMap(url: string, localSrc: string): void {
   }
 }
 
-/** Pre-warm helper that loads all mapped images into memory upfront */
+/** Pre-warm helper that loads mapped image references into memory */
 async function ensureImageMemoryMap(): Promise<Map<string, string>> {
   if (typeof window === 'undefined') return imageMemoryMap;
   if (isPrewarmed && imageMemoryMap.size > 0) return imageMemoryMap;
@@ -80,7 +80,7 @@ async function ensureImageMemoryMap(): Promise<Map<string, string>> {
 
   isPrewarmingPromise = (async () => {
     try {
-      // 1. Load all ImageMapRecords from IndexedDB in bulk (one single transaction)
+      // 1. Load ImageMapRecords from IndexedDB in bulk (one single transaction)
       const records = await offlineDB.getAllImageMaps().catch(() => []);
       const cap = await getCapacitorCore();
       const isNative = cap?.isNativePlatform?.() ?? false;
@@ -112,28 +112,6 @@ async function ensureImageMemoryMap(): Promise<Map<string, string>> {
             registerInImageMemoryMap(rec.url, rec.localSrc);
             continue;
           }
-        }
-      }
-
-      // 2. In Web mode or fallback, read from CacheStorage to create valid active Blob Object URLs
-      if (typeof window !== 'undefined' && 'caches' in window) {
-        try {
-          const cache = await caches.open(IMAGE_CACHE_NAME);
-          const keys = await cache.keys();
-          await Promise.all(
-            keys.map(async (req) => {
-              const url = req.url;
-              if (imageMemoryMap.has(url)) return;
-              const res = await cache.match(req);
-              if (res) {
-                const blob = await res.blob();
-                const objUrl = URL.createObjectURL(blob);
-                registerInImageMemoryMap(url, objUrl);
-              }
-            })
-          );
-        } catch (e) {
-          console.warn('CacheStorage prewarm warning:', e);
         }
       }
 
@@ -479,7 +457,7 @@ export async function prewarmImageCache(): Promise<void> {
 export function preloadAdjacentImages(imageUrls: string[]): void {
   if (typeof window === 'undefined' || !Array.isArray(imageUrls)) return;
 
-  imageUrls.filter(Boolean).forEach(async (url) => {
+  imageUrls.filter(Boolean).slice(0, 12).forEach(async (url) => {
     try {
       const resolvedSrc = getCachedImageUrlSync(url) || await getCachedImageUrl(url);
       if (!resolvedSrc) return;
@@ -493,11 +471,17 @@ export function preloadAdjacentImages(imageUrls: string[]): void {
   });
 }
 
-// Auto-trigger prewarm on client import
+// Low priority background prewarm on client import
 if (typeof window !== 'undefined') {
-  setTimeout(() => {
-    ensureImageMemoryMap().catch(() => {});
-  }, 50);
+  if ('requestIdleCallback' in window) {
+    (window as any).requestIdleCallback(() => {
+      ensureImageMemoryMap().catch(() => {});
+    }, { timeout: 3000 });
+  } else {
+    setTimeout(() => {
+      ensureImageMemoryMap().catch(() => {});
+    }, 500);
+  }
 }
 
 export interface StorageStats {

@@ -97,28 +97,18 @@ function CategorySection({
     try {
       const isOffline = dataMode === 'offline' || (typeof navigator !== 'undefined' && !navigator.onLine);
       if (isOffline) {
-        // Query IndexedDB directly for all products in this category
-        const allRaw = await offlineDB.getAll<any>('products').catch(() => []);
-        let timeCutoff = 0;
-        if (timeFilter && timeFilter !== 'all' && timeFilter !== 'null') {
-          const now = Date.now();
-          if (timeFilter === '1week' || timeFilter === '1w' || timeFilter === '7d') timeCutoff = now - 7 * 24 * 60 * 60 * 1000;
-          else if (timeFilter === '2week' || timeFilter === '2w' || timeFilter === '14d') timeCutoff = now - 14 * 24 * 60 * 60 * 1000;
-          else if (timeFilter === '3week' || timeFilter === '3w' || timeFilter === '21d') timeCutoff = now - 21 * 24 * 60 * 60 * 1000;
-        }
-
-        const catMatches = allRaw.filter((p: any) => {
-          if (p.isDeleted) return false;
-          if (timeCutoff > 0) {
-            const pTime = p.updatedAt ? new Date(p.updatedAt).getTime() : (p.createdAt ? new Date(p.createdAt).getTime() : 0);
-            if (pTime < timeCutoff) return false;
-          }
-          const pCat = String(p.category || p.categoryName || p.categories || (typeof p.category === 'object' ? p.category?.name : '') || '').trim().toUpperCase();
-          return pCat === category.toUpperCase();
+        const fetchLimit = Math.max(neededTarget || 50, 100);
+        const offlineRes = await getOfflineProducts({
+          category,
+          timeFilter,
+          limit: fetchLimit,
         });
-
-        if (catMatches.length > 0) {
-          setExtraCategoryProducts(catMatches);
+        if (offlineRes.data && offlineRes.data.length > 0) {
+          setExtraCategoryProducts(prev => {
+            const existingIds = new Set(prev.map(p => String(p.productId || p.id)));
+            const newUnique = offlineRes.data.filter((p: any) => !existingIds.has(String(p.productId || p.id)));
+            return [...prev, ...newUnique];
+          });
         }
       } else {
         // Fetch from Online API endpoint with limit matching needed batch
