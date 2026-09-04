@@ -150,8 +150,9 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
   const isCategoryWishlisted = useCallback(
     (name: string) => {
       if (!name) return false;
+      const target = name.trim().replace(/\s+/g, ' ').toUpperCase();
       return (wishlistData.categories || []).some(
-        c => c.name.toUpperCase() === name.trim().toUpperCase()
+        c => (c.name || '').trim().replace(/\s+/g, ' ').toUpperCase() === target
       );
     },
     [wishlistData.categories]
@@ -160,8 +161,11 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
   const isSubcategoryWishlisted = useCallback(
     (category: string, name: string) => {
       if (!category || !name) return false;
+      const targetCat = category.trim().replace(/\s+/g, ' ').toUpperCase();
+      const targetSub = name.trim().replace(/\s+/g, ' ').toUpperCase();
       return (wishlistData.subcategories || []).some(
-        s => s.category.toUpperCase() === category.trim().toUpperCase() && s.name.toUpperCase() === name.trim().toUpperCase()
+        s => (s.category || '').trim().replace(/\s+/g, ' ').toUpperCase() === targetCat &&
+             (s.name || '').trim().replace(/\s+/g, ' ').toUpperCase() === targetSub
       );
     },
     [wishlistData.subcategories]
@@ -187,36 +191,37 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
     const isShop = isShopUser();
     const mode = getDataMode();
     const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+    const cleanName = name.trim().replace(/\s+/g, ' ');
+    const nameUpper = cleanName.toUpperCase();
 
     if (!isShop && (mode === 'offline' || isOffline)) {
       // Offline mode: Toggle category locally in IndexedDB & queue to SyncQueue (Salesrep only)
       const current = { ...wishlistData };
-      const exists = (current.categories || []).some(c => c.name.toUpperCase() === name.trim().toUpperCase());
+      const exists = (current.categories || []).some(c => (c.name || '').trim().replace(/\s+/g, ' ').toUpperCase() === nameUpper);
       if (exists) {
-        current.categories = (current.categories || []).filter(c => c.name.toUpperCase() !== name.trim().toUpperCase());
+        current.categories = (current.categories || []).filter(c => (c.name || '').trim().replace(/\s+/g, ' ').toUpperCase() !== nameUpper);
       } else {
-        current.categories = [...(current.categories || []), { name, order: (current.categories?.length || 0) + 1 }];
+        current.categories = [...(current.categories || []), { name: cleanName, order: (current.categories?.length || 0) + 1 }];
       }
       await offlineDB.saveBatch('wishlist', [{ id: 'user_wishlist', ...current }]);
       await addToSyncQueue({
         operation: exists ? 'DELETE' : 'CREATE',
         entity: 'Wishlist',
-        entityId: `cat_${name}`,
+        entityId: `cat_${nameUpper.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
         endpoint: '/api/wishlist/toggle',
         method: 'POST',
-        payload: { type: 'category', item: { name } },
-        title: `${exists ? 'Removed' : 'Added'} Category Wishlist (${name})`,
+        payload: { type: 'category', item: { name: cleanName } },
+        title: `${exists ? 'Removed' : 'Added'} Category Wishlist (${cleanName})`,
       });
       notifyWishlistChanged(current);
       return;
     }
 
     const token = getAuthToken();
-    const nameUpper = name.trim().toUpperCase();
-    const exists = (wishlistData.categories || []).some(c => c.name.toUpperCase() === nameUpper);
+    const exists = (wishlistData.categories || []).some(c => (c.name || '').trim().replace(/\s+/g, ' ').toUpperCase() === nameUpper);
     const updatedCategories = exists
-      ? (wishlistData.categories || []).filter(c => c.name.toUpperCase() !== nameUpper)
-      : [...(wishlistData.categories || []), { name, order: (wishlistData.categories?.length || 0) + 1 }];
+      ? (wishlistData.categories || []).filter(c => (c.name || '').trim().replace(/\s+/g, ' ').toUpperCase() !== nameUpper)
+      : [...(wishlistData.categories || []), { name: cleanName, order: (wishlistData.categories?.length || 0) + 1 }];
 
     const optimistic: WishlistData = { ...wishlistData, categories: updatedCategories };
     notifyWishlistChanged(optimistic);
@@ -229,7 +234,7 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ type: 'category', item: { name } }),
+        body: JSON.stringify({ type: 'category', item: { name: cleanName } }),
       });
       const updated = await res.json();
       if (updated?.success && updated?.wishlist) {
@@ -247,43 +252,48 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
     const isShop = isShopUser();
     const mode = getDataMode();
     const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+    const cleanCat = category.trim().replace(/\s+/g, ' ');
+    const cleanSub = name.trim().replace(/\s+/g, ' ');
+    const catUpper = cleanCat.toUpperCase();
+    const subUpper = cleanSub.toUpperCase();
 
     if (!isShop && (mode === 'offline' || isOffline)) {
       // Offline mode: Toggle subcategory locally in IndexedDB & queue (Salesrep only)
       const current = { ...wishlistData };
       const exists = (current.subcategories || []).some(
-        s => s.category.toUpperCase() === category.trim().toUpperCase() && s.name.toUpperCase() === name.trim().toUpperCase()
+        s => (s.category || '').trim().replace(/\s+/g, ' ').toUpperCase() === catUpper &&
+             (s.name || '').trim().replace(/\s+/g, ' ').toUpperCase() === subUpper
       );
       if (exists) {
         current.subcategories = (current.subcategories || []).filter(
-          s => !(s.category.toUpperCase() === category.trim().toUpperCase() && s.name.toUpperCase() === name.trim().toUpperCase())
+          s => !((s.category || '').trim().replace(/\s+/g, ' ').toUpperCase() === catUpper &&
+                 (s.name || '').trim().replace(/\s+/g, ' ').toUpperCase() === subUpper)
         );
       } else {
-        current.subcategories = [...(current.subcategories || []), { category, name, order: (current.subcategories?.length || 0) + 1 }];
+        current.subcategories = [...(current.subcategories || []), { category: cleanCat, name: cleanSub, order: (current.subcategories?.length || 0) + 1 }];
       }
       await offlineDB.saveBatch('wishlist', [{ id: 'user_wishlist', ...current }]);
       await addToSyncQueue({
         operation: exists ? 'DELETE' : 'CREATE',
         entity: 'Wishlist',
-        entityId: `subcat_${name}`,
+        entityId: `subcat_${cleanCat}_${cleanSub}`.toLowerCase().replace(/[^a-z0-9]/g, '_'),
         endpoint: '/api/wishlist/toggle',
         method: 'POST',
-        payload: { type: 'subcategory', item: { category, name } },
-        title: `${exists ? 'Removed' : 'Added'} Subcategory Wishlist (${name})`,
+        payload: { type: 'subcategory', item: { category: cleanCat, name: cleanSub } },
+        title: `${exists ? 'Removed' : 'Added'} Subcategory Wishlist (${cleanSub})`,
       });
       notifyWishlistChanged(current);
       return;
     }
 
     const token = getAuthToken();
-    const catUpper = category.trim().toUpperCase();
-    const subUpper = name.trim().toUpperCase();
     const exists = (wishlistData.subcategories || []).some(
-      s => s.category.toUpperCase() === catUpper && s.name.toUpperCase() === subUpper
+      s => (s.category || '').trim().replace(/\s+/g, ' ').toUpperCase() === catUpper &&
+           (s.name || '').trim().replace(/\s+/g, ' ').toUpperCase() === subUpper
     );
     const updatedSubcategories = exists
-      ? (wishlistData.subcategories || []).filter(s => !(s.category.toUpperCase() === catUpper && s.name.toUpperCase() === subUpper))
-      : [...(wishlistData.subcategories || []), { category, name, order: (wishlistData.subcategories?.length || 0) + 1 }];
+      ? (wishlistData.subcategories || []).filter(s => !((s.category || '').trim().replace(/\s+/g, ' ').toUpperCase() === catUpper && (s.name || '').trim().replace(/\s+/g, ' ').toUpperCase() === subUpper))
+      : [...(wishlistData.subcategories || []), { category: cleanCat, name: cleanSub, order: (wishlistData.subcategories?.length || 0) + 1 }];
 
     const optimistic: WishlistData = { ...wishlistData, subcategories: updatedSubcategories };
     notifyWishlistChanged(optimistic);

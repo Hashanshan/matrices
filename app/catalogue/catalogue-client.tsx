@@ -79,10 +79,51 @@ export default function CategoriesPage({ fallbackData }: { fallbackData?: any } 
     mutateFilters().catch(() => {});
   }, [mutateWishlist, mutateFilters]);
 
+  // Deduplicate and merge categories from hook
+  const deduplicatedCategories = useMemo(() => {
+    const map = new Map<string, typeof categories[0]>();
+    (categories || []).forEach(c => {
+      const normName = (c.name || '').trim().replace(/\s+/g, ' ').toUpperCase();
+      if (!normName) return;
+      if (!map.has(normName)) {
+        map.set(normName, {
+          ...c,
+          name: normName,
+          subcategories: [...(c.subcategories || [])],
+        });
+      } else {
+        const existing = map.get(normName)!;
+        existing.totalCount = (existing.totalCount || 0) + (c.totalCount || 0);
+        if (!existing.image && c.image) existing.image = c.image;
+
+        // Merge subcategories
+        const subMap = new Map<string, any>();
+        existing.subcategories.forEach(s => {
+          const sNorm = (s.name || '').trim().replace(/\s+/g, ' ').toUpperCase();
+          if (sNorm) subMap.set(sNorm, { ...s, name: sNorm });
+        });
+        (c.subcategories || []).forEach(s => {
+          const sNorm = (s.name || '').trim().replace(/\s+/g, ' ').toUpperCase();
+          if (!sNorm) return;
+          if (!subMap.has(sNorm)) {
+            subMap.set(sNorm, { ...s, name: sNorm });
+          } else {
+            const exSub = subMap.get(sNorm)!;
+            exSub.count = (exSub.count || 0) + (s.count || 0);
+            if (!exSub.image && s.image) exSub.image = s.image;
+          }
+        });
+        existing.subcategories = Array.from(subMap.values());
+      }
+    });
+    return Array.from(map.values());
+  }, [categories]);
+
   const selectedCategoryObj = useMemo(() => {
     if (!selectedCategory) return null;
-    return categories.find(c => c.name.toUpperCase() === selectedCategory.toUpperCase());
-  }, [selectedCategory, categories]);
+    const normSelected = selectedCategory.trim().replace(/\s+/g, ' ').toUpperCase();
+    return deduplicatedCategories.find(c => c.name.trim().replace(/\s+/g, ' ').toUpperCase() === normSelected);
+  }, [selectedCategory, deduplicatedCategories]);
 
   // Filtering & Wishlist Priority Sorting for top-level categories
   // Wishlisted categories show FIRST (ordered by wishlist order index), then non-wishlisted (A-Z)
@@ -90,58 +131,62 @@ export default function CategoriesPage({ fallbackData }: { fallbackData?: any } 
     const wishlistedMap = new Map<string, number>();
     (wishlist.categories || []).forEach((c, idx) => {
       const cName = typeof c === 'string' ? c : (c as any)?.name || (c as any)?.categoryName || '';
-      if (cName) wishlistedMap.set(cName.toUpperCase(), (c as any)?.order ?? idx);
+      if (cName) wishlistedMap.set(cName.trim().replace(/\s+/g, ' ').toUpperCase(), (c as any)?.order ?? idx);
     });
 
-    const matching = categories.filter(c =>
-      c.name.toUpperCase().includes(searchQuery.toUpperCase())
+    const searchUpper = searchQuery.trim().toUpperCase();
+    const matching = deduplicatedCategories.filter(c =>
+      c.name.toUpperCase().includes(searchUpper)
     );
 
     return matching.sort((a, b) => {
-      const aWish = wishlistedMap.has(a.name.toUpperCase());
-      const bWish = wishlistedMap.has(b.name.toUpperCase());
+      const aWish = wishlistedMap.has(a.name);
+      const bWish = wishlistedMap.has(b.name);
 
       if (aWish && bWish) {
-        return (wishlistedMap.get(a.name.toUpperCase()) ?? 0) - (wishlistedMap.get(b.name.toUpperCase()) ?? 0);
+        return (wishlistedMap.get(a.name) ?? 0) - (wishlistedMap.get(b.name) ?? 0);
       }
       if (aWish) return -1;
       if (bWish) return 1;
 
       return a.name.localeCompare(b.name);
     });
-  }, [categories, searchQuery, wishlist.categories]);
+  }, [deduplicatedCategories, searchQuery, wishlist.categories]);
 
   // Filtering & Wishlist Priority Sorting for subcategories of selected category
   const filteredSubcategories = useMemo(() => {
     if (!selectedCategoryObj) return [];
 
-    const parentCatName = selectedCategoryObj.name.toUpperCase();
+    const parentCatName = selectedCategoryObj.name.trim().replace(/\s+/g, ' ').toUpperCase();
     const wishlistedMap = new Map<string, number>();
     (wishlist.subcategories || [])
       .filter(s => {
         const sCat = typeof s === 'object' ? (s as any)?.category || (s as any)?.categoryName : '';
-        return sCat && String(sCat).toUpperCase() === parentCatName;
+        return sCat && String(sCat).trim().replace(/\s+/g, ' ').toUpperCase() === parentCatName;
       })
       .forEach((s, idx) => {
         const sName = typeof s === 'string' ? s : (s as any)?.name || (s as any)?.subcategoryName || '';
-        if (sName) wishlistedMap.set(String(sName).toUpperCase(), (s as any)?.order ?? idx);
+        if (sName) wishlistedMap.set(String(sName).trim().replace(/\s+/g, ' ').toUpperCase(), (s as any)?.order ?? idx);
       });
 
+    const searchUpper = searchQuery.trim().toUpperCase();
     const matching = selectedCategoryObj.subcategories.filter(s =>
-      s.name.toUpperCase().includes(searchQuery.toUpperCase())
+      s.name.toUpperCase().includes(searchUpper)
     );
 
     return matching.sort((a, b) => {
-      const aWish = wishlistedMap.has(a.name.toUpperCase());
-      const bWish = wishlistedMap.has(b.name.toUpperCase());
+      const normA = a.name.trim().replace(/\s+/g, ' ').toUpperCase();
+      const normB = b.name.trim().replace(/\s+/g, ' ').toUpperCase();
+      const aWish = wishlistedMap.has(normA);
+      const bWish = wishlistedMap.has(normB);
 
       if (aWish && bWish) {
-        return (wishlistedMap.get(a.name.toUpperCase()) ?? 0) - (wishlistedMap.get(b.name.toUpperCase()) ?? 0);
+        return (wishlistedMap.get(normA) ?? 0) - (wishlistedMap.get(normB) ?? 0);
       }
       if (aWish) return -1;
       if (bWish) return 1;
 
-      return a.name.localeCompare(b.name);
+      return normA.localeCompare(normB);
     });
   }, [selectedCategoryObj, searchQuery, wishlist.subcategories]);
 

@@ -456,45 +456,68 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
     const wishlistedMap = new Map<string, number>();
     (wishlist.categories || []).forEach((c, idx) => {
       const cName = typeof c === 'string' ? c : (c as any)?.name || (c as any)?.categoryName || '';
-      if (cName) wishlistedMap.set(cName.toUpperCase(), (c as any)?.order ?? idx);
+      if (cName) wishlistedMap.set(cName.trim().replace(/\s+/g, ' ').toUpperCase(), (c as any)?.order ?? idx);
     });
 
-    const catNames = apiCategories.map(c => c.name);
-    catNames.sort((a, b) => {
-      const aWish = wishlistedMap.has(a.toUpperCase());
-      const bWish = wishlistedMap.has(b.toUpperCase());
+    // Deduplicate apiCategories by normalized uppercase name
+    const uniqueCatNames = Array.from(new Set(
+      apiCategories
+        .map(c => (c.name || '').trim().replace(/\s+/g, ' ').toUpperCase())
+        .filter(Boolean)
+    ));
+
+    uniqueCatNames.sort((a, b) => {
+      const aWish = wishlistedMap.has(a);
+      const bWish = wishlistedMap.has(b);
       if (aWish && bWish) {
-        return (wishlistedMap.get(a.toUpperCase()) ?? 0) - (wishlistedMap.get(b.toUpperCase()) ?? 0);
+        return (wishlistedMap.get(a) ?? 0) - (wishlistedMap.get(b) ?? 0);
       }
       if (aWish) return -1;
       if (bWish) return 1;
       return a.localeCompare(b);
     });
 
-    return ['All', ...catNames];
+    return ['All', ...uniqueCatNames];
   }, [apiCategories, wishlist.categories]);
 
   const getSubcategoriesForCategory = useCallback((category: string) => {
-    const cat = apiCategories.find(c => c.name === category);
-    if (!cat) return [];
+    const normCategory = category.trim().replace(/\s+/g, ' ').toUpperCase();
+    const matchingCats = apiCategories.filter(c => (c.name || '').trim().replace(/\s+/g, ' ').toUpperCase() === normCategory);
+    if (matchingCats.length === 0) return [];
 
     const wishlistedSubMap = new Map<string, number>();
     (wishlist.subcategories || [])
       .filter(s => {
         const sCat = typeof s === 'object' ? (s as any)?.category || (s as any)?.categoryName : '';
-        return sCat && String(sCat).toUpperCase() === category.toUpperCase();
+        return sCat && String(sCat).trim().replace(/\s+/g, ' ').toUpperCase() === normCategory;
       })
       .forEach((s, idx) => {
         const sName = typeof s === 'string' ? s : (s as any)?.name || (s as any)?.subcategoryName || '';
-        if (sName) wishlistedSubMap.set(String(sName).toUpperCase(), (s as any)?.order ?? idx);
+        if (sName) wishlistedSubMap.set(String(sName).trim().replace(/\s+/g, ' ').toUpperCase(), (s as any)?.order ?? idx);
       });
 
-    const subNames = cat.subcategories.map(s => s.name);
+    // Deduplicate subcategories across all matching category records
+    const subMap = new Map<string, any>();
+    matchingCats.forEach(cat => {
+      (cat.subcategories || []).forEach(s => {
+        const sName = (s.name || '').trim().replace(/\s+/g, ' ').toUpperCase();
+        if (!sName) return;
+        if (!subMap.has(sName)) {
+          subMap.set(sName, { ...s, name: sName });
+        } else {
+          const existing = subMap.get(sName)!;
+          existing.count = (existing.count || 0) + (s.count || 0);
+          if (!existing.image && s.image) existing.image = s.image;
+        }
+      });
+    });
+
+    const subNames = Array.from(subMap.keys());
     return subNames.sort((a, b) => {
-      const aWish = wishlistedSubMap.has(a.toUpperCase());
-      const bWish = wishlistedSubMap.has(b.toUpperCase());
+      const aWish = wishlistedSubMap.has(a);
+      const bWish = wishlistedSubMap.has(b);
       if (aWish && bWish) {
-        return (wishlistedSubMap.get(a.toUpperCase()) ?? 0) - (wishlistedSubMap.get(b.toUpperCase()) ?? 0);
+        return (wishlistedSubMap.get(a) ?? 0) - (wishlistedSubMap.get(b) ?? 0);
       }
       if (aWish) return -1;
       if (bWish) return 1;
@@ -506,10 +529,11 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
   const groupedProducts = useMemo(() => {
     const groups: { [category: string]: Product[] } = {};
 
-    // 1. Single O(N) pass to group products by category
+    // 1. Single O(N) pass to group products by normalized category
     for (let i = 0; i < filteredProducts.length; i++) {
       const p = filteredProducts[i];
-      const cat = p.categories || 'Uncategorized';
+      const rawCat = (p.categories || (p as any).categoryName || (p as any).category || ((p as any).category && typeof (p as any).category === 'object' ? (p as any).category.name : '') || '').toString();
+      const cat = rawCat.trim().replace(/\s+/g, ' ').toUpperCase() || 'UNCATEGORIZED';
       if (!groups[cat]) groups[cat] = [];
       groups[cat].push(p);
     }
@@ -556,22 +580,24 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
     const wishlistedCatOrderMap = new Map<string, number>();
     (wishlist.categories || []).forEach((c, idx) => {
       const cName = typeof c === 'string' ? c : (c as any)?.name || (c as any)?.categoryName || '';
-      if (cName) wishlistedCatOrderMap.set(cName.toUpperCase(), (c as any)?.order ?? idx);
+      if (cName) wishlistedCatOrderMap.set(cName.trim().replace(/\s+/g, ' ').toUpperCase(), (c as any)?.order ?? idx);
     });
 
     const entries = Object.entries(groupedProducts);
 
     return entries.sort(([catA], [catB]) => {
-      const aWish = wishlistedCatOrderMap.has(catA.toUpperCase());
-      const bWish = wishlistedCatOrderMap.has(catB.toUpperCase());
+      const normA = catA.trim().replace(/\s+/g, ' ').toUpperCase();
+      const normB = catB.trim().replace(/\s+/g, ' ').toUpperCase();
+      const aWish = wishlistedCatOrderMap.has(normA);
+      const bWish = wishlistedCatOrderMap.has(normB);
 
       if (aWish && bWish) {
-        return (wishlistedCatOrderMap.get(catA.toUpperCase()) ?? 0) - (wishlistedCatOrderMap.get(catB.toUpperCase()) ?? 0);
+        return (wishlistedCatOrderMap.get(normA) ?? 0) - (wishlistedCatOrderMap.get(normB) ?? 0);
       }
       if (aWish) return -1;
       if (bWish) return 1;
 
-      return catA.localeCompare(catB);
+      return normA.localeCompare(normB);
     });
   }, [groupedProducts, wishlist.categories]);
 
@@ -983,8 +1009,11 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
                 const isCollapsed = collapsedSections[category];
 
                 // Get the accurate total count from API data for this category
-                const apiCategoryData = apiCategories.find(c => c.name.toUpperCase() === category.toUpperCase());
-                const accurateCount = apiCategoryData ? apiCategoryData.totalCount : categoryProducts.length;
+                const normCat = category.trim().replace(/\s+/g, ' ').toUpperCase();
+                const matchingApiCats = apiCategories.filter(c => (c.name || '').trim().replace(/\s+/g, ' ').toUpperCase() === normCat);
+                const accurateCount = matchingApiCats.length > 0
+                  ? matchingApiCats.reduce((sum, c) => sum + (c.totalCount || 0), 0)
+                  : categoryProducts.length;
 
                 return (
                   <CategorySection

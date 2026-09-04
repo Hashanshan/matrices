@@ -608,12 +608,12 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
       const extractStr = (val: any): string => {
         if (!val) return '';
-        if (typeof val === 'string') return val.trim();
+        if (typeof val === 'string') return val.trim().replace(/\s+/g, ' ');
         if (Array.isArray(val)) return extractStr(val[0]);
         if (typeof val === 'object') {
-          return (val.name || val.categoryName || val.subcategoryName || val.title || val.label || val._id || '').toString().trim();
+          return (val.name || val.categoryName || val.subcategoryName || val.title || val.label || val._id || '').toString().trim().replace(/\s+/g, ' ');
         }
-        return String(val).trim();
+        return String(val).trim().replace(/\s+/g, ' ');
       };
 
       // Fallback: build categories & subcategories from products if filters endpoint was empty or unparseable
@@ -625,7 +625,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
           const img = p.image || p.imageUrl || (Array.isArray(p.images) && p.images[0] ? p.images[0] : '');
 
           if (catName) {
-            const catKey = catName.toUpperCase();
+            const catKey = catName;
             if (!catMap.has(catKey)) {
               catMap.set(catKey, { name: catKey, image: img, subcats: new Map() });
             }
@@ -633,7 +633,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
             if (!catEntry.image && img) catEntry.image = img;
 
             if (subName) {
-              const subKey = subName.toUpperCase();
+              const subKey = subName;
               if (!catEntry.subcats.has(subKey)) {
                 catEntry.subcats.set(subKey, { name: subKey, image: img });
               }
@@ -673,27 +673,64 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       setProgress(78);
       setSyncStatusText(`Saving ${products.length} products, ${shops.length} shops, and ${orders.length} orders offline...`);
 
-      const formattedCategories = categories.map((c: any, idx: number) => {
+      // Deduplicate and merge categories by normalized uppercase name
+      const catMap = new Map<string, any>();
+      categories.forEach((c: any, idx: number) => {
         const cName = extractStr(c.name || c.categoryName || 'Category').toUpperCase();
+        if (!cName) return;
         const cImage = c.image || c.imageUrl || c.categoryImage || '';
 
-        const cSubs = (Array.isArray(c.subcategories) ? c.subcategories : []).map((s: any) => {
-          if (typeof s === 'string') return { name: s.trim().toUpperCase(), image: '', count: 0 };
-          return {
-            name: extractStr(s.name || s.subcategoryName).toUpperCase(),
-            image: s.image || s.imageUrl || '',
-            count: Number(s.count || 0),
-          };
-        });
+        if (!catMap.has(cName)) {
+          catMap.set(cName, {
+            id: `cat_${cName.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
+            name: cName,
+            categoryName: cName,
+            image: cImage,
+            order: c.order ?? idx,
+            totalCount: 0,
+            subcatMap: new Map<string, any>(),
+          });
+        }
 
+        const catEntry = catMap.get(cName)!;
+        catEntry.totalCount += Number(c.totalCount || 0);
+        if (!catEntry.image && cImage) {
+          catEntry.image = cImage;
+        }
+
+        const rawSubs = Array.isArray(c.subcategories) ? c.subcategories : [];
+        rawSubs.forEach((s: any) => {
+          const sName = (typeof s === 'string' ? extractStr(s) : extractStr(s.name || s.subcategoryName)).toUpperCase();
+          if (!sName) return;
+          const sImg = (typeof s === 'object' ? s.image || s.imageUrl : '') || '';
+          const sCount = typeof s === 'object' ? Number(s.count || 0) : 0;
+
+          if (!catEntry.subcatMap.has(sName)) {
+            catEntry.subcatMap.set(sName, {
+              name: sName,
+              image: sImg,
+              count: 0,
+            });
+          }
+
+          const subEntry = catEntry.subcatMap.get(sName)!;
+          subEntry.count += sCount;
+          if (!subEntry.image && sImg) {
+            subEntry.image = sImg;
+          }
+        });
+      });
+
+      const formattedCategories = Array.from(catMap.values()).map((cat: any) => {
+        const subsArr = Array.from(cat.subcatMap.values());
         return {
-          id: String(c._id || c.id || c.categoryId || `cat_${idx}`),
-          name: cName,
-          categoryName: cName,
-          image: cImage,
-          order: c.order ?? idx,
-          totalCount: Number(c.totalCount || 0),
-          subcategories: cSubs,
+          id: cat.id,
+          name: cat.name,
+          categoryName: cat.name,
+          image: cat.image,
+          order: cat.order,
+          totalCount: cat.totalCount,
+          subcategories: subsArr,
         };
       });
 
@@ -704,7 +741,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
           const key = `${cat.name}>${sub.name}`;
           if (!uniqueSubMap.has(key)) {
             uniqueSubMap.set(key, {
-              id: String(sub._id || sub.id || sub.subcategoryId || `subcat_${cat.id}_${idx}`),
+              id: `subcat_${cat.id}_${sub.name.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
               name: sub.name,
               subcategoryName: sub.name,
               category: cat.name,

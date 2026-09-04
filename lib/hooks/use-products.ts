@@ -190,16 +190,22 @@ export async function getOfflineProducts(options: {
   let filtered = raw.filter((p: any) => {
     // In single product view (e.g. /view?productId=...&category=...), do NOT exclude other categories/subcategories so user can swipe through target -> subcategory -> category -> other products
     if (!isSingleProductView && catFilter && catFilter.length > 0 && catFilter[0]) {
-      const pCat = (p.categoryName || p.categories || p.category || (typeof p.category === 'object' ? p.category?.name : '') || '').toLowerCase().trim();
+      const pCat = (p.categoryName || p.categories || p.category || (typeof p.category === 'object' ? p.category?.name : '') || '').toLowerCase().trim().replace(/\s+/g, ' ');
       const pCatId = String(p.categoryId || (typeof p.category === 'object' ? p.category?._id : '') || '').trim().toLowerCase();
-      const matchesCat = catFilter.some(c => pCat === c || pCat.includes(c) || c.includes(pCat) || (pCatId && pCatId === c));
+      const matchesCat = catFilter.some(c => {
+        const cleanC = c.toLowerCase().trim().replace(/\s+/g, ' ');
+        return pCat === cleanC || (pCatId && pCatId === cleanC);
+      });
       if (!matchesCat) return false;
     }
 
     if (!isSingleProductView && subFilter && subFilter.length > 0 && subFilter[0]) {
-      const pSub = (p.subcategoryName || p.subcategories || p.subcategory || (typeof p.subcategory === 'object' ? p.subcategory?.name : '') || '').toLowerCase().trim();
+      const pSub = (p.subcategoryName || p.subcategories || p.subcategory || (typeof p.subcategory === 'object' ? p.subcategory?.name : '') || '').toLowerCase().trim().replace(/\s+/g, ' ');
       const pSubId = String(p.subcategoryId || (typeof p.subcategory === 'object' ? p.subcategory?._id : '') || '').trim().toLowerCase();
-      const matchesSub = subFilter.some(s => pSub === s || pSub.includes(s) || s.includes(pSub) || (pSubId && pSubId === s));
+      const matchesSub = subFilter.some(s => {
+        const cleanS = s.toLowerCase().trim().replace(/\s+/g, ' ');
+        return pSub === cleanS || (pSubId && pSubId === cleanS);
+      });
       if (!matchesSub) return false;
     }
 
@@ -399,8 +405,8 @@ export async function getOfflineProducts(options: {
     id: String(p.id || p.productId || p._id || ''),
     name: String(p.name || '').toUpperCase(),
     productId: String(p.productId || p.productCode || p.id || ''),
-    categories: String(p.categoryName || p.categories || p.category || '').toUpperCase(),
-    subcategories: String(p.subcategoryName || p.subcategories || p.subcategory || '').toUpperCase(),
+    categories: String(p.categoryName || p.categories || p.category || '').trim().replace(/\s+/g, ' ').toUpperCase(),
+    subcategories: String(p.subcategoryName || p.subcategories || p.subcategory || '').trim().replace(/\s+/g, ' ').toUpperCase(),
     image: p.imageUrl || p.image || '',
     sellPrice: Number(p.sellPrice || p.price || 0),
     price: Number(p.price || p.sellPrice || 0),
@@ -436,7 +442,7 @@ export async function getOfflineFilters(timeFilter?: string): Promise<FiltersRes
       const wishlistedCatMap = new Map<string, number>();
       (userWishlist.categories || []).forEach((c: any, idx: number) => {
         const cName = typeof c === 'string' ? c : c?.name || c?.categoryName || '';
-        if (cName) wishlistedCatMap.set(String(cName).toUpperCase(), c.order ?? idx);
+        if (cName) wishlistedCatMap.set(String(cName).trim().replace(/\s+/g, ' ').toUpperCase(), c.order ?? idx);
       });
 
       const wishlistedSubMap = new Map<string, number>();
@@ -444,22 +450,69 @@ export async function getOfflineFilters(timeFilter?: string): Promise<FiltersRes
         const sCat = typeof s === 'object' ? s?.category || s?.categoryName : '';
         const sName = typeof s === 'string' ? s : s?.name || s?.subcategoryName || '';
         if (sCat && sName) {
-          wishlistedSubMap.set(`${String(sCat).toUpperCase()}>${String(sName).toUpperCase()}`, s.order ?? idx);
+          const normCat = String(sCat).trim().replace(/\s+/g, ' ').toUpperCase();
+          const normSub = String(sName).trim().replace(/\s+/g, ' ').toUpperCase();
+          wishlistedSubMap.set(`${normCat}>${normSub}`, s.order ?? idx);
         }
       });
 
-      const formattedCategories: CategoryFilter[] = cachedRawCategories.map((c: any) => {
-        const cName = (c.name || c.categoryName || '').trim().toUpperCase();
+      // Deduplicate and merge categories from cachedRawCategories
+      const catMap = new Map<string, {
+        name: string;
+        image: string;
+        totalCount: number;
+        subcats: Map<string, SubcategoryFilter>;
+      }>();
+
+      for (const c of cachedRawCategories) {
+        const cName = (c.name || c.categoryName || '').trim().replace(/\s+/g, ' ').toUpperCase();
+        if (!cName) continue;
+        const cImg = c.image || c.imageUrl || c.categoryImage || '';
+
+        if (!catMap.has(cName)) {
+          catMap.set(cName, {
+            name: cName,
+            image: cImg,
+            totalCount: 0,
+            subcats: new Map(),
+          });
+        }
+
+        const catObj = catMap.get(cName)!;
+        catObj.totalCount += Number(c.totalCount || 0);
+        if (!catObj.image && cImg) {
+          catObj.image = cImg;
+        }
+
         const rawSubs = Array.isArray(c.subcategories) ? c.subcategories : [];
-        const sortedSubs: SubcategoryFilter[] = rawSubs.map((s: any) => ({
-          name: (typeof s === 'string' ? s : s.name || s.subcategoryName || '').trim().toUpperCase(),
-          image: (typeof s === 'object' ? s.image || s.imageUrl : '') || '',
-          count: typeof s === 'object' ? Number(s.count || 0) : 0,
-        })).filter((s: SubcategoryFilter) => Boolean(s.name));
+        for (const s of rawSubs) {
+          const sName = (typeof s === 'string' ? s : s.name || s.subcategoryName || '').trim().replace(/\s+/g, ' ').toUpperCase();
+          if (!sName) continue;
+          const sImg = (typeof s === 'object' ? s.image || s.imageUrl : '') || '';
+          const sCount = typeof s === 'object' ? Number(s.count || 0) : 0;
+
+          if (!catObj.subcats.has(sName)) {
+            catObj.subcats.set(sName, {
+              name: sName,
+              image: sImg,
+              count: 0,
+            });
+          }
+
+          const subObj = catObj.subcats.get(sName)!;
+          subObj.count += sCount;
+          if (!subObj.image && sImg) {
+            subObj.image = sImg;
+          }
+        }
+      }
+
+      const formattedCategories: CategoryFilter[] = Array.from(catMap.values()).map(catObj => {
+        const sortedSubs = Array.from(catObj.subcats.values());
 
         sortedSubs.sort((a, b) => {
-          const keyA = `${cName}>${a.name}`;
-          const keyB = `${cName}>${b.name}`;
+          const keyA = `${catObj.name}>${a.name}`;
+          const keyB = `${catObj.name}>${b.name}`;
           const aWish = wishlistedSubMap.has(keyA);
           const bWish = wishlistedSubMap.has(keyB);
           if (aWish && bWish) {
@@ -471,9 +524,9 @@ export async function getOfflineFilters(timeFilter?: string): Promise<FiltersRes
         });
 
         return {
-          name: cName,
-          image: c.image || c.imageUrl || c.categoryImage || '',
-          totalCount: Number(c.totalCount || 0),
+          name: catObj.name,
+          image: catObj.image,
+          totalCount: catObj.totalCount,
           subcategories: sortedSubs,
         };
       });
@@ -556,11 +609,11 @@ export async function getOfflineFilters(timeFilter?: string): Promise<FiltersRes
   }>();
 
   for (const p of activeProducts) {
-    const rawCat = (p.categoryName || p.categories || p.category || (typeof p.category === 'object' ? p.category?.name : '') || '').trim();
+    const rawCat = (p.categoryName || p.categories || p.category || (typeof p.category === 'object' ? p.category?.name : '') || '').trim().replace(/\s+/g, ' ');
     if (!rawCat) continue;
     const catName = rawCat.toUpperCase();
 
-    const rawSub = (p.subcategoryName || p.subcategories || p.subcategory || p.subCategory || (typeof p.subcategory === 'object' ? p.subcategory?.name : '') || '').trim();
+    const rawSub = (p.subcategoryName || p.subcategories || p.subcategory || p.subCategory || (typeof p.subcategory === 'object' ? p.subcategory?.name : '') || '').trim().replace(/\s+/g, ' ');
     const subName = rawSub ? rawSub.toUpperCase() : '';
 
     const pImg = p.image || p.imageUrl || (Array.isArray(p.images) && p.images[0]) || '';
@@ -599,14 +652,14 @@ export async function getOfflineFilters(timeFilter?: string): Promise<FiltersRes
   // Incorporate dbCategories store records only when NO timeFilter is active
   if (cutoff === 0 && dbCategories.length > 0) {
     for (const c of dbCategories) {
-      const cName = (c.name || c.categoryName || '').trim().toUpperCase();
+      const cName = (c.name || c.categoryName || '').trim().replace(/\s+/g, ' ').toUpperCase();
       const cImg = c.image || c.imageUrl || c.categoryImage || '';
 
       if (cName && !catMap.has(cName)) {
         const subMap = new Map<string, { name: string; image: string; count: number }>();
         if (Array.isArray(c.subcategories)) {
           c.subcategories.forEach((s: any) => {
-            const sName = (typeof s === 'string' ? s : s.name || s.subcategoryName || '').trim().toUpperCase();
+            const sName = (typeof s === 'string' ? s : s.name || s.subcategoryName || '').trim().replace(/\s+/g, ' ').toUpperCase();
             if (sName) {
               subMap.set(sName, {
                 name: sName,
@@ -629,12 +682,22 @@ export async function getOfflineFilters(timeFilter?: string): Promise<FiltersRes
         }
         if (Array.isArray(c.subcategories)) {
           c.subcategories.forEach((s: any) => {
-            const sName = (typeof s === 'string' ? s : s.name || s.subcategoryName || '').trim().toUpperCase();
+            const sName = (typeof s === 'string' ? s : s.name || s.subcategoryName || '').trim().replace(/\s+/g, ' ').toUpperCase();
             const sImg = (typeof s === 'object' ? s.image || s.imageUrl : '') || '';
-            if (sName && existingCat.subcats.has(sName)) {
-              const existingSub = existingCat.subcats.get(sName)!;
-              if (!existingSub.image && sImg) {
-                existingSub.image = sImg;
+            const sCount = typeof s === 'object' ? Number(s.count || 0) : 0;
+            if (sName) {
+              if (existingCat.subcats.has(sName)) {
+                const existingSub = existingCat.subcats.get(sName)!;
+                existingSub.count += sCount;
+                if (!existingSub.image && sImg) {
+                  existingSub.image = sImg;
+                }
+              } else {
+                existingCat.subcats.set(sName, {
+                  name: sName,
+                  image: sImg,
+                  count: sCount,
+                });
               }
             }
           });
@@ -648,7 +711,7 @@ export async function getOfflineFilters(timeFilter?: string): Promise<FiltersRes
   const wishlistedCatMap = new Map<string, number>();
   (userWishlist.categories || []).forEach((c: any, idx: number) => {
     const cName = typeof c === 'string' ? c : c?.name || c?.categoryName || '';
-    if (cName) wishlistedCatMap.set(String(cName).toUpperCase(), c.order ?? idx);
+    if (cName) wishlistedCatMap.set(String(cName).trim().replace(/\s+/g, ' ').toUpperCase(), c.order ?? idx);
   });
 
   const wishlistedSubMap = new Map<string, number>();
@@ -656,7 +719,9 @@ export async function getOfflineFilters(timeFilter?: string): Promise<FiltersRes
     const sCat = typeof s === 'object' ? s?.category || s?.categoryName : '';
     const sName = typeof s === 'string' ? s : s?.name || s?.subcategoryName || '';
     if (sCat && sName) {
-      wishlistedSubMap.set(`${String(sCat).toUpperCase()}>${String(sName).toUpperCase()}`, s.order ?? idx);
+      const normCat = String(sCat).trim().replace(/\s+/g, ' ').toUpperCase();
+      const normSub = String(sName).trim().replace(/\s+/g, ' ').toUpperCase();
+      wishlistedSubMap.set(`${normCat}>${normSub}`, s.order ?? idx);
     }
   });
 
