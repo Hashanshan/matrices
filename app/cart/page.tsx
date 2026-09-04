@@ -96,16 +96,74 @@ export default function CartPage() {
   // Security PIN modal for deselecting shop
   const [showDeselectPinModal, setShowDeselectPinModal] = useState(false);
 
-  // Product Add Modal inside Cart Page
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [productSearch, setProductSearch] = useState('');
+  const [searchKeyboardMode, setSearchKeyboardMode] = useState<'numeric' | 'text'>('numeric');
   const [selectedProductForAdd, setSelectedProductForAdd] = useState<ProductItem | null>(null);
-  const [addQuantity, setAddQuantity] = useState<number>(1);
+  const [addQuantity, setAddQuantity] = useState<number | string>(1);
   const [addNote, setAddNote] = useState<string>('');
+
+  const CART_PACK_SUGGESTIONS = [
+    'Box Pack',
+    'Poly Pack',
+    '1 Dozen Pack',
+    'Half Dozen Pack',
+    'Mixed Colors',
+    'Urgent Delivery',
+    'Sample',
+  ];
+
+  const handleToggleAddNoteSuggestion = (sug: string) => {
+    if (!addNote.trim()) {
+      setAddNote(sug);
+      return;
+    }
+    const parts = addNote.split(',').map((p) => p.trim()).filter(Boolean);
+    if (parts.includes(sug)) {
+      const filtered = parts.filter((p) => p !== sug);
+      setAddNote(filtered.join(', '));
+    } else {
+      setAddNote([...parts, sug].join(', '));
+    }
+  };
+
+  const handleAddQuantityChange = (val: string) => {
+    if (val === '') {
+      setAddQuantity('');
+      return;
+    }
+    const clean = val.replace(/[^0-9]/g, '');
+    if (clean === '') {
+      setAddQuantity('');
+      return;
+    }
+    const parsed = parseInt(clean, 10);
+    setAddQuantity(isNaN(parsed) ? '' : parsed);
+  };
+
+  const handleAddQuantityBlur = () => {
+    if (addQuantity === '' || Number(addQuantity) < 1 || isNaN(Number(addQuantity))) {
+      setAddQuantity(1);
+    }
+  };
 
   const modalSearchInputRef = useRef<HTMLInputElement>(null);
   const quantityInputRef = useRef<HTMLInputElement>(null);
   const noteInputRef = useRef<HTMLInputElement>(null);
+
+  // Lock body scroll when product modal is open
+  useEffect(() => {
+    if (isProductModalOpen) {
+      const origBody = document.body.style.overflow;
+      const origHtml = document.documentElement.style.overflow;
+      document.body.style.overflow = 'hidden';
+      document.documentElement.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = origBody;
+        document.documentElement.style.overflow = origHtml;
+      };
+    }
+  }, [isProductModalOpen]);
 
   // Fetch MTX- Products
   const productQuery = new URLSearchParams();
@@ -191,7 +249,7 @@ export default function CartPage() {
   const handleConfirmAddProduct = () => {
     if (!selectedProductForAdd) return;
 
-    const qty = Math.max(1, addQuantity);
+    const qty = Math.max(1, typeof addQuantity === 'number' ? addQuantity : (parseInt(String(addQuantity), 10) || 1));
     const unitPrice = selectedProductForAdd.sellPrice;
     const cleanNote = addNote.trim();
     const cleanId = selectedProductForAdd.productId || selectedProductForAdd.id;
@@ -339,6 +397,7 @@ export default function CartPage() {
                 onClick={() => {
                   setSelectedProductForAdd(null);
                   setProductSearch('');
+                  setSearchKeyboardMode('numeric');
                   setIsProductModalOpen(true);
                 }}
                 className="bg-[#0f172a] hover:bg-[#1e293b] text-white text-xs font-black uppercase tracking-wider px-5 py-3 rounded-full shadow-md transition-all flex items-center gap-2 cursor-pointer active:scale-95"
@@ -672,25 +731,86 @@ export default function CartPage() {
               {/* VIEW 1: SEARCH PRODUCT LIST (Shown when no product is selected yet) */}
               {!selectedProductForAdd ? (
                 <>
-                  {/* Product Search Input (With Enter Key Fast Selection!) */}
-                  <div className="relative">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                    <input
-                      ref={modalSearchInputRef}
-                      type="text"
-                      value={productSearch}
-                      onChange={e => setProductSearch(e.target.value)}
-                      onKeyDown={e => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          if (mtxFilteredProducts.length > 0) {
-                            handleSelectProduct(mtxFilteredProducts[0]);
+                  {/* Product Search Input (With Default Numeric Keyboard & ABC Toggle) */}
+                  <div className="space-y-2">
+                    <div className="relative flex items-center">
+                      <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                      <input
+                        ref={modalSearchInputRef}
+                        type="text"
+                        inputMode={searchKeyboardMode}
+                        autoComplete="off"
+                        autoCorrect="off"
+                        spellCheck={false}
+                        value={productSearch}
+                        onChange={e => setProductSearch(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            if (mtxFilteredProducts.length > 0) {
+                              handleSelectProduct(mtxFilteredProducts[0]);
+                            }
                           }
-                        }
-                      }}
-                      placeholder="Search MTX products..."
-                      className="w-full pl-11 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold text-[#0f172a] focus:outline-none focus:ring-2 focus:ring-[#0f172a]/20 shadow-xs uppercase"
-                    />
+                        }}
+                        placeholder={searchKeyboardMode === 'numeric' ? "Type product code / number (e.g. 10216)..." : "Search by product name or code..."}
+                        className="w-full pl-11 pr-24 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold text-[#0f172a] focus:outline-none focus:ring-2 focus:ring-[#0f172a]/20 shadow-xs uppercase"
+                      />
+
+                      {/* Actions on right: Clear button + Keyboard Toggle (123 / ABC) */}
+                      <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
+                        {productSearch && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setProductSearch('');
+                              modalSearchInputRef.current?.focus();
+                            }}
+                            className="p-1 rounded-full text-gray-400 hover:text-gray-600 hover:bg-slate-200/60 transition-colors cursor-pointer"
+                            title="Clear search"
+                          >
+                            <X size={14} />
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const nextMode = searchKeyboardMode === 'numeric' ? 'text' : 'numeric';
+                            setSearchKeyboardMode(nextMode);
+                            setTimeout(() => {
+                              modalSearchInputRef.current?.focus();
+                            }, 50);
+                          }}
+                          className={`px-2.5 py-1 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1 cursor-pointer shadow-xs border ${
+                            searchKeyboardMode === 'numeric'
+                              ? 'bg-sky-500 text-white border-sky-600 hover:bg-sky-600'
+                              : 'bg-[#0f172a] text-white border-[#0f172a] hover:bg-[#1e293b]'
+                          }`}
+                          title={`Click to switch keyboard to ${searchKeyboardMode === 'numeric' ? 'Text (ABC)' : 'Numeric (123)'}`}
+                        >
+                          {searchKeyboardMode === 'numeric' ? '123' : 'ABC'}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Quick Mode Switch Helper */}
+                    <div className="flex items-center justify-between px-1 text-[11px] font-bold">
+                      <span className="text-gray-400 uppercase">
+                        Keyboard: <strong className={searchKeyboardMode === 'numeric' ? 'text-sky-600 font-black' : 'text-[#0f172a] font-black'}>{searchKeyboardMode === 'numeric' ? '123 NUMERIC (DEFAULT)' : 'ABC TEXT'}</strong>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const nextMode = searchKeyboardMode === 'numeric' ? 'text' : 'numeric';
+                          setSearchKeyboardMode(nextMode);
+                          setTimeout(() => {
+                            modalSearchInputRef.current?.focus();
+                          }, 50);
+                        }}
+                        className="text-sky-600 hover:text-sky-800 uppercase font-black cursor-pointer hover:underline"
+                      >
+                        SWITCH TO {searchKeyboardMode === 'numeric' ? 'ABC TEXT' : '123 NUMERIC'}
+                      </button>
+                    </div>
                   </div>
 
                   {/* Product Search Cards List */}
@@ -741,15 +861,21 @@ export default function CartPage() {
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
-                    {/* Quantity Input (Auto-focused, Enter adds item, ArrowDown moves to note!) */}
+                    {/* Quantity Input (Fully clearable, typable, numeric keyboard, auto-select) */}
                     <div className="space-y-1.5">
-                      <label className="text-[11px] font-black text-gray-500 uppercase">Quantity *</label>
+                      <div className="flex items-center justify-between">
+                        <label className="text-[11px] font-black text-gray-500 uppercase">Quantity *</label>
+                      </div>
                       <input
                         ref={quantityInputRef}
-                        type="number"
-                        min="1"
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
                         value={addQuantity}
-                        onChange={e => setAddQuantity(parseInt(e.target.value, 10) || 1)}
+                        onFocus={e => e.target.select()}
+                        onChange={e => handleAddQuantityChange(e.target.value)}
+                        onBlur={handleAddQuantityBlur}
+                        placeholder="1"
                         onKeyDown={e => {
                           if (e.key === 'Enter') {
                             e.preventDefault();
@@ -773,15 +899,48 @@ export default function CartPage() {
                     </div>
                   </div>
 
-                  {/* Note Input */}
-                  <div className="space-y-1.5">
-                    <label className="text-[11px] font-black text-gray-500 uppercase">Item Note (Optional)</label>
+                  {/* Note Input with Quick Suggestion Chips */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-black text-gray-500 uppercase">Item Note & Pack (Optional)</label>
+                      {addNote && (
+                        <button
+                          type="button"
+                          onClick={() => setAddNote('')}
+                          className="text-[11px] font-bold text-red-500 hover:text-red-700 hover:underline cursor-pointer"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Quick Suggestion Chips for Packing */}
+                    <div className="flex flex-wrap gap-1.5 pb-1">
+                      {CART_PACK_SUGGESTIONS.map((sug) => {
+                        const isSelected = addNote.includes(sug);
+                        return (
+                          <button
+                            key={sug}
+                            type="button"
+                            onClick={() => handleToggleAddNoteSuggestion(sug)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
+                              isSelected
+                                ? 'bg-[#0f172a] text-white border-[#0f172a] shadow-xs'
+                                : 'bg-slate-50 hover:bg-slate-100 text-gray-700 border-slate-200'
+                            }`}
+                          >
+                            {isSelected ? `✓ ${sug}` : `+ ${sug}`}
+                          </button>
+                        );
+                      })}
+                    </div>
+
                     <input
                       ref={noteInputRef}
                       type="text"
                       value={addNote}
                       onChange={e => setAddNote(e.target.value)}
-                      placeholder="e.g. Special size or packaging note..."
+                      placeholder="Type note or tap pack suggestion above..."
                       onKeyDown={e => {
                         if (e.key === 'Enter') {
                           e.preventDefault();

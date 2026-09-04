@@ -735,7 +735,7 @@ export default function FullscreenProductViewer({
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="absolute bottom-32 sm:bottom-40 left-6 sm:left-8 bg-white/40 backdrop-blur-2xl text-[#0f172a] p-6 rounded-[2rem] max-w-sm border border-white/60 shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] z-1 sm:w-[90%] md:w-[70%] lg:w-[50%] xl:w-[30%]"
+            className="absolute bottom-44 sm:bottom-40 left-4 sm:left-8 bg-white/40 backdrop-blur-2xl text-[#0f172a] p-4 sm:p-6 rounded-3xl sm:rounded-[2rem] max-w-[calc(100vw-2rem)] sm:max-w-sm border border-white/60 shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] z-1 sm:w-[90%] md:w-[70%] lg:w-[50%] xl:w-[30%]"
           >
             <div className="flex items-center gap-2 mb-1 flex-wrap">
               <p className="text-sm text-gray-500 font-bold line-clamp-1 uppercase">

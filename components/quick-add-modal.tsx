@@ -18,14 +18,68 @@ interface QuickAddModalProps {
 }
 
 export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModalProps) {
-  const [quantity, setQuantity] = useState(1);
-  const [selectedColor, setSelectedColor] = useState(product.variants?.colors?.[0]?.name || '');
-  const [selectedSize, setSelectedSize] = useState(product.variants?.sizes?.[0]?.name || '');
-  const [notes, setNotes] = useState('');
+  const [quantity, setQuantity] = useState<number | string>(1);
+  const [selectedColor, setSelectedColor] = useState<string>('');
+  const [selectedSize, setSelectedSize] = useState<string>('');
+  const [notes, setNotes] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isZoomed, setIsZoomed] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [displayImg, setDisplayImg] = useState<string>(product?.image || product?.imageUrl || '');
+
+  const PACK_SUGGESTIONS = [
+    'Box Pack',
+    // 'Poly Pack',
+    // '1 Dozen Pack',
+    // 'Half Dozen Pack',
+    'Mixed Colors',
+    // 'Urgent Delivery',
+    // 'Sample',
+  ];
+
+  const handleToggleSuggestion = (sug: string) => {
+    if (!notes.trim()) {
+      setNotes(sug);
+      return;
+    }
+    const parts = notes.split(',').map((p) => p.trim()).filter(Boolean);
+    if (parts.includes(sug)) {
+      const filtered = parts.filter((p) => p !== sug);
+      setNotes(filtered.join(', '));
+    } else {
+      setNotes([...parts, sug].join(', '));
+    }
+  };
+
+  const handleQuantityChange = (val: string) => {
+    if (val === '') {
+      setQuantity('');
+      return;
+    }
+    const clean = val.replace(/[^0-9]/g, '');
+    if (clean === '') {
+      setQuantity('');
+      return;
+    }
+    const parsed = parseInt(clean, 10);
+    setQuantity(isNaN(parsed) ? '' : parsed);
+  };
+
+  const handleQuantityBlur = () => {
+    if (quantity === '' || Number(quantity) < 1 || isNaN(Number(quantity))) {
+      setQuantity(1);
+    }
+  };
+
+  const incrementQuantity = () => {
+    const current = typeof quantity === 'number' ? quantity : (parseInt(String(quantity), 10) || 1);
+    setQuantity(current + 1);
+  };
+
+  const decrementQuantity = () => {
+    const current = typeof quantity === 'number' ? quantity : (parseInt(String(quantity), 10) || 1);
+    setQuantity(Math.max(1, current - 1));
+  };
 
   const { addToCart, getAddToCartButtonLabel, getCartItem, isProductInCart } = useCart();
 
@@ -91,11 +145,12 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
 
   const handleAddToCart = async () => {
     setIsSubmitting(true);
+    const finalQty = Math.max(1, typeof quantity === 'number' ? quantity : (parseInt(String(quantity), 10) || 1));
 
     const cartItem = {
       id: `${product.productId || product.id}`,
       ...product,
-      quantity: Math.max(1, quantity),
+      quantity: finalQty,
       selectedColor,
       selectedSize,
       notes,
@@ -211,8 +266,8 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
                             key={color.id}
                             onClick={() => setSelectedColor(color.name)}
                             className={`px-4 py-2.5 rounded-xl border-2 font-bold text-sm transition-all ${selectedColor === color.name
-                                ? 'border-[#0f172a] bg-[#0f172a] text-white'
-                                : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
+                              ? 'border-[#0f172a] bg-[#0f172a] text-white'
+                              : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
                               }`}
                           >
                             {selectedColor === color.name && (
@@ -237,8 +292,8 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
                             key={size.id}
                             onClick={() => setSelectedSize(size.name)}
                             className={`px-4 py-2.5 rounded-xl border-2 font-bold text-sm transition-all ${selectedSize === size.name
-                                ? 'border-[#0f172a] bg-[#0f172a] text-white'
-                                : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
+                              ? 'border-[#0f172a] bg-[#0f172a] text-white'
+                              : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
                               }`}
                           >
                             {selectedSize === size.name && (
@@ -251,29 +306,38 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
                     </motion.div>
                   )}
 
-                  {/* Quantity */}
+                  {/* Quantity (Fully clearable, typable, numeric keyboard, auto-select) */}
                   <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-                    <label className="block text-xs font-bold text-gray-400 mb-3 uppercase tracking-widest">
-                      Quantity
-                    </label>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest">
+                        Quantity
+                      </label>
+                      <span className="text-[11px] text-gray-400 font-bold">
+                        Click to type or use +/-
+                      </span>
+                    </div>
                     <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-xl p-2 w-fit">
                       <button
                         type="button"
-                        onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                        onClick={decrementQuantity}
                         className="p-2.5 hover:bg-white hover:shadow-sm rounded-lg transition-all text-gray-500 hover:text-[#0f172a] cursor-pointer"
                       >
                         <Minus size={18} />
                       </button>
                       <input
-                        type="number"
-                        min="1"
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
                         value={quantity}
-                        onChange={(e) => setQuantity(parseInt(e.target.value, 10) || 1)}
-                        className="w-14 text-center font-black text-lg text-[#0f172a] bg-transparent focus:outline-none"
+                        onFocus={(e) => e.target.select()}
+                        onChange={(e) => handleQuantityChange(e.target.value)}
+                        onBlur={handleQuantityBlur}
+                        placeholder="1"
+                        className="w-16 text-center font-black text-lg text-[#0f172a] bg-transparent focus:outline-none"
                       />
                       <button
                         type="button"
-                        onClick={() => setQuantity(quantity + 1)}
+                        onClick={incrementQuantity}
                         className="p-2.5 hover:bg-white hover:shadow-sm rounded-lg transition-all text-gray-500 hover:text-[#0f172a] cursor-pointer"
                       >
                         <Plus size={18} />
@@ -281,16 +345,48 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
                     </div>
                   </motion.div>
 
-                  {/* Special Notes */}
-                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}>
-                    <label className="block text-xs font-bold text-gray-400 mb-3 uppercase tracking-widest">
-                      Special Notes
-                    </label>
+                  {/* Special Notes & Quick Packaging Suggestions */}
+                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }} className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest">
+                        Special Notes & Pack
+                      </label>
+                      {notes && (
+                        <button
+                          type="button"
+                          onClick={() => setNotes('')}
+                          className="text-[11px] font-bold text-red-500 hover:text-red-700 hover:underline cursor-pointer"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Quick Suggestion Chips */}
+                    <div className="flex flex-wrap gap-1.5 pb-1">
+                      {PACK_SUGGESTIONS.map((sug) => {
+                        const isSelected = notes.includes(sug);
+                        return (
+                          <button
+                            key={sug}
+                            type="button"
+                            onClick={() => handleToggleSuggestion(sug)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer border ${isSelected
+                              ? 'bg-[#0f172a] text-white border-[#0f172a] shadow-xs'
+                              : 'bg-gray-50 hover:bg-gray-100 text-gray-700 border-gray-200'
+                              }`}
+                          >
+                            {isSelected ? `✓ ${sug}` : `+ ${sug}`}
+                          </button>
+                        );
+                      })}
+                    </div>
+
                     <textarea
                       value={notes}
                       onChange={(e) => setNotes(e.target.value)}
-                      placeholder="Add any special requirements..."
-                      className="w-full px-4 py-3 rounded-xl border-2 border-gray-100 bg-gray-50 text-[#0f172a] font-medium placeholder-gray-400 focus:outline-none focus:border-[#0f172a] focus:bg-white transition-colors resize-none h-24"
+                      placeholder="Type custom note or select packaging above..."
+                      className="w-full px-4 py-3 rounded-xl border-2 border-gray-100 bg-gray-50 text-[#0f172a] font-medium placeholder-gray-400 focus:outline-none focus:border-[#0f172a] focus:bg-white transition-colors resize-none h-20 text-xs"
                     />
                   </motion.div>
                 </div>

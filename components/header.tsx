@@ -30,7 +30,7 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
   const router = useRouter();
   const { user, isLoggedIn, logout } = useAuth();
   const { cart, selectedShop, clearCart } = useCart();
-  const { triggerSync, openSyncModal, pendingQueueCount, failedQueueCount, pushChanges } = useSync();
+  const { triggerSync, isSyncing, progress, openSyncModal, pendingQueueCount, failedQueueCount, pushChanges } = useSync();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement>(null);
