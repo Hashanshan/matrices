@@ -221,7 +221,7 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
           {/* ───── Right Actions ───── */}
           <div className="flex items-center gap-3 md:gap-6">
             {/* Live Background Sync Indicator */}
-            {isSyncing && user?.role !== 'shop' && (
+            {/* {isSyncing && user?.role !== 'shop' && (
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
@@ -232,7 +232,7 @@ export default function Header({ searchQuery = '', onSearchChange, showSearch = 
                 <RefreshCw size={13} className="animate-spin text-sky-500" />
                 <span className="hidden sm:inline font-mono">{progress}%</span>
               </motion.button>
-            )}
+            )} */}
 
             {/* Cart */}
             <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }}>
