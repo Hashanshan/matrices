@@ -858,6 +858,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
           ? s.phones
           : (s.phone ? s.phone.split(',').map((p: string) => p.trim()).filter(Boolean) : []);
         return {
+          ...s,
           id: String(s._id || s.id || s.shopId || `shop_${idx}`),
           shopId: String(s.shopId || s._id || s.id || `shop_${idx}`),
           name: s.name || s.shopName || 'Shop',
@@ -869,7 +870,16 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
           deliveredOrders: s.deliveredOrders || 0,
           pendingOrders: s.pendingOrders || 0,
           currentCredit: s.currentCredit || 0,
+          updatedAt: s.updatedAt || s.createdAt || new Date().toISOString(),
+          createdAt: s.createdAt || s.updatedAt || new Date().toISOString(),
         };
+      });
+
+      // Sort shops newest first by MongoDB document shop.updatedAt (latest to oldest)
+      formattedShops.sort((a: any, b: any) => {
+        const timeA = a.updatedAt ? new Date(a.updatedAt).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+        const timeB = b.updatedAt ? new Date(b.updatedAt).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+        return timeB - timeA;
       });
 
       const formattedOrders = orders.map((o: any, idx: number) => ({

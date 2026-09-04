@@ -127,13 +127,19 @@ export async function getOfflineProducts(options: {
     return 999999;
   };
 
+  const parseList = (val?: string | string[] | null): string[] | null => {
+    if (!val) return null;
+    const arr = Array.isArray(val) ? val : [val];
+    const items = arr
+      .flatMap(item => String(item || '').split(','))
+      .map(s => s.toLowerCase().trim())
+      .filter(Boolean);
+    return items.length > 0 ? items : null;
+  };
+
   const targetCategory = options.category || options.prioritizeCategory;
-  const catFilter = targetCategory
-    ? (Array.isArray(targetCategory) ? targetCategory : [targetCategory]).map(c => c.toLowerCase().trim())
-    : null;
-  const subFilter = options.subcategory
-    ? (Array.isArray(options.subcategory) ? options.subcategory : [options.subcategory]).map(s => s.toLowerCase().trim())
-    : null;
+  const catFilter = parseList(targetCategory);
+  const subFilter = parseList(options.subcategory);
   const search = (options.search || options.productId || '').trim();
   const searchLower = search.toLowerCase();
   const searchClean = searchLower.replace(/[^a-zA-Z0-9]/g, '');
@@ -189,22 +195,30 @@ export async function getOfflineProducts(options: {
   // 2. Base category/subcategory/search filtering
   let filtered = raw.filter((p: any) => {
     // In single product view (e.g. /view?productId=...&category=...), do NOT exclude other categories/subcategories so user can swipe through target -> subcategory -> category -> other products
-    if (!isSingleProductView && catFilter && catFilter.length > 0 && catFilter[0]) {
+    if (!isSingleProductView && catFilter && catFilter.length > 0) {
       const pCat = (p.categoryName || p.categories || p.category || (typeof p.category === 'object' ? p.category?.name : '') || '').toLowerCase().trim().replace(/\s+/g, ' ');
       const pCatId = String(p.categoryId || (typeof p.category === 'object' ? p.category?._id : '') || '').trim().toLowerCase();
       const matchesCat = catFilter.some(c => {
         const cleanC = c.toLowerCase().trim().replace(/\s+/g, ' ');
-        return pCat === cleanC || (pCatId && pCatId === cleanC);
+        if (!cleanC) return false;
+        if (pCat === cleanC || (pCatId && pCatId === cleanC)) return true;
+        if (pCat && pCat.split(',').map((x: string) => x.trim()).includes(cleanC)) return true;
+        if (pCat && pCat.includes(cleanC)) return true;
+        return false;
       });
       if (!matchesCat) return false;
     }
 
-    if (!isSingleProductView && subFilter && subFilter.length > 0 && subFilter[0]) {
+    if (!isSingleProductView && subFilter && subFilter.length > 0) {
       const pSub = (p.subcategoryName || p.subcategories || p.subcategory || (typeof p.subcategory === 'object' ? p.subcategory?.name : '') || '').toLowerCase().trim().replace(/\s+/g, ' ');
       const pSubId = String(p.subcategoryId || (typeof p.subcategory === 'object' ? p.subcategory?._id : '') || '').trim().toLowerCase();
       const matchesSub = subFilter.some(s => {
         const cleanS = s.toLowerCase().trim().replace(/\s+/g, ' ');
-        return pSub === cleanS || (pSubId && pSubId === cleanS);
+        if (!cleanS) return false;
+        if (pSub === cleanS || (pSubId && pSubId === cleanS)) return true;
+        if (pSub && pSub.split(',').map((x: string) => x.trim()).includes(cleanS)) return true;
+        if (pSub && pSub.includes(cleanS)) return true;
+        return false;
       });
       if (!matchesSub) return false;
     }
@@ -337,7 +351,7 @@ export async function getOfflineProducts(options: {
     ? (Array.isArray(options.subcategory) ? options.subcategory[0] : options.subcategory).toLowerCase().trim()
     : (prioritizedProd ? (prioritizedProd.subcategoryName || prioritizedProd.subcategories || prioritizedProd.subcategory || '').toLowerCase().trim() : '');
 
-  if (prioritizedProd || targetSubStr || targetCatStr) {
+  if (prioritizedProd || targetSubStr || targetCatStr || (catFilter && catFilter.length > 0) || (subFilter && subFilter.length > 0)) {
     const targetId = prioritizedProd ? String(prioritizedProd.id || prioritizedProd.productId || prioritizedProd._id) : null;
 
     const subMatches: any[] = [];
@@ -351,9 +365,16 @@ export async function getOfflineProducts(options: {
       const pCat = (p.categoryName || p.categories || p.category || (typeof p.category === 'object' ? p.category?.name : '') || '').toLowerCase().trim();
       const pSub = (p.subcategoryName || p.subcategories || p.subcategory || (typeof p.subcategory === 'object' ? p.subcategory?.name : '') || '').toLowerCase().trim();
 
-      if (targetSubStr && (pSub === targetSubStr || pSub.includes(targetSubStr))) {
+      const matchesSubcategory = subFilter && subFilter.some(s => pSub === s || pSub.includes(s));
+      const matchesCategory = catFilter && catFilter.some(c => pCat === c || pCat.includes(c));
+
+      if (targetSubStr && (pSub === targetSubStr || pSub.includes(targetSubStr) || matchesSubcategory)) {
         subMatches.push(p);
-      } else if (targetCatStr && (pCat === targetCatStr || pCat.includes(targetCatStr))) {
+      } else if (targetCatStr && (pCat === targetCatStr || pCat.includes(targetCatStr) || matchesCategory)) {
+        catMatches.push(p);
+      } else if (matchesSubcategory) {
+        subMatches.push(p);
+      } else if (matchesCategory) {
         catMatches.push(p);
       } else {
         others.push(p);

@@ -906,7 +906,7 @@ export default function CartPage() {
                       />
 
                       {/* Quick Presets */}
-                      <div className="flex flex-wrap gap-1 pt-1">
+                      {/* <div className="flex flex-wrap gap-1 pt-1">
                         {[1, 2, 6, 12, 24].map((preset) => {
                           const isSelected = Number(addQuantity) === preset;
                           return (
@@ -927,7 +927,7 @@ export default function CartPage() {
                             </button>
                           );
                         })}
-                      </div>
+                      </div> */}
                     </div>
 
                     {/* Price Display */}

@@ -51,6 +51,11 @@ const shopsFetcher = async (url: string) => {
 
   const getOfflineShops = async () => {
     const rawShops = await offlineDB.getAll<any>('shops').catch(() => []);
+    rawShops.sort((a: any, b: any) => {
+      const timeA = a.updatedAt ? new Date(a.updatedAt).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+      const timeB = b.updatedAt ? new Date(b.updatedAt).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+      return timeB - timeA;
+    });
     return { success: true, shops: rawShops };
   };
 

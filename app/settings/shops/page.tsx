@@ -36,6 +36,8 @@ interface Shop {
   chequeCount: number;
   chequeValue: number;
   currentCredit: number;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 const fetcher = async (url: string) => {
@@ -53,6 +55,14 @@ const fetcher = async (url: string) => {
 
   const getOfflineShops = async () => {
     const rawShops = await offlineDB.getAll<any>('shops').catch(() => []);
+
+    // Sort shops by updated time (newest first)
+    rawShops.sort((a: any, b: any) => {
+      const timeA = a.updatedAt ? new Date(a.updatedAt).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+      const timeB = b.updatedAt ? new Date(b.updatedAt).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+      return timeB - timeA;
+    });
+
     const search = parseQuery();
     const filtered = search
       ? rawShops.filter((s: any) => {
@@ -373,6 +383,7 @@ export default function ShopsSettingsPage() {
 
       if (dataMode === 'offline' || isOffline) {
         const shopId = isEdit ? editingShop.shopId : `TMP_${Date.now()}`;
+        const nowIso = new Date().toISOString();
         const newShopObj = {
           id: shopId,
           shopId,
@@ -380,6 +391,8 @@ export default function ShopsSettingsPage() {
           deliveredOrders: isEdit ? editingShop.deliveredOrders : 0,
           pendingOrders: isEdit ? editingShop.pendingOrders : 0,
           currentCredit: isEdit ? editingShop.currentCredit : 0,
+          updatedAt: nowIso,
+          createdAt: isEdit ? (editingShop.createdAt || nowIso) : nowIso,
         };
 
         const existingShops = await offlineDB.getAll<any>('shops').catch(() => []);

@@ -219,8 +219,14 @@ export async function searchOfflineProducts(
       ).toLowerCase().trim();
       const pCatId = (product.categoryId || '').toLowerCase();
 
-      if (categoryName && !pCat.includes(categoryName.toLowerCase())) continue;
-      if (categoryId && !pCat.includes(categoryId.toLowerCase()) && pCatId !== categoryId.toLowerCase()) continue;
+      const catNames = categoryName ? categoryName.split(',').map(s => s.trim().toLowerCase()).filter(Boolean) : [];
+      const catIds = categoryId ? categoryId.split(',').map(s => s.trim().toLowerCase()).filter(Boolean) : [];
+
+      let matchCat = false;
+      if (catNames.length > 0 && catNames.some(c => pCat === c || pCat.includes(c))) matchCat = true;
+      if (catIds.length > 0 && catIds.some(cId => pCat.includes(cId) || pCatId === cId)) matchCat = true;
+
+      if (!matchCat) continue;
     }
 
     if (!normalizedQuery && (subcategoryName || subcategoryId)) {
@@ -231,8 +237,14 @@ export async function searchOfflineProducts(
       ).toLowerCase().trim();
       const pSubId = (product.subcategoryId || '').toLowerCase();
 
-      if (subcategoryName && !pSub.includes(subcategoryName.toLowerCase())) continue;
-      if (subcategoryId && !pSub.includes(subcategoryId.toLowerCase()) && pSubId !== subcategoryId.toLowerCase()) continue;
+      const subNames = subcategoryName ? subcategoryName.split(',').map(s => s.trim().toLowerCase()).filter(Boolean) : [];
+      const subIds = subcategoryId ? subcategoryId.split(',').map(s => s.trim().toLowerCase()).filter(Boolean) : [];
+
+      let matchSub = false;
+      if (subNames.length > 0 && subNames.some(s => pSub === s || pSub.includes(s))) matchSub = true;
+      if (subIds.length > 0 && subIds.some(sId => pSub.includes(sId) || pSubId === sId)) matchSub = true;
+
+      if (!matchSub) continue;
     }
 
     scored.push({ product, score });

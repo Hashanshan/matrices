@@ -624,6 +624,9 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
   }, [groupedProducts, wishlist.categories]);
 
   const handleCategoryToggle = (category: string) => {
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
     setFilters((prev) => {
       let newCategories;
       if (category === 'All') {
@@ -642,6 +645,9 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
   };
 
   const handleSubcategoryToggle = (subcategory: string) => {
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
     setFilters((prev) => ({
       ...prev,
       subcategories: prev.subcategories.includes(subcategory)
@@ -650,13 +656,173 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
     }));
   };
 
+  const handleTimeFilterChange = (value: string) => {
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+    setFilters((prev) => ({ ...prev, timeFilter: value as any }));
+  };
+
   const handlePriceChange = (type: 'min' | 'max', value: number) => {
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
     setFilters((prev) => ({
       ...prev,
       priceRange:
         type === 'min' ? [value, prev.priceRange[1]] : [prev.priceRange[0], value],
     }));
   };
+
+  const renderFilterContent = (isMobileModal = false) => (
+    <div className="space-y-6">
+      {/* Categories */}
+      <div>
+        <h4 className="font-bold text-[#0f172a] mb-4 text-xs uppercase tracking-widest">Categories</h4>
+        <div className="space-y-1.5">
+          {CATEGORIES.map((category) => {
+            const isExpanded = expandedCategories.includes(category);
+            const hasSubcategories = category !== 'All' && getSubcategoriesForCategory(category).length > 0;
+            const isSelected = category === 'All' ? filters.categories.length === 0 : filters.categories.includes(category);
+
+            return (
+              <div key={category}>
+                <motion.div className="flex items-center gap-2 group" whileHover={{ x: 2 }}>
+                  <label className="flex items-center gap-3 cursor-pointer flex-1 group py-1">
+                    <div className={`w-5 h-5 rounded flex items-center justify-center border-2 transition-colors ${isSelected ? 'bg-[#0f172a] border-[#0f172a]' : 'border-gray-300 group-hover:border-[#0f172a]'}`}>
+                      {isSelected && <Check size={12} className="text-white" />}
+                    </div>
+                    <input type="checkbox" checked={isSelected} onChange={() => handleCategoryToggle(category)} className="hidden" />
+                    <span className={`text-[15px] font-semibold transition-colors uppercase ${isSelected ? 'text-[#0f172a]' : 'text-gray-600 group-hover:text-[#0f172a]'}`}>
+                      {category}
+                    </span>
+                  </label>
+                  {hasSubcategories && (
+                    <motion.button
+                      type="button"
+                      onClick={() =>
+                        setExpandedCategories((prev) =>
+                          prev.includes(category) ? prev.filter((c) => c !== category) : [...prev, category]
+                        )
+                      }
+                      className="flex-shrink-0 p-1 hover:bg-gray-100 rounded-full transition-colors"
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.95 }}
+                    >
+                      <motion.div animate={{ rotate: isExpanded ? 180 : 0 }} transition={{ duration: 0.2 }}>
+                        <ChevronDown size={16} className="text-[#0f172a]" />
+                      </motion.div>
+                    </motion.button>
+                  )}
+                  {!hasSubcategories && <div className="w-6" />}
+                </motion.div>
+
+                <AnimatePresence>
+                  {hasSubcategories && isExpanded && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="ml-8 mt-1 space-y-1 pl-4 border-l-2 border-gray-100"
+                    >
+                      {getSubcategoriesForCategory(category).map((subcategory) => (
+                        <motion.div
+                          key={subcategory}
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, x: -10 }}
+                          whileHover={{ x: 4 }}
+                        >
+                          <label className="flex items-center gap-3 p-1.5 rounded-lg hover:bg-gray-50 transition-colors group cursor-pointer">
+                            <div className={`w-4 h-4 rounded flex items-center justify-center border-2 transition-colors ${filters.subcategories.includes(subcategory) ? 'bg-[#0f172a] border-[#0f172a]' : 'border-gray-300 group-hover:border-[#0f172a]'}`}>
+                              {filters.subcategories.includes(subcategory) && <Check size={10} className="text-white" />}
+                            </div>
+                            <input type="checkbox" checked={filters.subcategories.includes(subcategory)} onChange={() => handleSubcategoryToggle(subcategory)} className="hidden" />
+                            <span className={`text-[13px] font-semibold flex-1 transition-colors uppercase ${filters.subcategories.includes(subcategory) ? 'text-[#0f172a]' : 'text-gray-500 group-hover:text-[#0f172a]'}`}>
+                              {subcategory}
+                            </span>
+                          </label>
+                        </motion.div>
+                      ))}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Updated Time Filter */}
+      <div className="border-t border-gray-100 pt-5">
+        <h4 className="font-bold text-[#0f172a] mb-4 text-xs uppercase tracking-widest flex items-center gap-1.5">
+          <Clock size={14} /> Updated Time
+        </h4>
+        <div className="space-y-1.5">
+          {[
+            { label: 'All Products', value: 'all' },
+            { label: 'Last 1 Week', value: '1week' },
+            { label: 'Last 2 Weeks', value: '2week' },
+            { label: 'Last 3 Weeks', value: '3week' },
+          ].map((option) => {
+            const isSelected = (filters.timeFilter || 'all') === option.value;
+            return (
+              <label key={option.value} className="flex items-center gap-3 cursor-pointer py-1 group">
+                <div className={`w-5 h-5 rounded-full flex items-center justify-center border-2 transition-colors ${isSelected ? 'border-[#0f172a] bg-[#0f172a]' : 'border-gray-300 group-hover:border-[#0f172a]'}`}>
+                  {isSelected && <div className="w-2 h-2 rounded-full bg-white" />}
+                </div>
+                <input
+                  type="radio"
+                  name={isMobileModal ? 'timeFilterMobile' : 'timeFilter'}
+                  checked={isSelected}
+                  onChange={() => handleTimeFilterChange(option.value)}
+                  className="hidden"
+                />
+                <span className={`text-[14px] font-semibold transition-colors uppercase ${isSelected ? 'text-[#0f172a]' : 'text-gray-600 group-hover:text-[#0f172a]'}`}>
+                  {option.label}
+                </span>
+              </label>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Price Range */}
+      <div className="border-t border-gray-100 pt-5">
+        <h4 className="font-bold text-[#0f172a] mb-4 text-xs uppercase tracking-widest">Price Range</h4>
+        <div className="space-y-4">
+          <div>
+            <div className="flex justify-between items-center mb-2">
+              <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Min Price</label>
+              <span className="text-sm font-black text-[#0f172a]">{formatPrice(filters.priceRange[0])}</span>
+            </div>
+            <input type="range" min={apiPriceRange.min} max={apiPriceRange.max} value={filters.priceRange[0]} onChange={(e) => handlePriceChange('min', parseInt(e.target.value))} className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#0f172a]" />
+          </div>
+          <div>
+            <div className="flex justify-between items-center mb-2">
+              <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Max Price</label>
+              <span className="text-sm font-black text-[#0f172a]">{formatPrice(filters.priceRange[1])}</span>
+            </div>
+            <input type="range" min={apiPriceRange.min} max={apiPriceRange.max} value={filters.priceRange[1]} onChange={(e) => handlePriceChange('max', parseInt(e.target.value))} className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#0f172a]" />
+          </div>
+        </div>
+      </div>
+
+      {/* Clear Filters (Desktop Inline) */}
+      {!isMobileModal && hasActiveFilters && (
+        <motion.button
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          onClick={handleClearFilters}
+          className="w-full bg-red-50 text-red-600 font-bold py-3.5 rounded-full hover:bg-red-100 transition-all text-sm mt-4 border-2 border-red-200 flex items-center justify-center gap-2"
+        >
+          <X size={16} />
+          Clear All Filters
+        </motion.button>
+      )}
+    </div>
+  );
 
   // Show full spinner only on initial load with no cached data
   if (isLoading && products.length === 0) {
@@ -852,8 +1018,80 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
         </motion.div>
       )}
 
+      {/* Mobile Slide-up Bottom Sheet / Modal Drawer */}
+      <AnimatePresence>
+        {sidebarOpen && (
+          <div className="md:hidden fixed inset-0 z-50 flex flex-col justify-end">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setSidebarOpen(false)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-xs"
+            />
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 28, stiffness: 320 }}
+              className="relative z-10 w-full max-h-[85vh] bg-white rounded-t-[2.5rem] p-6 shadow-2xl overflow-hidden flex flex-col border-t border-gray-100"
+            >
+              {/* Drawer Header */}
+              <div className="flex items-center justify-between pb-4 border-b border-gray-100">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-[#0f172a] text-white flex items-center justify-center">
+                    <Filter size={15} />
+                  </div>
+                  <div>
+                    <h3 className="font-black text-[#0f172a] text-lg uppercase tracking-tight leading-tight">Filters</h3>
+                    <p className="text-[11px] font-bold text-gray-400 uppercase">{totalCount} Matching Items</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSidebarOpen(false)}
+                  className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                >
+                  <X size={20} className="text-gray-600" />
+                </button>
+              </div>
+
+              {/* Scrollable Filter Options */}
+              <div className="py-4 flex-1 overflow-y-auto pr-1">
+                {renderFilterContent(true)}
+              </div>
+
+              {/* Bottom Action Buttons */}
+              <div className="pt-4 border-t border-gray-100 flex gap-3">
+                {hasActiveFilters && (
+                  <button
+                    type="button"
+                    onClick={handleClearFilters}
+                    className="py-3.5 px-4 bg-red-50 text-red-600 rounded-full font-bold text-xs uppercase tracking-wider hover:bg-red-100 transition-all border border-red-200"
+                  >
+                    Clear All
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSidebarOpen(false);
+                    if (typeof window !== 'undefined') {
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }
+                  }}
+                  className="flex-1 py-3.5 px-4 bg-[#0f172a] text-white rounded-full font-black text-xs uppercase tracking-wider hover:bg-[#1e293b] shadow-lg transition-all text-center"
+                >
+                  Show Results ({totalCount})
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       <div className="flex flex-col md:flex-row gap-8 relative">
-        {/* Retractable Sidebar Filters */}
+        {/* Retractable Desktop Sidebar Filters */}
         <AnimatePresence>
           {sidebarOpen && (
             <motion.aside
@@ -861,9 +1099,9 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
               animate={{ opacity: 1, width: 'auto', x: 0 }}
               exit={{ opacity: 0, width: 0, x: -20 }}
               transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-              className="w-full md:w-auto md:flex-shrink-0 origin-left md:sticky md:top-36 self-start max-h-[calc(100vh-10rem)] overflow-y-auto no-scrollbar"
+              className="hidden md:block md:w-auto md:flex-shrink-0 origin-left sticky top-36 self-start max-h-[calc(100vh-10rem)] overflow-y-auto no-scrollbar"
             >
-              <div className="w-full md:w-[280px] space-y-6 bg-white/40 backdrop-blur-2xl rounded-[2rem] p-6 border border-white/60 shadow-[0_8px_32px_0_rgba(31,38,135,0.07)]">
+              <div className="w-[280px] space-y-6 bg-white/40 backdrop-blur-2xl rounded-[2rem] p-6 border border-white/60 shadow-[0_8px_32px_0_rgba(31,38,135,0.07)]">
                 <div className="flex items-center justify-between pb-4 border-b border-gray-100">
                   <h3 className="font-black text-[#0f172a] text-xl">Filters</h3>
                   <button
@@ -874,150 +1112,7 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
                   </button>
                 </div>
 
-                {/* Categories */}
-                <div>
-                  <h4 className="font-bold text-[#0f172a] mb-4 text-xs uppercase tracking-widest">Categories</h4>
-                  <div className="space-y-1.5">
-                    {CATEGORIES.map((category) => {
-                      const isExpanded = expandedCategories.includes(category);
-                      const hasSubcategories = category !== 'All' && getSubcategoriesForCategory(category).length > 0;
-                      const isSelected = category === 'All' ? filters.categories.length === 0 : filters.categories.includes(category);
-
-                      return (
-                        <div key={category}>
-                          <motion.div className="flex items-center gap-2 group" whileHover={{ x: 2 }}>
-                            <label className="flex items-center gap-3 cursor-pointer flex-1 group py-1">
-                              <div className={`w-5 h-5 rounded flex items-center justify-center border-2 transition-colors ${isSelected ? 'bg-[#0f172a] border-[#0f172a]' : 'border-gray-300 group-hover:border-[#0f172a]'}`}>
-                                {isSelected && <Check size={12} className="text-white" />}
-                              </div>
-                              <input type="checkbox" checked={isSelected} onChange={() => handleCategoryToggle(category)} className="hidden" />
-                              <span className={`text-[15px] font-semibold transition-colors uppercase ${isSelected ? 'text-[#0f172a]' : 'text-gray-600 group-hover:text-[#0f172a]'}`}>
-                                {category}
-                              </span>
-                            </label>
-                            {hasSubcategories && (
-                              <motion.button
-                                onClick={() =>
-                                  setExpandedCategories((prev) =>
-                                    prev.includes(category) ? prev.filter((c) => c !== category) : [...prev, category]
-                                  )
-                                }
-                                className="flex-shrink-0 p-1 hover:bg-gray-100 rounded-full transition-colors"
-                                whileHover={{ scale: 1.1 }}
-                                whileTap={{ scale: 0.95 }}
-                              >
-                                <motion.div animate={{ rotate: isExpanded ? 180 : 0 }} transition={{ duration: 0.2 }}>
-                                  <ChevronDown size={16} className="text-[#0f172a]" />
-                                </motion.div>
-                              </motion.button>
-                            )}
-                            {!hasSubcategories && <div className="w-6" />}
-                          </motion.div>
-
-                          <AnimatePresence>
-                            {hasSubcategories && isExpanded && (
-                              <motion.div
-                                initial={{ opacity: 0, height: 0 }}
-                                animate={{ opacity: 1, height: 'auto' }}
-                                exit={{ opacity: 0, height: 0 }}
-                                transition={{ duration: 0.2 }}
-                                className="ml-8 mt-1 space-y-1 pl-4 border-l-2 border-gray-100"
-                              >
-                                {getSubcategoriesForCategory(category).map((subcategory) => (
-                                  <motion.div
-                                    key={subcategory}
-                                    initial={{ opacity: 0, x: -10 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    exit={{ opacity: 0, x: -10 }}
-                                    whileHover={{ x: 4 }}
-                                  >
-                                    <label className="flex items-center gap-3 p-1.5 rounded-lg hover:bg-gray-50 transition-colors group cursor-pointer">
-                                      <div className={`w-4 h-4 rounded flex items-center justify-center border-2 transition-colors ${filters.subcategories.includes(subcategory) ? 'bg-[#0f172a] border-[#0f172a]' : 'border-gray-300 group-hover:border-[#0f172a]'}`}>
-                                        {filters.subcategories.includes(subcategory) && <Check size={10} className="text-white" />}
-                                      </div>
-                                      <input type="checkbox" checked={filters.subcategories.includes(subcategory)} onChange={() => handleSubcategoryToggle(subcategory)} className="hidden" />
-                                      <span className={`text-[13px] font-semibold flex-1 transition-colors uppercase ${filters.subcategories.includes(subcategory) ? 'text-[#0f172a]' : 'text-gray-500 group-hover:text-[#0f172a]'}`}>
-                                        {subcategory}
-                                      </span>
-                                    </label>
-                                  </motion.div>
-                                ))}
-                              </motion.div>
-                            )}
-                          </AnimatePresence>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Updated Time Filter */}
-                <div className="border-t border-gray-100 pt-5">
-                  <h4 className="font-bold text-[#0f172a] mb-4 text-xs uppercase tracking-widest flex items-center gap-1.5">
-                    <Clock size={14} /> Updated Time
-                  </h4>
-                  <div className="space-y-1.5">
-                    {[
-                      { label: 'All Products', value: 'all' },
-                      { label: 'Last 1 Week', value: '1week' },
-                      { label: 'Last 2 Weeks', value: '2week' },
-                      { label: 'Last 3 Weeks', value: '3week' },
-                    ].map((option) => {
-                      const isSelected = (filters.timeFilter || 'all') === option.value;
-                      return (
-                        <label key={option.value} className="flex items-center gap-3 cursor-pointer py-1 group">
-                          <div className={`w-5 h-5 rounded-full flex items-center justify-center border-2 transition-colors ${isSelected ? 'border-[#0f172a] bg-[#0f172a]' : 'border-gray-300 group-hover:border-[#0f172a]'}`}>
-                            {isSelected && <div className="w-2 h-2 rounded-full bg-white" />}
-                          </div>
-                          <input
-                            type="radio"
-                            name="timeFilter"
-                            checked={isSelected}
-                            onChange={() => setFilters((prev) => ({ ...prev, timeFilter: option.value as any }))}
-                            className="hidden"
-                          />
-                          <span className={`text-[14px] font-semibold transition-colors uppercase ${isSelected ? 'text-[#0f172a]' : 'text-gray-600 group-hover:text-[#0f172a]'}`}>
-                            {option.label}
-                          </span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Price Range */}
-                <div className="border-t border-gray-100 pt-5">
-                  <h4 className="font-bold text-[#0f172a] mb-4 text-xs uppercase tracking-widest">Price Range</h4>
-                  <div className="space-y-4">
-                    <div>
-                      <div className="flex justify-between items-center mb-2">
-                        <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Min Price</label>
-                        <span className="text-sm font-black text-[#0f172a]">{formatPrice(filters.priceRange[0])}</span>
-                      </div>
-                      <input type="range" min={apiPriceRange.min} max={apiPriceRange.max} value={filters.priceRange[0]} onChange={(e) => handlePriceChange('min', parseInt(e.target.value))} className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#0f172a]" />
-                    </div>
-                    <div>
-                      <div className="flex justify-between items-center mb-2">
-                        <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Max Price</label>
-                        <span className="text-sm font-black text-[#0f172a]">{formatPrice(filters.priceRange[1])}</span>
-                      </div>
-                      <input type="range" min={apiPriceRange.min} max={apiPriceRange.max} value={filters.priceRange[1]} onChange={(e) => handlePriceChange('max', parseInt(e.target.value))} className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#0f172a]" />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Clear Filters */}
-                {hasActiveFilters && (
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={handleClearFilters}
-                    className="w-full bg-red-50 text-red-600 font-bold py-3.5 rounded-full hover:bg-red-100 transition-all text-sm mt-4 border-2 border-red-200 flex items-center justify-center gap-2"
-                  >
-                    <X size={16} />
-                    Clear All Filters
-                  </motion.button>
-                )}
+                {renderFilterContent(false)}
               </div>
             </motion.aside>
           )}
