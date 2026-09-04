@@ -1,30 +1,38 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { executeCustomBackHandler } from '@/lib/utils/back-navigation';
 
 // Global history stack persisted across re-renders
-const navHistory: string[] = [];
+let navHistory: string[] = [];
 let lastBackPressTime = 0;
 
 export default function HardwareBackButtonHandler() {
   const router = useRouter();
   const pathname = usePathname();
+  const mountTimeRef = useRef(Date.now());
 
   // Track every pathname change into custom history stack
   useEffect(() => {
     if (!pathname) return;
 
+    // Never add '/' (login page) to back history for authenticated sessions
+    if (pathname === '/') {
+      navHistory = [];
+      return;
+    }
+
+    // Root app page - reset history so back never routes back to the login page
+    if (pathname === '/catalogue') {
+      navHistory = ['/catalogue'];
+      return;
+    }
+
     // Avoid duplicate consecutive entries
     if (navHistory.length === 0 || navHistory[navHistory.length - 1] !== pathname) {
       navHistory.push(pathname);
       if (navHistory.length > 50) navHistory.shift();
-    }
-
-    // Trap popstate on root catalogue page so touch back gesture stays inside app
-    if (typeof window !== 'undefined' && (pathname === '/catalogue' || pathname === '/')) {
-      window.history.pushState({ appPage: pathname }, '', window.location.href);
     }
   }, [pathname]);
 
@@ -32,9 +40,6 @@ export default function HardwareBackButtonHandler() {
     const goBack = () => {
       // 1. Run custom component back handlers (e.g. subcategory view -> category view, viewer modal, sidebar)
       if (executeCustomBackHandler()) {
-        if (typeof window !== 'undefined' && pathname === '/catalogue') {
-          window.history.pushState({ appPage: '/catalogue' }, '', window.location.href);
-        }
         return;
       }
 
@@ -42,34 +47,11 @@ export default function HardwareBackButtonHandler() {
       const swalContainer = document.querySelector('.swal2-container');
       if (swalContainer) {
         window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
-        if (typeof window !== 'undefined' && pathname === '/catalogue') {
-          window.history.pushState({ appPage: '/catalogue' }, '', window.location.href);
-        }
         return;
       }
 
-      // 3. Pop current page off internal navigation stack
-      if (navHistory.length > 0 && navHistory[navHistory.length - 1] === pathname) {
-        navHistory.pop();
-      }
-
-      if (navHistory.length > 0) {
-        const target = navHistory[navHistory.length - 1];
-        if (target !== pathname) {
-          router.replace(target);
-          return;
-        }
-      }
-
-      // If not on catalogue, final destination is always catalogue
-      if (pathname !== '/catalogue' && pathname !== '/') {
-        router.replace('/catalogue');
-      } else {
-        // We are on /catalogue root page: prevent leaving site/app by pushing state
-        if (typeof window !== 'undefined') {
-          window.history.pushState({ appPage: '/catalogue' }, '', window.location.href);
-        }
-
+      // If we are on catalogue root or login page, never navigate back to '/'
+      if (pathname === '/catalogue' || pathname === '/') {
         // Native Capacitor exit on double back press if in Capacitor Android app
         const now = Date.now();
         if (now - lastBackPressTime < 2000) {
@@ -80,7 +62,24 @@ export default function HardwareBackButtonHandler() {
         } else {
           lastBackPressTime = now;
         }
+        return;
       }
+
+      // 3. Pop current page off internal navigation stack
+      while (navHistory.length > 0 && navHistory[navHistory.length - 1] === pathname) {
+        navHistory.pop();
+      }
+
+      // Find valid target that is not '/' and not current pathname
+      const validTargets = navHistory.filter((p) => p !== '/' && p !== pathname);
+      if (validTargets.length > 0) {
+        const target = validTargets[validTargets.length - 1];
+        router.replace(target);
+        return;
+      }
+
+      // If not on catalogue, fallback destination is always /catalogue
+      router.replace('/catalogue');
     };
 
     // 1. Custom event dispatched by UI back button
@@ -115,6 +114,10 @@ export default function HardwareBackButtonHandler() {
     // 4. Browser PopState Listener (Mobile Swipe Back Gesture / Hardware Back)
     const handlePopstate = (e: PopStateEvent) => {
       e.preventDefault();
+      // Ignore spurious popstate events during initial route mount (within 800ms)
+      if (Date.now() - mountTimeRef.current < 800) {
+        return;
+      }
       goBack();
     };
     window.addEventListener('popstate', handlePopstate);
@@ -131,4 +134,3 @@ export default function HardwareBackButtonHandler() {
 
   return null;
 }
-

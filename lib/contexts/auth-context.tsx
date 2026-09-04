@@ -40,9 +40,16 @@ export function isSessionExpired(): boolean {
   if (!token && !savedUser) return false; // Not logged in -> NOT expired!
 
   const loginTimeStr = localStorage.getItem('matrices_login_time');
-  if (!loginTimeStr) return true;
+  if (!loginTimeStr) {
+    // If user credentials exist but timestamp wasn't written yet, heal it with current time
+    localStorage.setItem('matrices_login_time', Date.now().toString());
+    return false;
+  }
   const loginTime = Number(loginTimeStr);
-  if (isNaN(loginTime) || loginTime <= 0) return true;
+  if (isNaN(loginTime) || loginTime <= 0) {
+    localStorage.setItem('matrices_login_time', Date.now().toString());
+    return false;
+  }
   return (Date.now() - loginTime) >= SESSION_DURATION_MS;
 }
 

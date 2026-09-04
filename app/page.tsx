@@ -117,7 +117,7 @@ function LoginFormContent() {
         position: 'top-end',
       });
 
-      window.location.href = '/catalogue';
+      router.replace('/catalogue');
       return true;
     } catch (err) {
       console.error('Offline login error:', err);
@@ -413,9 +413,9 @@ function LoginFormContent() {
             document.cookie = `token=${data.token}; path=/; max-age=86400; SameSite=Lax`;
 
             if (alertResult.isConfirmed) {
-              window.location.href = '/catalogue?startSync=true';
+              router.replace('/catalogue?startSync=true');
             } else {
-              window.location.href = '/catalogue';
+              router.replace('/catalogue');
             }
             return;
           }
@@ -471,7 +471,7 @@ function LoginFormContent() {
           window.dispatchEvent(new Event('matrices-sync-stats-updated'));
         }
 
-        window.location.href = '/catalogue';
+        router.replace('/catalogue');
       } else {
         setError(data.msg || 'Login failed. Please try again.');
       }
