@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { getCachedImageUrlSync, getCachedImageUrl } from '@/lib/offline/image-cache';
+import { getCachedImageUrlSync, getCachedImageUrl, evictFromImageMemoryMap } from '@/lib/offline/image-cache';
+import { resolveApiUrl } from '@/lib/utils';
 
 interface SmartImageProps {
   src: string | null | undefined;
@@ -41,14 +42,21 @@ export default function SmartImage({
   fill,
   sizes,
 }: SmartImageProps) {
+  const getOnlineUrl = (url: string | null | undefined): string => {
+    if (!url) return fallbackSrc;
+    if (isLocalUri(url)) return url;
+    return resolveApiUrl(url) || url;
+  };
+
   // Try synchronous lookup first so we can start with the correct src immediately
   const getInitialSrc = () => {
     const raw = src || fallbackSrc;
     if (!raw) return fallbackSrc;
     if (isLocalUri(raw)) return raw;
+
     // Try the in-memory map (O(1), synchronous)
     const synced = getCachedImageUrlSync(raw);
-    if (synced) return synced;
+    if (synced && !synced.startsWith('blob:')) return synced;
 
     // Prevent 30-second browser socket hang when device is offline
     const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
@@ -56,12 +64,13 @@ export default function SmartImage({
       return fallbackSrc;
     }
 
-    return raw;
+    return getOnlineUrl(raw);
   };
 
   const [imgSrc, setImgSrc] = useState<string>(getInitialSrc);
   const [failed, setFailed] = useState(false);
   const [loading, setLoading] = useState(true);
+  const triedOnlineFallbackRef = useRef(false);
   const mountedRef = useRef(true);
 
   useEffect(() => {
@@ -84,7 +93,7 @@ export default function SmartImage({
     }
 
     const synced = getCachedImageUrlSync(raw);
-    if (synced && synced !== imgSrc) {
+    if (synced && !synced.startsWith('blob:') && synced !== imgSrc) {
       setImgSrc(synced);
       setFailed(false);
       return;
@@ -94,18 +103,31 @@ export default function SmartImage({
     getCachedImageUrl(raw)
       .then((resolved) => {
         if (!cancelled && mountedRef.current) {
-          if (resolved && resolved !== imgSrc) {
+          if (resolved && !resolved.startsWith('blob:') && resolved !== imgSrc) {
             setImgSrc(resolved);
             setFailed(false);
           } else if (!resolved || (resolved === raw && typeof navigator !== 'undefined' && !navigator.onLine)) {
             // Offline and no local cached copy available in IndexedDB
             setFailed(true);
+          } else if (resolved === raw && typeof navigator !== 'undefined' && navigator.onLine) {
+            // Online mode - resolve full URL
+            const onlineUrl = getOnlineUrl(raw);
+            if (onlineUrl !== imgSrc) {
+              setImgSrc(onlineUrl);
+              setFailed(false);
+            }
           }
         }
       })
       .catch(() => {
         if (!cancelled && mountedRef.current) {
-          setFailed(true);
+          const isOnline = typeof navigator !== 'undefined' && navigator.onLine;
+          if (isOnline) {
+            setImgSrc(getOnlineUrl(raw));
+            setFailed(false);
+          } else {
+            setFailed(true);
+          }
         }
       });
 
@@ -116,6 +138,7 @@ export default function SmartImage({
   useEffect(() => {
     setFailed(false);
     setLoading(true);
+    triedOnlineFallbackRef.current = false;
     const initial = getInitialSrc();
     if (initial !== imgSrc) {
       setImgSrc(initial);
@@ -123,6 +146,26 @@ export default function SmartImage({
   }, [src]);
 
   const handleError = () => {
+    const raw = src || fallbackSrc;
+    const isOnline = typeof navigator !== 'undefined' && navigator.onLine;
+    const onlineUrl = getOnlineUrl(raw);
+
+    // If a cached/local image failed to load while online, fall back to live server URL
+    if (isOnline && raw && !triedOnlineFallbackRef.current && imgSrc !== onlineUrl) {
+      triedOnlineFallbackRef.current = true;
+      evictFromImageMemoryMap(raw).catch(() => {});
+      setImgSrc(onlineUrl);
+      setLoading(true);
+      return;
+    }
+
+    // If live server URL or fallback also failed
+    if (fallbackSrc && imgSrc !== fallbackSrc) {
+      setImgSrc(fallbackSrc);
+      setLoading(false);
+      return;
+    }
+
     setFailed(true);
     setLoading(false);
   };
@@ -141,13 +184,11 @@ export default function SmartImage({
           viewBox="0 0 24 24"
           stroke="currentColor"
         >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
         </svg>
       </div>
     );
   }
-
-  const needsUnoptimized = isLocalUri(imgSrc);
 
   const containerClass = fill
     ? `absolute inset-0 w-full h-full ${className}`

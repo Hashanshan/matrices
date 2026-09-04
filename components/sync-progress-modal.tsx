@@ -266,24 +266,24 @@ export default function SyncProgressModal() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 40, scale: 0.85 }}
             transition={{ type: 'spring', stiffness: 350, damping: 25 }}
-            className="fixed bottom-5 right-5 z-[90] bg-[#0f172a]/95 text-white backdrop-blur-xl border border-sky-400/40 rounded-full p-2 pr-4 shadow-[0_12px_36px_rgba(0,0,0,0.45)] flex items-center gap-3 cursor-pointer hover:border-sky-300 hover:scale-105 transition-all group select-none"
+            className="fixed bottom-4 left-3 right-3 sm:left-auto sm:right-5 sm:bottom-5 z-[90] max-w-[calc(100vw-1.5rem)] sm:max-w-md w-auto mx-auto sm:mx-0 bg-[#0f172a]/95 text-white backdrop-blur-xl border border-sky-400/40 rounded-full p-2 pr-3.5 shadow-[0_12px_36px_rgba(0,0,0,0.45)] flex items-center gap-2.5 sm:gap-3 cursor-pointer hover:border-sky-300 hover:scale-[1.02] transition-all group select-none"
             onClick={() => openSyncModal()}
             title="Click to view full Sync Progress"
           >
-            <div className="w-10 h-10 bg-sky-500/20 text-sky-400 rounded-full flex items-center justify-center shrink-0 border border-sky-400/30">
-              <RefreshCw size={18} className="animate-spin text-sky-400" />
+            <div className="w-9 h-9 sm:w-10 sm:h-10 bg-sky-500/20 text-sky-400 rounded-full flex items-center justify-center shrink-0 border border-sky-400/30">
+              <RefreshCw size={17} className="animate-spin text-sky-400" />
             </div>
 
-            <div className="flex flex-col text-left pr-1">
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] font-black uppercase tracking-wider text-sky-300">
+            <div className="flex flex-col text-left min-w-0 flex-1">
+              <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                <span className="text-[11px] font-black uppercase tracking-wider text-sky-300 truncate">
                   Syncing Catalogue
                 </span>
-                <span className="text-[11px] font-mono font-black text-white bg-sky-500/30 px-1.5 py-0.2 rounded-md border border-sky-400/30">
+                <span className="text-[10px] font-mono font-black text-white bg-sky-500/30 px-1.5 py-0.2 rounded-md border border-sky-400/30 shrink-0">
                   {progress}%
                 </span>
               </div>
-              <span className="text-[9px] text-gray-300 font-medium truncate max-w-[150px]">
+              <span className="text-[9px] text-gray-300 font-medium truncate block max-w-full">
                 {syncStatusText}
               </span>
             </div>

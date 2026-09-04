@@ -155,7 +155,7 @@ export default function SyncSettingsPage() {
     <div className="min-h-screen bg-[url(/bg.png)] bg-cover bg-center bg-no-repeat bg-fixed flex flex-col font-sans">
       <Header showSearch={false} />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 pb-28">
         <PinModal
           isOpen={showPinModal}
           onClose={() => setShowPinModal(false)}

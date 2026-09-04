@@ -80,6 +80,15 @@ export function invalidateImageMemoryMap(): void {
   isPrewarmingPromise = null;
 }
 
+/** Evict a single URL from memory map and IndexedDB cache (e.g. if local file failed to load) */
+export async function evictFromImageMemoryMap(url: string): Promise<void> {
+  if (!url) return;
+  imageMemoryMap.delete(url);
+  try {
+    await offlineDB.deleteById('image_map', url);
+  } catch {}
+}
+
 /** Add/update a single entry in the in-memory map */
 function updateImageMemoryMap(url: string, localSrc: string): void {
   if (url && localSrc) {
@@ -342,7 +351,7 @@ export async function getCachedImageUrl(url: string): Promise<string> {
     }
 
     // 4. If record exists with localSrc
-    if (record?.localSrc) {
+    if (record?.localSrc && !record.localSrc.startsWith('blob:')) {
       updateImageMemoryMap(url, record.localSrc);
       return record.localSrc;
     }
@@ -468,6 +477,7 @@ export async function clearMatricesFolder(): Promise<void> {
       console.warn('Error clearing Matrices folder:', e);
     }
   }
-  // Also invalidate in-memory map
+  // Also invalidate in-memory map and clear IndexedDB image_map store
   invalidateImageMemoryMap();
+  await offlineDB.clear('image_map').catch(() => {});
 }

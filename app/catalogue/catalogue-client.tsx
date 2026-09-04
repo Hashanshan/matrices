@@ -164,8 +164,8 @@ export default function CategoriesPage({ fallbackData }: { fallbackData?: any } 
   return (
     <>
       <Header showSearch={false} />
-      <main className="min-h-screen bg-[url(/bg.png)] bg-cover bg-center bg-no-repeat bg-fixed py-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <main className="min-h-screen bg-[url(/bg.png)] bg-cover bg-center bg-no-repeat bg-fixed py-8 pb-28">
+        <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8">
           {isValidating && categories.length > 0 && (
             <div className="fixed top-4 right-4 z-50">
               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[#0f172a]/30"></div>
@@ -218,7 +218,7 @@ export default function CategoriesPage({ fallbackData }: { fallbackData?: any } 
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.18, ease: 'easeOut' }}
-                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 backdrop-blur-[2px]"
+                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 backdrop-blur-[2px] w-full"
               >
                 {filteredCategories.map((cat, index) => {
                   const isWishlisted = isCategoryWishlisted(cat.name);
@@ -300,7 +300,7 @@ export default function CategoriesPage({ fallbackData }: { fallbackData?: any } 
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.18, ease: 'easeOut' }}
-                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 backdrop-blur-[2px]"
+                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 backdrop-blur-[2px] w-full"
               >
                 {filteredSubcategories.map((sub, index) => {
                   const isWishlisted = selectedCategory ? isSubcategoryWishlisted(selectedCategory, sub.name) : false;

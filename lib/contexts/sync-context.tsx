@@ -819,6 +819,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         await offlineDB.clear('products').catch(() => {});
         await offlineDB.clear('shops').catch(() => {});
         await offlineDB.clear('wishlist').catch(() => {});
+        await offlineDB.clear('image_map').catch(() => {});
         await clearMatricesFolder().catch(() => {});
         if (typeof window !== 'undefined' && 'caches' in window) {
           try {
