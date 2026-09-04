@@ -66,6 +66,20 @@ export default function PinModal({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, mode, pin, isSubmitting, onClose]);
 
+  // Lock body scroll when PinModal is open
+  React.useEffect(() => {
+    if (isOpen) {
+      const origBody = document.body.style.overflow;
+      const origHtml = document.documentElement.style.overflow;
+      document.body.style.overflow = 'hidden';
+      document.documentElement.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = origBody;
+        document.documentElement.style.overflow = origHtml;
+      };
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const handleDigit = (digit: string) => {

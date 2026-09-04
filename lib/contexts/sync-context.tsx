@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { offlineDB, SyncMetadata } from '../offline/indexed-db';
 import { cacheProductImages, clearMatricesFolder, prewarmImageCache, invalidateImageMemoryMap, getUncachedImageUrls } from '../offline/image-cache';
 import { invalidateProductIndex } from '../offline/offline-search';
@@ -475,10 +475,15 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
           }
 
           setSyncStatusText(`Downloading balance of ${uncachedUrls.length} offline images (Total ${uniqueImageUrls.length})...`);
+          let lastResumeProgressTime = 0;
           const stats = await cacheProductImages(uniqueImageUrls, (done, total) => {
-            const imageProgress = 50 + Math.floor((done / total) * 45);
-            setProgress(imageProgress);
-            setSyncStatusText(`Downloading balance offline images (${done}/${total})...`);
+            const now = Date.now();
+            if (now - lastResumeProgressTime > 120 || done === total || done === 1) {
+              lastResumeProgressTime = now;
+              const imageProgress = 50 + Math.floor((done / total) * 45);
+              setProgress(imageProgress);
+              setSyncStatusText(`Downloading balance offline images (${done}/${total})...`);
+            }
           });
 
           setProgress(96);
@@ -858,10 +863,15 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       if (uniqueImageUrls.length > 0) {
         setSyncStatusText(`Downloading ${uniqueImageUrls.length} images for full offline access (0/${uniqueImageUrls.length})...`);
 
+        let lastFullProgressTime = 0;
         const stats = await cacheProductImages(uniqueImageUrls, (done, total) => {
-          const imageProgress = 80 + Math.floor((done / total) * 15);
-          setProgress(imageProgress);
-          setSyncStatusText(`Downloading offline images (${done}/${total})...`);
+          const now = Date.now();
+          if (now - lastFullProgressTime > 120 || done === total || done === 1) {
+            lastFullProgressTime = now;
+            const imageProgress = 80 + Math.floor((done / total) * 15);
+            setProgress(imageProgress);
+            setSyncStatusText(`Downloading offline images (${done}/${total})...`);
+          }
         });
 
         totalImagesDownloaded = stats.totalDownloaded;
@@ -1098,38 +1108,68 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
   const isIncompleteSync = Boolean(meta?.isIncomplete);
 
+  const contextValue = useMemo(
+    () => ({
+      isSyncing,
+      progress,
+      syncStatusText,
+      lastSyncedAt,
+      isOffline,
+      meta,
+      isIncompleteSync,
+      queueItems,
+      pendingQueueCount,
+      failedQueueCount,
+      isPushing,
+      pushStatusText,
+      triggerSync,
+      executeSync,
+      resumeSync,
+      pushChanges,
+      retryFailedPush,
+      deleteSyncData,
+      deleteQueueItem,
+      clearAllQueue,
+      downloadReport,
+      checkPermissions,
+      refreshQueue,
+      isSyncModalOpen,
+      openSyncModal,
+      closeSyncModal,
+      setIsSyncModalOpen,
+    }),
+    [
+      isSyncing,
+      progress,
+      syncStatusText,
+      lastSyncedAt,
+      isOffline,
+      meta,
+      isIncompleteSync,
+      queueItems,
+      pendingQueueCount,
+      failedQueueCount,
+      isPushing,
+      pushStatusText,
+      triggerSync,
+      executeSync,
+      resumeSync,
+      pushChanges,
+      retryFailedPush,
+      deleteSyncData,
+      deleteQueueItem,
+      clearAllQueue,
+      downloadReport,
+      checkPermissions,
+      refreshQueue,
+      isSyncModalOpen,
+      openSyncModal,
+      closeSyncModal,
+    ]
+  );
+
   return (
-    <SyncContext.Provider
-      value={{
-        isSyncing,
-        progress,
-        syncStatusText,
-        lastSyncedAt,
-        isOffline,
-        meta,
-        isIncompleteSync,
-        queueItems,
-        pendingQueueCount,
-        failedQueueCount,
-        isPushing,
-        pushStatusText,
-        triggerSync,
-        executeSync,
-        resumeSync,
-        pushChanges,
-        retryFailedPush,
-        deleteSyncData,
-        deleteQueueItem,
-        clearAllQueue,
-        downloadReport,
-        checkPermissions,
-        refreshQueue,
-        isSyncModalOpen,
-        openSyncModal,
-        closeSyncModal,
-        setIsSyncModalOpen,
-      }}
-    >
+    <SyncContext.Provider value={contextValue}>
       {children}
       <SyncProgressModal />
       <PinModal isOpen={showPinModal} onClose={handlePinClose} onSuccess={handlePinSuccess} />

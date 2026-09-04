@@ -21,6 +21,21 @@ export default function SyncProgressModal() {
     openSyncModal,
   } = useSync();
 
+  // Lock body scroll when sync modal is open to eliminate background page scrollbars
+  useEffect(() => {
+    if (isSyncModalOpen) {
+      const origBody = document.body.style.overflow;
+      const origHtml = document.documentElement.style.overflow;
+      document.body.style.overflow = 'hidden';
+      document.documentElement.style.overflow = 'hidden';
+
+      return () => {
+        document.body.style.overflow = origBody;
+        document.documentElement.style.overflow = origHtml;
+      };
+    }
+  }, [isSyncModalOpen]);
+
   // Allow closing/minimizing with Escape key
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -48,14 +63,14 @@ export default function SyncProgressModal() {
       <AnimatePresence>
         {isSyncModalOpen && (
           <div
-            className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 overflow-y-auto"
+            className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 overflow-y-auto scrollbar-none"
             onClick={() => closeSyncModal()}
           >
             <motion.div
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="relative w-full max-w-lg bg-white/95 backdrop-blur-2xl rounded-[2.5rem] p-6 sm:p-8 text-[#0f172a] shadow-2xl border border-white/80 overflow-hidden"
+              className="relative w-full max-w-lg max-h-[90vh] bg-white/95 backdrop-blur-2xl rounded-[2.5rem] p-6 sm:p-8 text-[#0f172a] shadow-2xl border border-white/80 overflow-y-auto scrollbar-none"
               onClick={(e) => e.stopPropagation()} // Prevent closing on modal card click
             >
               {/* Top Close / Minimize Button */}
@@ -262,28 +277,28 @@ export default function SyncProgressModal() {
       <AnimatePresence>
         {!isSyncModalOpen && isSyncing && (
           <motion.div
-            initial={{ opacity: 0, y: 40, scale: 0.85 }}
+            initial={{ opacity: 0, y: 30, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 40, scale: 0.85 }}
-            transition={{ type: 'spring', stiffness: 350, damping: 25 }}
-            className="fixed bottom-4 left-3 right-3 sm:left-auto sm:right-5 sm:bottom-5 z-[90] max-w-[calc(100vw-1.5rem)] sm:max-w-md w-auto mx-auto sm:mx-0 bg-[#0f172a]/95 text-white backdrop-blur-xl border border-sky-400/40 rounded-full p-2 pr-3.5 shadow-[0_12px_36px_rgba(0,0,0,0.45)] flex items-center gap-2.5 sm:gap-3 cursor-pointer hover:border-sky-300 hover:scale-[1.02] transition-all group select-none"
+            exit={{ opacity: 0, y: 30, scale: 0.9 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+            className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-6 sm:bottom-6 z-[90] max-w-sm sm:max-w-sm mx-auto sm:mx-0 w-auto bg-[#0f172a]/95 text-white backdrop-blur-xl border border-sky-400/35 rounded-full px-3 py-2 sm:px-4 sm:py-2 shadow-[0_12px_36px_rgba(0,0,0,0.5)] flex items-center gap-2.5 sm:gap-3 cursor-pointer hover:border-sky-300 transition-all select-none pointer-events-auto h-14 overflow-hidden"
             onClick={() => openSyncModal()}
             title="Click to view full Sync Progress"
           >
-            <div className="w-9 h-9 sm:w-10 sm:h-10 bg-sky-500/20 text-sky-400 rounded-full flex items-center justify-center shrink-0 border border-sky-400/30">
-              <RefreshCw size={17} className="animate-spin text-sky-400" />
+            <div className="w-8 h-8 sm:w-9 sm:h-9 bg-sky-500/20 text-sky-400 rounded-full flex items-center justify-center shrink-0 border border-sky-400/30">
+              <RefreshCw size={15} className="animate-spin text-sky-400" />
             </div>
 
-            <div className="flex flex-col text-left min-w-0 flex-1">
-              <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+            <div className="flex flex-col justify-center min-w-0 flex-1 overflow-hidden leading-tight">
+              <div className="flex items-center gap-2 whitespace-nowrap">
                 <span className="text-[11px] font-black uppercase tracking-wider text-sky-300 truncate">
                   Syncing Catalogue
                 </span>
-                <span className="text-[10px] font-mono font-black text-white bg-sky-500/30 px-1.5 py-0.2 rounded-md border border-sky-400/30 shrink-0">
+                <span className="text-[10px] font-mono font-bold text-sky-200 bg-sky-500/30 px-1.5 py-0.5 rounded-md border border-sky-400/30 shrink-0">
                   {progress}%
                 </span>
               </div>
-              <span className="text-[9px] text-gray-300 font-medium truncate block max-w-full">
+              <span className="text-[10px] text-gray-300 font-medium truncate block max-w-full">
                 {syncStatusText}
               </span>
             </div>
@@ -294,7 +309,7 @@ export default function SyncProgressModal() {
                 e.stopPropagation();
                 openSyncModal();
               }}
-              className="text-[10px] font-black uppercase tracking-wider bg-sky-400 hover:bg-sky-300 text-slate-950 px-3 py-1.5 rounded-full shadow-md transition-all flex items-center gap-1 cursor-pointer shrink-0"
+              className="shrink-0 px-3 py-1.5 rounded-full bg-sky-400 hover:bg-sky-300 text-slate-950 font-black text-[10px] uppercase tracking-wider shadow-sm flex items-center gap-1 cursor-pointer transition-transform active:scale-95"
             >
               <Eye size={12} /> View
             </button>

@@ -64,6 +64,20 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
     return () => window.removeEventListener('matrices-close-all-modals', handleCloseAll);
   }, [onClose]);
 
+  // Lock body scroll when modal is open
+  useEffect(() => {
+    if (isOpen) {
+      const origBody = document.body.style.overflow;
+      const origHtml = document.documentElement.style.overflow;
+      document.body.style.overflow = 'hidden';
+      document.documentElement.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = origBody;
+        document.documentElement.style.overflow = origHtml;
+      };
+    }
+  }, [isOpen]);
+
   useEffect(() => {
     const raw = product?.image || product?.imageUrl || '';
     if (raw) {
