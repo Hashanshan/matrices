@@ -59,7 +59,7 @@ export function useViewProducts(options: UseViewProductsOptions = {}) {
       if (subVal) params.set('subcategory', subVal);
     }
     if (search) params.set('search', search);
-    if (productId && !search) params.set('search', productId);
+    if (productId) params.set('productId', productId);
     if (prioritizeCategory) params.set('prioritizeCategory', prioritizeCategory);
     if (timeFilter && timeFilter !== 'all') params.set('timeFilter', timeFilter);
     params.set('limit', String(pageLimit));

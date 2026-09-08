@@ -28,8 +28,8 @@ export default function SingleViewPage({
 }: ViewPageProps) {
   const savedFilters = loadGalleryFilters();
 
-  const activeCategory = initialCategory || (savedFilters.categories.length > 0 ? savedFilters.categories[0] : undefined);
-  const activeSubcategory = initialSubcategory || (savedFilters.subcategories.length > 0 ? savedFilters.subcategories[0] : undefined);
+  const activeCategory = initialCategory || (savedFilters.categories.length > 0 ? savedFilters.categories.join(',') : undefined);
+  const activeSubcategory = initialSubcategory || (savedFilters.subcategories.length > 0 ? savedFilters.subcategories.join(',') : undefined);
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery || savedFilters.searchQuery || '');
   const [sortBy, setSortBy] = useState(initialSortBy || savedFilters.sortBy || 'newest');
   const [timeFilter, setTimeFilter] = useState(initialTimeFilter || savedFilters.timeFilter || 'all');

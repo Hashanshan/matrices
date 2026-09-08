@@ -140,26 +140,76 @@ export default function FullscreenProductViewer({
     if (targetIdx < 0) return raw;
 
     const targetProd = raw[targetIdx];
-    const targetCat = String(targetProd.categories || targetProd.category || '').trim().toLowerCase();
-    const targetSub = String(targetProd.subcategories || targetProd.subcategory || '').trim().toLowerCase();
+    const targetCat = String(targetProd.categories || targetProd.category || '').trim().toLowerCase().replace(/\s+/g, ' ');
+    const targetSub = String(targetProd.subcategories || targetProd.subcategory || '').trim().toLowerCase().replace(/\s+/g, ' ');
 
-    const subMatches: Product[] = [];
-    const catMatches: Product[] = [];
+    const parseList = (val?: string | string[] | null): string[] => {
+      if (!val) return [];
+      const arr = Array.isArray(val) ? val : [val];
+      return arr.flatMap(item => String(item || '').split(',')).map(s => s.toLowerCase().trim().replace(/\s+/g, ' ')).filter(Boolean);
+    };
+
+    const activeCatFilter = parseList(activeCategory);
+    const activeSubFilter = parseList(activeSubcategory);
+
+    const clickedSubMatches: Product[] = [];
+    const otherSubMatchesMap = new Map<string, Product[]>();
+    activeSubFilter.forEach(s => {
+      if (s !== targetSub) otherSubMatchesMap.set(s, []);
+    });
+
+    const clickedCatMatches: Product[] = [];
+    const otherCatMatchesMap = new Map<string, Product[]>();
+    activeCatFilter.forEach(c => {
+      if (c !== targetCat) otherCatMatchesMap.set(c, []);
+    });
+
     const others: Product[] = [];
 
     for (let i = 0; i < raw.length; i++) {
       if (i === targetIdx) continue;
       const p = raw[i];
-      const pCat = String(p.categories || p.category || '').trim().toLowerCase();
-      const pSub = String(p.subcategories || p.subcategory || '').trim().toLowerCase();
+      const pCat = String(p.categories || p.category || '').trim().toLowerCase().replace(/\s+/g, ' ');
+      const pSub = String(p.subcategories || p.subcategory || '').trim().toLowerCase().replace(/\s+/g, ' ');
 
-      if (targetSub && pSub === targetSub) {
-        subMatches.push(p);
-      } else if (targetCat && pCat === targetCat) {
-        catMatches.push(p);
-      } else {
-        others.push(p);
+      // 1. Clicked product's subcategory
+      if (targetSub && (pSub === targetSub || pSub.includes(targetSub))) {
+        clickedSubMatches.push(p);
+        continue;
       }
+
+      // 2. Other selected subcategories from filter
+      let matchedOtherSub = false;
+      for (const s of activeSubFilter) {
+        if (s !== targetSub && (pSub === s || pSub.includes(s))) {
+          if (!otherSubMatchesMap.has(s)) otherSubMatchesMap.set(s, []);
+          otherSubMatchesMap.get(s)!.push(p);
+          matchedOtherSub = true;
+          break;
+        }
+      }
+      if (matchedOtherSub) continue;
+
+      // 3. Clicked product's main category
+      if (targetCat && (pCat === targetCat || pCat.includes(targetCat))) {
+        clickedCatMatches.push(p);
+        continue;
+      }
+
+      // 4. Other selected categories from filter
+      let matchedOtherCat = false;
+      for (const c of activeCatFilter) {
+        if (c !== targetCat && (pCat === c || pCat.includes(c))) {
+          if (!otherCatMatchesMap.has(c)) otherCatMatchesMap.set(c, []);
+          otherCatMatchesMap.get(c)!.push(p);
+          matchedOtherCat = true;
+          break;
+        }
+      }
+      if (matchedOtherCat) continue;
+
+      // 5. Fallback
+      others.push(p);
     }
 
     const getSortComparator = (sortStr?: string) => {
@@ -171,7 +221,7 @@ export default function FullscreenProductViewer({
       } else if (s === 'name_asc' || s === 'a-z') {
         return (a: Product, b: Product) => String(a.name || '').localeCompare(String(b.name || ''));
       } else if (s === 'name_desc' || s === 'z-a') {
-        return (a: Product, b: Product) => String(b.name || '').localeCompare(String(b.name || ''));
+        return (a: Product, b: Product) => String(b.name || '').localeCompare(String(a.name || ''));
       } else if (s === 'rating') {
         return (a: Product, b: Product) => (b.rating || 0) - (a.rating || 0);
       }
@@ -179,8 +229,20 @@ export default function FullscreenProductViewer({
     };
 
     const sortFn = getSortComparator(activeSortBy);
-    subMatches.sort(sortFn);
-    catMatches.sort(sortFn);
+    clickedSubMatches.sort(sortFn);
+    const sortedOtherSubMatches: Product[] = [];
+    for (const subList of otherSubMatchesMap.values()) {
+      subList.sort(sortFn);
+      sortedOtherSubMatches.push(...subList);
+    }
+
+    clickedCatMatches.sort(sortFn);
+    const sortedOtherCatMatches: Product[] = [];
+    for (const catList of otherCatMatchesMap.values()) {
+      catList.sort(sortFn);
+      sortedOtherCatMatches.push(...catList);
+    }
+
     others.sort((a: Product, b: Product) => {
       const catA = String(a.categories || a.category || '').trim().toLowerCase();
       const catB = String(b.categories || b.category || '').trim().toLowerCase();
@@ -196,8 +258,15 @@ export default function FullscreenProductViewer({
       return String(a.name || '').localeCompare(String(b.name || ''));
     });
 
-    return [targetProd, ...subMatches, ...catMatches, ...others];
-  }, [products, initialProductId, viewerSearchQuery]);
+    return [
+      targetProd,
+      ...clickedSubMatches,
+      ...sortedOtherSubMatches,
+      ...clickedCatMatches,
+      ...sortedOtherCatMatches,
+      ...others
+    ];
+  }, [products, initialProductId, viewerSearchQuery, activeCategory, activeSubcategory, activeSortBy]);
 
   // Set initial product index once when data arrives
   useEffect(() => {

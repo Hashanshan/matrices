@@ -341,48 +341,106 @@ export async function getOfflineProducts(options: {
 
   const sortFn = getSortComparator(options.sort || '');
 
-  // 3. Re-order if prioritizedProd or category/subcategory grouping active:
-  // Target Product -> Subcategory (sorted) -> Category (sorted) -> Remaining (Category A-Z -> Subcategory A-Z -> sorted)
-  const targetCatStr = options.category
-    ? (Array.isArray(options.category) ? options.category[0] : options.category).toLowerCase().trim()
-    : (prioritizedProd ? (prioritizedProd.categoryName || prioritizedProd.categories || prioritizedProd.category || '').toLowerCase().trim() : '');
+  // 3. Hierarchical Re-ordering:
+  // Tier 0: Clicked / target product (prioritizedProd)
+  // Tier 1: Clicked product's subcategory (targetProdSub)
+  // Tier 2..N: Other selected subcategories from filter in order
+  // Tier N+1: Clicked product's main category (targetProdCat)
+  // Tier N+2..M: Other selected categories from filter in order
+  // Tier Fallback: Remaining products (sorted by Category A-Z -> Subcategory A-Z -> sortFn)
+  const targetProdCat = prioritizedProd
+    ? (prioritizedProd.categoryName || prioritizedProd.categories || prioritizedProd.category || (typeof prioritizedProd.category === 'object' ? prioritizedProd.category?.name : '') || '').toLowerCase().trim().replace(/\s+/g, ' ')
+    : '';
 
-  const targetSubStr = options.subcategory
-    ? (Array.isArray(options.subcategory) ? options.subcategory[0] : options.subcategory).toLowerCase().trim()
-    : (prioritizedProd ? (prioritizedProd.subcategoryName || prioritizedProd.subcategories || prioritizedProd.subcategory || '').toLowerCase().trim() : '');
+  const targetProdSub = prioritizedProd
+    ? (prioritizedProd.subcategoryName || prioritizedProd.subcategories || prioritizedProd.subcategory || (typeof prioritizedProd.subcategory === 'object' ? prioritizedProd.subcategory?.name : '') || '').toLowerCase().trim().replace(/\s+/g, ' ')
+    : '';
 
-  if (prioritizedProd || targetSubStr || targetCatStr || (catFilter && catFilter.length > 0) || (subFilter && subFilter.length > 0)) {
+  const selectedSubs = subFilter || [];
+  const selectedCats = catFilter || [];
+
+  if (prioritizedProd || targetProdSub || targetProdCat || selectedSubs.length > 0 || selectedCats.length > 0) {
     const targetId = prioritizedProd ? String(prioritizedProd.id || prioritizedProd.productId || prioritizedProd._id) : null;
 
-    const subMatches: any[] = [];
-    const catMatches: any[] = [];
+    const clickedSubMatches: any[] = [];
+    const otherSubMatchesMap = new Map<string, any[]>();
+    selectedSubs.forEach(s => {
+      const cleanS = s.toLowerCase().trim().replace(/\s+/g, ' ');
+      if (cleanS && cleanS !== targetProdSub) otherSubMatchesMap.set(cleanS, []);
+    });
+
+    const clickedCatMatches: any[] = [];
+    const otherCatMatchesMap = new Map<string, any[]>();
+    selectedCats.forEach(c => {
+      const cleanC = c.toLowerCase().trim().replace(/\s+/g, ' ');
+      if (cleanC && cleanC !== targetProdCat) otherCatMatchesMap.set(cleanC, []);
+    });
+
     const others: any[] = [];
 
     for (const p of filtered) {
       const currentId = String(p.id || p.productId || p._id);
       if (targetId && currentId === targetId) continue;
 
-      const pCat = (p.categoryName || p.categories || p.category || (typeof p.category === 'object' ? p.category?.name : '') || '').toLowerCase().trim();
-      const pSub = (p.subcategoryName || p.subcategories || p.subcategory || (typeof p.subcategory === 'object' ? p.subcategory?.name : '') || '').toLowerCase().trim();
+      const pCat = (p.categoryName || p.categories || p.category || (typeof p.category === 'object' ? p.category?.name : '') || '').toLowerCase().trim().replace(/\s+/g, ' ');
+      const pSub = (p.subcategoryName || p.subcategories || p.subcategory || (typeof p.subcategory === 'object' ? p.subcategory?.name : '') || '').toLowerCase().trim().replace(/\s+/g, ' ');
 
-      const matchesSubcategory = subFilter && subFilter.some(s => pSub === s || pSub.includes(s));
-      const matchesCategory = catFilter && catFilter.some(c => pCat === c || pCat.includes(c));
-
-      if (targetSubStr && (pSub === targetSubStr || pSub.includes(targetSubStr) || matchesSubcategory)) {
-        subMatches.push(p);
-      } else if (targetCatStr && (pCat === targetCatStr || pCat.includes(targetCatStr) || matchesCategory)) {
-        catMatches.push(p);
-      } else if (matchesSubcategory) {
-        subMatches.push(p);
-      } else if (matchesCategory) {
-        catMatches.push(p);
-      } else {
-        others.push(p);
+      // 1. Clicked product's subcategory
+      if (targetProdSub && (pSub === targetProdSub || pSub.includes(targetProdSub))) {
+        clickedSubMatches.push(p);
+        continue;
       }
+
+      // 2. Other selected subcategories from filter
+      let matchedOtherSub = false;
+      for (const s of selectedSubs) {
+        const cleanS = s.toLowerCase().trim().replace(/\s+/g, ' ');
+        if (cleanS !== targetProdSub && (pSub === cleanS || pSub.includes(cleanS))) {
+          if (!otherSubMatchesMap.has(cleanS)) otherSubMatchesMap.set(cleanS, []);
+          otherSubMatchesMap.get(cleanS)!.push(p);
+          matchedOtherSub = true;
+          break;
+        }
+      }
+      if (matchedOtherSub) continue;
+
+      // 3. Clicked product's main category
+      if (targetProdCat && (pCat === targetProdCat || pCat.includes(targetProdCat))) {
+        clickedCatMatches.push(p);
+        continue;
+      }
+
+      // 4. Other selected categories from filter
+      let matchedOtherCat = false;
+      for (const c of selectedCats) {
+        const cleanC = c.toLowerCase().trim().replace(/\s+/g, ' ');
+        if (cleanC !== targetProdCat && (pCat === cleanC || pCat.includes(cleanC))) {
+          if (!otherCatMatchesMap.has(cleanC)) otherCatMatchesMap.set(cleanC, []);
+          otherCatMatchesMap.get(cleanC)!.push(p);
+          matchedOtherCat = true;
+          break;
+        }
+      }
+      if (matchedOtherCat) continue;
+
+      // 5. Remaining / fallback products
+      others.push(p);
     }
 
-    subMatches.sort(sortFn);
-    catMatches.sort(sortFn);
+    clickedSubMatches.sort(sortFn);
+    const sortedOtherSubMatches: any[] = [];
+    for (const subList of otherSubMatchesMap.values()) {
+      subList.sort(sortFn);
+      sortedOtherSubMatches.push(...subList);
+    }
+
+    clickedCatMatches.sort(sortFn);
+    const sortedOtherCatMatches: any[] = [];
+    for (const catList of otherCatMatchesMap.values()) {
+      catList.sort(sortFn);
+      sortedOtherCatMatches.push(...catList);
+    }
+
     others.sort((a: any, b: any) => {
       const catA = (a.categoryName || a.categories || a.category || '').toLowerCase().trim();
       const catB = (b.categoryName || b.categories || b.category || '').toLowerCase().trim();
@@ -400,8 +458,10 @@ export async function getOfflineProducts(options: {
 
     filtered = [
       ...(prioritizedProd ? [prioritizedProd] : []),
-      ...subMatches,
-      ...catMatches,
+      ...clickedSubMatches,
+      ...sortedOtherSubMatches,
+      ...clickedCatMatches,
+      ...sortedOtherCatMatches,
       ...others
     ];
   }
