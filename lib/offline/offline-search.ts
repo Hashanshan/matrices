@@ -192,6 +192,8 @@ export async function searchOfflineProducts(
       timeCutoff = now - 14 * 24 * 60 * 60 * 1000;
     } else if (timeFilter === '3week' || timeFilter === '3w' || timeFilter === '21d') {
       timeCutoff = now - 21 * 24 * 60 * 60 * 1000;
+    } else if (timeFilter === '1month' || timeFilter === '1m' || timeFilter === '30d' || timeFilter === 'month') {
+      timeCutoff = now - 30 * 24 * 60 * 60 * 1000;
     }
   }
 
@@ -309,6 +311,8 @@ export async function getOfflineCatalogSummary(timeFilter?: string): Promise<{
       timeCutoff = now - 14 * 24 * 60 * 60 * 1000;
     } else if (timeFilter === '3week' || timeFilter === '3w' || timeFilter === '21d') {
       timeCutoff = now - 21 * 24 * 60 * 60 * 1000;
+    } else if (timeFilter === '1month' || timeFilter === '1m' || timeFilter === '30d' || timeFilter === 'month') {
+      timeCutoff = now - 30 * 24 * 60 * 60 * 1000;
     }
   }
 

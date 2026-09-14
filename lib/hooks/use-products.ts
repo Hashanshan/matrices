@@ -253,6 +253,8 @@ export async function getOfflineProducts(options: {
       cutoff = now - 14 * 24 * 60 * 60 * 1000;
     } else if (options.timeFilter === '3week' || options.timeFilter === '3w' || options.timeFilter === '21d') {
       cutoff = now - 21 * 24 * 60 * 60 * 1000;
+    } else if (options.timeFilter === '1month' || options.timeFilter === '1m' || options.timeFilter === '30d' || options.timeFilter === 'month') {
+      cutoff = now - 30 * 24 * 60 * 60 * 1000;
     }
 
     if (cutoff > 0) {
@@ -652,6 +654,8 @@ export async function getOfflineFilters(timeFilter?: string): Promise<FiltersRes
       cutoff = now - 14 * 24 * 60 * 60 * 1000;
     } else if (timeFilter === '3week' || timeFilter === '3w' || timeFilter === '21d') {
       cutoff = now - 21 * 24 * 60 * 60 * 1000;
+    } else if (timeFilter === '1month' || timeFilter === '1m' || timeFilter === '30d' || timeFilter === 'month') {
+      cutoff = now - 30 * 24 * 60 * 60 * 1000;
     }
   }
 

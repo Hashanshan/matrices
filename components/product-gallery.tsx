@@ -19,6 +19,7 @@ import { useBackHandler } from '@/lib/utils/back-navigation';
 import { offlineDB } from '@/lib/offline/indexed-db';
 import { resolveApiUrl, getAuthToken } from '@/lib/utils';
 import { useDataMode } from '@/lib/contexts/data-mode-context';
+import { useAuth } from '@/lib/contexts/auth-context';
 
 const MySwal = withReactContent(Swal);
 
@@ -259,6 +260,8 @@ interface ProductGalleryProps {
 
 export default function ProductGallery({ searchQuery, initialCategory, initialSubcategory, onFilterChange }: ProductGalleryProps) {
   const searchParams = useSearchParams();
+  const { user } = useAuth();
+  const isShop = user?.role === 'shop';
 
   const [filters, setFilters] = useState<FilterState>(() => {
     const saved = loadGalleryFilters();
@@ -278,13 +281,13 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
         ? [urlMinPrice ? parseInt(urlMinPrice) || 0 : 0, urlMaxPrice ? parseInt(urlMaxPrice) || 40000 : 40000]
         : (saved.priceRange || [0, 40000]),
       sortBy: (urlSort as any) || saved.sortBy || 'newest',
-      timeFilter: (urlTime as any) || saved.timeFilter || 'all',
+      timeFilter: isShop ? '1month' : ((urlTime as any) || saved.timeFilter || 'all'),
       gridSize: saved.gridSize || 4,
     };
   });
 
   const { categories: apiCategories, priceRange: apiPriceRange, mutate: mutateFilters } = useFilters({
-    timeFilter: filters.timeFilter,
+    timeFilter: isShop ? '1month' : filters.timeFilter,
   });
 
   // Persist filters to sessionStorage whenever state changes
@@ -313,7 +316,7 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
     filters.subcategories.length > 0 ||
     (filters.searchQuery && filters.searchQuery.trim() !== '') ||
     (filters.sortBy && filters.sortBy !== 'newest') ||
-    (filters.timeFilter && filters.timeFilter !== 'all') ||
+    (!isShop && filters.timeFilter && filters.timeFilter !== 'all') ||
     filters.priceRange[0] > minP ||
     (filters.priceRange[1] < maxP && maxP > 0 && filters.priceRange[1] !== maxP)
   );
@@ -346,11 +349,10 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
     const defaultMaxP = apiPriceRange.max > 0 ? apiPriceRange.max : 40000;
     setFilters({
       ...DEFAULT_FILTERS,
+      timeFilter: isShop ? '1month' : 'all',
       searchQuery: '',
       categories: [],
       subcategories: [],
-      sortBy: 'newest',
-      timeFilter: 'all',
       priceRange: [defaultMinP, defaultMaxP],
     });
   };
@@ -405,7 +407,7 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
     exactMatchFound,
   } = useProducts({
     sort: backendSort,
-    timeFilter: filters.timeFilter,
+    timeFilter: isShop ? '1month' : filters.timeFilter,
     limit: Math.max(actualGridSize * 5, 20),
     category: filters.categories.length > 0 ? filters.categories : undefined,
     subcategory: filters.subcategories.length > 0 ? filters.subcategories : undefined,
@@ -964,19 +966,21 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
               />
             </div>
 
-            <div className="w-full sm:w-48">
-              <CustomSelect
-                value={filters.timeFilter || 'all'}
-                onChange={(val) => setFilters((prev) => ({ ...prev, timeFilter: val as any }))}
-                icon={<Clock size={16} />}
-                options={[
-                  { label: 'All Products', value: 'all' },
-                  { label: '1 Week (Updated)', value: '1week' },
-                  { label: '2 Weeks (Updated)', value: '2week' },
-                  { label: '3 Weeks (Updated)', value: '3week' },
-                ]}
-              />
-            </div>
+            {!isShop && (
+              <div className="w-full sm:w-48">
+                <CustomSelect
+                  value={filters.timeFilter || 'all'}
+                  onChange={(val) => setFilters((prev) => ({ ...prev, timeFilter: val as any }))}
+                  icon={<Clock size={16} />}
+                  options={[
+                    { label: 'All Products', value: 'all' },
+                    { label: '1 Week (Updated)', value: '1week' },
+                    { label: '2 Weeks (Updated)', value: '2week' },
+                    { label: '3 Weeks (Updated)', value: '3week' },
+                  ]}
+                />
+              </div>
+            )}
 
             <div className="w-full sm:w-36">
               <CustomSelect

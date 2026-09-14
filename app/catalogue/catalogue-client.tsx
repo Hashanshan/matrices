@@ -9,6 +9,7 @@ import Link from 'next/link';
 import { useFilters } from '@/lib/hooks/use-products';
 import { useWishlist } from '@/lib/contexts/wishlist-context';
 import { useSync } from '@/lib/contexts/sync-context';
+import { useAuth } from '@/lib/contexts/auth-context';
 import SmartImage from '@/components/smart-image';
 import BackButton from '@/components/back-button';
 import { useBackHandler, triggerBack } from '@/lib/utils/back-navigation';
@@ -17,6 +18,8 @@ import { prewarmImageCache, preloadAdjacentImages } from '@/lib/offline/image-ca
 export default function CategoriesPage({ fallbackData }: { fallbackData?: any } = {}) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { user } = useAuth();
+  const isShop = user?.role === 'shop';
   const { executeSync, isSyncing } = useSync();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -33,7 +36,10 @@ export default function CategoriesPage({ fallbackData }: { fallbackData?: any } 
   }, [searchParams, isSyncing, executeSync, router]);
 
   // Fetch filters (categories, subcategories) from API with fallbackData
-  const { categories, isLoading, isValidating, mutate: mutateFilters } = useFilters({ fallbackData });
+  const { categories, isLoading, isValidating, mutate: mutateFilters } = useFilters({
+    timeFilter: isShop ? '1month' : undefined,
+    fallbackData,
+  });
 
   useEffect(() => {
     prewarmImageCache().catch(() => {});

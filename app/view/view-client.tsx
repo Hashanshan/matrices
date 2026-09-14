@@ -6,6 +6,7 @@ import FullscreenProductViewer from '@/components/fullscreen-product-viewer';
 import Header from '@/components/header';
 
 import { loadGalleryFilters, clearGalleryFilters } from '@/lib/utils/filter-storage';
+import { useAuth } from '@/lib/contexts/auth-context';
 
 interface ViewPageProps {
   fallbackData?: any;
@@ -26,13 +27,15 @@ export default function SingleViewPage({
   initialTimeFilter,
   initialSearchQuery,
 }: ViewPageProps) {
+  const { user } = useAuth();
+  const isShop = user?.role === 'shop';
   const savedFilters = loadGalleryFilters();
 
   const activeCategory = initialCategory || (savedFilters.categories.length > 0 ? savedFilters.categories.join(',') : undefined);
   const activeSubcategory = initialSubcategory || (savedFilters.subcategories.length > 0 ? savedFilters.subcategories.join(',') : undefined);
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery || savedFilters.searchQuery || '');
   const [sortBy, setSortBy] = useState(initialSortBy || savedFilters.sortBy || 'newest');
-  const [timeFilter, setTimeFilter] = useState(initialTimeFilter || savedFilters.timeFilter || 'all');
+  const [timeFilter, setTimeFilter] = useState(isShop ? '1month' : (initialTimeFilter || savedFilters.timeFilter || 'all'));
 
   const backendSort = sortBy === 'price-low' ? 'price-low'
     : sortBy === 'price-high' ? 'price-high'
@@ -48,7 +51,7 @@ export default function SingleViewPage({
     prioritizeIndex,
   } = useViewProducts({
     sort: backendSort || 'newest',
-    timeFilter: timeFilter || 'all',
+    timeFilter: isShop ? '1month' : (timeFilter || 'all'),
     category: activeCategory,
     subcategory: activeSubcategory,
     search: searchQuery || initialProductId,

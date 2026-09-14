@@ -86,6 +86,6 @@ export interface FilterState {
   subcategories: string[]; // Filtered by selected subcategories
   priceRange: [number, number]; // In Rs (0-40000)
   sortBy: 'newest' | 'price-low' | 'price-high' | 'rating';
-  timeFilter?: 'all' | '1week' | '2week' | '3week';
+  timeFilter?: 'all' | '1week' | '2week' | '3week' | '1month' | string;
   gridSize: number;
 }
