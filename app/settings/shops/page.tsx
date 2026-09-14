@@ -8,7 +8,7 @@ import Pagination from '@/components/pagination';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Store, Phone, MapPin, Edit, ShieldCheck, Heart, Search, Lock, X, Check, FileText,
-  Plus, Camera, Upload, Navigation, ExternalLink, Image as ImageIcon, Trash2, Compass, RefreshCw, Mail
+  Plus, Camera, Upload, Navigation, ExternalLink, Image as ImageIcon, Trash2, Compass, RefreshCw, Mail, Eye
 } from 'lucide-react';
 import Link from 'next/link';
 import useSWR, { mutate } from 'swr';
@@ -20,6 +20,8 @@ import { offlineDB } from '@/lib/offline/indexed-db';
 import { addToSyncQueue } from '@/lib/offline/pending-sync';
 import { useDataMode } from '@/lib/contexts/data-mode-context';
 import SmartImage from '@/components/smart-image';
+import BrDocumentUpload from '@/components/br-document-upload';
+import BrDocumentModal from '@/components/br-document-modal';
 
 interface Shop {
   shopId: string;
@@ -30,6 +32,9 @@ interface Shop {
   address: string;
   mapUrl?: string;
   imageUrl?: string;
+  brNumber?: string;
+  brDocument?: string;
+  brDocumentType?: string;
   deliveredOrders: number;
   pendingOrders: number;
   totalSales: number;
@@ -67,11 +72,13 @@ const fetcher = async (url: string) => {
     const filtered = search
       ? rawShops.filter((s: any) => {
         const emailMatch = (s.email || '').toLowerCase().includes(search);
+        const brMatch = (s.brNumber || '').toLowerCase().includes(search);
         const phoneMatch = (s.phone || '').toLowerCase().includes(search) ||
           (Array.isArray(s.phones) && s.phones.some((p: string) => (p || '').toLowerCase().includes(search)));
         return (s.name || '').toLowerCase().includes(search) ||
           (s.shopId || '').toLowerCase().includes(search) ||
           emailMatch ||
+          brMatch ||
           phoneMatch;
       })
       : rawShops;
@@ -136,7 +143,13 @@ export default function ShopsSettingsPage() {
   const [formAddress, setFormAddress] = useState('');
   const [formMapUrl, setFormMapUrl] = useState('');
   const [formImageUrl, setFormImageUrl] = useState('');
+  const [formBrNumber, setFormBrNumber] = useState('');
+  const [formBrDocument, setFormBrDocument] = useState('');
+  const [formBrDocumentType, setFormBrDocumentType] = useState<'image' | 'pdf' | ''>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Quick BR Document Viewer Modal State
+  const [viewingBrShop, setViewingBrShop] = useState<Shop | null>(null);
 
   // Location Check-in state
   const [isCheckingIn, setIsCheckingIn] = useState(false);
@@ -191,6 +204,9 @@ export default function ShopsSettingsPage() {
     setFormAddress('');
     setFormMapUrl('');
     setFormImageUrl('');
+    setFormBrNumber('');
+    setFormBrDocument('');
+    setFormBrDocumentType('');
     setIsAddModalOpen(true);
   };
 
@@ -206,6 +222,9 @@ export default function ShopsSettingsPage() {
     setFormAddress(shop.address || '');
     setFormMapUrl(shop.mapUrl || '');
     setFormImageUrl(shop.imageUrl || '');
+    setFormBrNumber(shop.brNumber || '');
+    setFormBrDocument(shop.brDocument || '');
+    setFormBrDocumentType((shop.brDocumentType as 'image' | 'pdf' | '') || '');
   };
 
   const handleCloseModal = () => {
@@ -217,6 +236,9 @@ export default function ShopsSettingsPage() {
     setFormAddress('');
     setFormMapUrl('');
     setFormImageUrl('');
+    setFormBrNumber('');
+    setFormBrDocument('');
+    setFormBrDocumentType('');
   };
 
   const handlePhoneChange = (index: number, val: string) => {
@@ -379,6 +401,9 @@ export default function ShopsSettingsPage() {
         address: formAddress,
         mapUrl: formMapUrl,
         imageUrl: formImageUrl,
+        brNumber: formBrNumber.trim(),
+        brDocument: formBrDocument,
+        brDocumentType: formBrDocumentType,
       };
 
       if (dataMode === 'offline' || isOffline) {
@@ -701,9 +726,9 @@ export default function ShopsSettingsPage() {
                               <span className="line-clamp-2">{shop.address || 'NO ADDRESS'}</span>
                             </div>
 
-                            {/* Location Map Check-in Badge */}
-                            {shop.mapUrl ? (
-                              <div className="pt-1">
+                            {/* Location Map Check-in Badge & BR Document Controls */}
+                            <div className="flex flex-wrap items-center gap-2 pt-1">
+                              {shop.mapUrl ? (
                                 <a
                                   href={shop.mapUrl}
                                   target="_blank"
@@ -711,11 +736,35 @@ export default function ShopsSettingsPage() {
                                   className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#0f172a]/10 hover:bg-[#0f172a] text-[#0f172a] hover:text-white rounded-full text-[0.65rem] font-black uppercase transition-all border border-[#0f172a]/20 shadow-2xs group/map"
                                 >
                                   <Navigation size={12} className="text-blue-600 group-hover/map:text-white shrink-0 animate-pulse" />
-                                  <span>VIEW MAP LOCATION</span>
+                                  <span>VIEW MAP</span>
                                   <ExternalLink size={10} className="shrink-0" />
                                 </a>
-                              </div>
-                            ) : null}
+                              ) : null}
+
+                              {/* BR Registration Badge */}
+                              {shop.brNumber ? (
+                                <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-indigo-50 border border-indigo-200/80 rounded-full text-[0.65rem] font-black text-indigo-900 uppercase shadow-2xs">
+                                  <FileText size={11} className="text-indigo-600 shrink-0" />
+                                  <span>BR: {shop.brNumber}</span>
+                                </span>
+                              ) : null}
+
+                              {/* BR Document Preview Button */}
+                              {shop.brDocument ? (
+                                <button
+                                  type="button"
+                                  onClick={() => setViewingBrShop(shop)}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/90 hover:bg-[#0f172a] text-[#0f172a] hover:text-white rounded-full text-[0.65rem] font-black uppercase transition-all border border-gray-300/80 shadow-2xs cursor-pointer group/br"
+                                  title="View Business Registration Certificate"
+                                >
+                                  <Eye size={12} className="text-indigo-600 group-hover/br:text-indigo-300 shrink-0" />
+                                  <span>VIEW BR DOC</span>
+                                  <span className="text-[0.55rem] px-1.5 py-0.2 bg-gray-100 group-hover/br:bg-white/20 rounded font-mono">
+                                    {shop.brDocumentType === 'pdf' || (shop.brDocument && shop.brDocument.toLowerCase().includes('.pdf')) ? 'PDF' : 'IMG'}
+                                  </span>
+                                </button>
+                              ) : null}
+                            </div>
                           </div>
 
                           {/* Metrics Projected Fields Grid */}
@@ -981,6 +1030,31 @@ export default function ShopsSettingsPage() {
                 )}
               </div>
 
+              {/* Business Registration (BR) Details */}
+              <div className="pt-2 border-t border-gray-100 space-y-3">
+                <div>
+                  <label className="block text-xs font-black text-[#0f172a] uppercase mb-1 flex items-center gap-1.5">
+                    <FileText size={14} className="text-indigo-600" /> BR NUMBER (OPTIONAL)
+                  </label>
+                  <input
+                    type="text"
+                    value={formBrNumber}
+                    onChange={e => setFormBrNumber(e.target.value)}
+                    placeholder="E.G. PV123456 / W/09876"
+                    className="w-full px-4 py-2.5 bg-gray-50/50 border border-gray-300 focus:border-[#0f172a] rounded-2xl text-xs font-bold text-[#0f172a] focus:outline-none focus:ring-2 focus:ring-[#0f172a]/20 uppercase transition-all placeholder:text-gray-400"
+                  />
+                </div>
+
+                <BrDocumentUpload
+                  value={formBrDocument}
+                  documentType={formBrDocumentType}
+                  onChange={(val, type) => {
+                    setFormBrDocument(val);
+                    setFormBrDocumentType(type as 'image' | 'pdf' | '');
+                  }}
+                />
+              </div>
+
               {/* Shop Image Upload & Direct Camera Capture */}
               <div className="pt-2 border-t border-gray-100">
                 <label className="block text-xs font-black text-[#0f172a] uppercase mb-2 flex items-center gap-1.5">
@@ -1105,6 +1179,17 @@ export default function ShopsSettingsPage() {
           </div>
         </div>
       )}
+
+      {/* Standalone BR Document Viewer Modal */}
+      <BrDocumentModal
+        isOpen={!!viewingBrShop}
+        onClose={() => setViewingBrShop(null)}
+        shopName={viewingBrShop?.name || ''}
+        shopId={viewingBrShop?.shopId || ''}
+        brNumber={viewingBrShop?.brNumber}
+        brDocument={viewingBrShop?.brDocument}
+        brDocumentType={viewingBrShop?.brDocumentType}
+      />
     </>
   );
 }

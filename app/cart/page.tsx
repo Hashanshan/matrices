@@ -32,7 +32,6 @@ const productsFetcher = async (url: string) => {
 
   const urlObj = new URL(url, 'http://localhost');
   const searchParam = urlObj.searchParams.get('search') || '';
-  const mtxOnly = urlObj.searchParams.get('mtxOnly') === 'true';
 
   const getOffline = async () => {
     try {
@@ -40,18 +39,11 @@ const productsFetcher = async (url: string) => {
         search: searchParam,
         limit: 200,
       });
-      let prods = res.data || [];
-      if (mtxOnly) {
-        const mtx = prods.filter((p: any) => /^MTX-/i.test(p.productId || p.id || p.code || ''));
-        if (mtx.length > 0) prods = mtx;
-      }
+      const prods = res.data || [];
       return { success: true, data: prods };
     } catch {
       const rawProducts = await offlineDB.getAll<any>('products').catch(() => []);
-      const mtxProducts = rawProducts.filter((p: any) =>
-        /^MTX-/i.test(p.productId || p.id || '')
-      );
-      return { success: true, data: mtxProducts.length > 0 ? mtxProducts : rawProducts };
+      return { success: true, data: rawProducts };
     }
   };
 
@@ -165,11 +157,13 @@ export default function CartPage() {
     }
   }, [isProductModalOpen]);
 
-  // Fetch MTX- Products
+  // Fetch Products
   const productQuery = new URLSearchParams();
-  productQuery.set('limit', '100');
-  productQuery.set('mtxOnly', 'true');
-  if (productSearch) productQuery.set('search', productSearch);
+  productQuery.set('limit', '200');
+  if (productSearch.trim()) {
+    productQuery.set('search', productSearch.trim());
+    productQuery.set('exactOnly', 'true');
+  }
 
   const { data: productsData, isLoading: loadingProducts } = useSWR(
     isProductModalOpen ? `/api/products?${productQuery.toString()}` : null,
@@ -178,41 +172,67 @@ export default function CartPage() {
 
   const rawProductsList: ProductItem[] = (productsData?.data || []).map((p: any) => ({
     id: p.id || p._id || p.productId,
-    productId: p.productId || p.productCode || p.id,
+    productId: p.productId || p.productCode || p.code || p.id,
     name: p.name || 'Product',
     sellPrice: Number(p.sellPrice || p.price || 0),
     price: Number(p.sellPrice || p.price || 0),
     image: p.image || p.imageUrl || p.variants?.colors?.[0]?.image || p.variants?.images?.[0] || '',
   }));
 
-  const mtxFilteredProducts = useMemo(() => {
+  const filteredProducts = useMemo(() => {
     const query = productSearch.trim().toLowerCase();
     const queryClean = query.replace(/[^a-zA-Z0-9]/g, '');
+    const numMatch = query.match(/\d+/);
+    const numPattern = numMatch ? numMatch[0] : null;
 
     let list = rawProductsList;
 
-    // Filter for MTX prefix if any MTX products exist in data
-    const hasMtx = list.some(p => /^MTX-/i.test(p.productId || p.id || ''));
-    if (hasMtx) {
-      list = list.filter(p => /^MTX-/i.test(p.productId || p.id || ''));
-    }
+    if (!query) return list;
 
-    // Client-side search filtering (responsive instantaneous fallback)
-    if (query) {
-      list = list.filter(p => {
-        const pId = String(p.productId || p.id || '').toLowerCase();
-        const pName = String(p.name || '').toLowerCase();
-        const pIdClean = pId.replace(/[^a-zA-Z0-9]/g, '');
+    // Filter matching products across ID, name, code, alphanumeric clean, and numeric pattern
+    const matched = list.filter(p => {
+      const pId = String(p.productId || p.id || '').toLowerCase();
+      const pName = String(p.name || '').toLowerCase();
+      const pCode = String((p as any).code || (p as any).productCode || '').toLowerCase();
+      const pIdClean = pId.replace(/[^a-zA-Z0-9]/g, '');
+      const pCodeClean = pCode.replace(/[^a-zA-Z0-9]/g, '');
 
-        return (
-          pId.includes(query) ||
-          pName.includes(query) ||
-          (queryClean.length >= 2 && pIdClean.includes(queryClean))
-        );
-      });
-    }
+      return (
+        pId.includes(query) ||
+        pName.includes(query) ||
+        pCode.includes(query) ||
+        (queryClean.length >= 2 && (pIdClean.includes(queryClean) || pCodeClean.includes(queryClean))) ||
+        (Boolean(numPattern) && numPattern!.length >= 2 && (pId.includes(numPattern!) || pCode.includes(numPattern!)))
+      );
+    });
 
-    return list;
+    // Rank matches so exact and numeric matches jump to the top
+    matched.sort((a, b) => {
+      const aId = String(a.productId || a.id || '').toLowerCase();
+      const bId = String(b.productId || b.id || '').toLowerCase();
+      const aName = String(a.name || '').toLowerCase();
+      const bName = String(b.name || '').toLowerCase();
+      const aClean = aId.replace(/[^a-zA-Z0-9]/g, '');
+      const bClean = bId.replace(/[^a-zA-Z0-9]/g, '');
+
+      const getRank = (id: string, name: string, clean: string) => {
+        if (id === query || clean === queryClean) return 1;
+        if (numPattern && (id.endsWith(numPattern) || id === numPattern)) return 2;
+        if (id.startsWith(query) || clean.startsWith(queryClean)) return 3;
+        if (name.startsWith(query)) return 4;
+        if (numPattern && id.includes(numPattern)) return 5;
+        if (id.includes(query)) return 6;
+        if (name.includes(query)) return 7;
+        return 8;
+      };
+
+      const rankA = getRank(aId, aName, aClean);
+      const rankB = getRank(bId, bName, bClean);
+      if (rankA !== rankB) return rankA - rankB;
+      return aName.localeCompare(bName);
+    });
+
+    return matched;
   }, [rawProductsList, productSearch]);
 
   // Focus modal search input on open
@@ -717,7 +737,7 @@ export default function CartPage() {
               <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                 <div>
                   <h2 className="text-lg font-black text-[#0f172a] uppercase tracking-tight">ADD PRODUCT TO CART</h2>
-                  <p className="text-xs font-bold text-gray-400">Search and add MTX product directly to cart</p>
+                  <p className="text-xs font-bold text-gray-400">Search and add product directly to cart</p>
                 </div>
                 <button
                   type="button"
@@ -736,8 +756,8 @@ export default function CartPage() {
                     <form
                       onSubmit={(e) => {
                         e.preventDefault();
-                        if (mtxFilteredProducts.length > 0) {
-                          handleSelectProduct(mtxFilteredProducts[0]);
+                        if (filteredProducts.length > 0) {
+                          handleSelectProduct(filteredProducts[0]);
                         }
                       }}
                       className="relative flex items-center"
@@ -756,8 +776,8 @@ export default function CartPage() {
                         onKeyDown={e => {
                           if (e.key === 'Enter' || e.keyCode === 13) {
                             e.preventDefault();
-                            if (mtxFilteredProducts.length > 0) {
-                              handleSelectProduct(mtxFilteredProducts[0]);
+                            if (filteredProducts.length > 0) {
+                              handleSelectProduct(filteredProducts[0]);
                             }
                           }
                         }}
@@ -824,13 +844,13 @@ export default function CartPage() {
                   {/* Product Search Cards List */}
                   <div className="flex-1 overflow-y-auto space-y-3 pr-1 max-h-[360px]">
                     {loadingProducts ? (
-                      <div className="py-12 text-center text-xs font-bold text-gray-400 uppercase animate-pulse">Loading MTX products...</div>
-                    ) : mtxFilteredProducts.length === 0 ? (
+                      <div className="py-12 text-center text-xs font-bold text-gray-400 uppercase animate-pulse">Loading products...</div>
+                    ) : filteredProducts.length === 0 ? (
                       <div className="py-12 text-center text-xs font-bold text-gray-400 uppercase">
-                        No MTX products found
+                        No products found
                       </div>
                     ) : (
-                      mtxFilteredProducts.map((product) => (
+                      filteredProducts.map((product) => (
                         <div
                           key={product.id}
                           onClick={() => handleSelectProduct(product)}
@@ -843,7 +863,6 @@ export default function CartPage() {
                             <p className="text-sm font-black text-slate-700">
                               Rs.{product.sellPrice}
                             </p>
-                            {/* ONLY ID: MTX-XXXX IS SHOWN */}
                             <p className="text-xs font-bold text-gray-400">
                               ID: <strong className="text-gray-600 font-mono">{product.productId}</strong>
                             </p>

@@ -82,7 +82,6 @@ const productsFetcher = async (url: string) => {
 
   const urlObj = new URL(url, 'http://localhost');
   const searchParam = urlObj.searchParams.get('search') || '';
-  const mtxOnly = urlObj.searchParams.get('mtxOnly') === 'true';
 
   const getOffline = async () => {
     try {
@@ -90,18 +89,11 @@ const productsFetcher = async (url: string) => {
         search: searchParam,
         limit: 200,
       });
-      let prods = res.data || [];
-      if (mtxOnly) {
-        const mtx = prods.filter((p: any) => /^MTX-/i.test(p.productId || p.id || p.code || ''));
-        if (mtx.length > 0) prods = mtx;
-      }
+      const prods = res.data || [];
       return { success: true, data: prods };
     } catch {
       const rawProducts = await offlineDB.getAll<any>('products').catch(() => []);
-      const mtxProducts = rawProducts.filter((p: any) =>
-        /^MTX-/i.test(p.productId || p.id || '')
-      );
-      return { success: true, data: mtxProducts.length > 0 ? mtxProducts : rawProducts };
+      return { success: true, data: rawProducts };
     }
   };
 
@@ -156,6 +148,7 @@ function CreateOrderContent() {
   // Product Selection Modal State & Refs
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [productSearch, setProductSearch] = useState('');
+  const [searchKeyboardMode, setSearchKeyboardMode] = useState<'numeric' | 'text'>('numeric');
   const [selectedProductForAdd, setSelectedProductForAdd] = useState<ProductItem | null>(null);
   const [addQuantity, setAddQuantity] = useState<number>(1);
   const [addNote, setAddNote] = useState<string>('');
@@ -259,57 +252,82 @@ function CreateOrderContent() {
     );
   });
 
-  // Fetch MTX- Products ONLY
+  // Fetch Products
   const productQuery = new URLSearchParams();
-  productQuery.set('limit', '100');
-  productQuery.set('mtxOnly', 'true');
-  if (productSearch) productQuery.set('search', productSearch);
+  productQuery.set('limit', '200');
+  if (productSearch.trim()) {
+    productQuery.set('search', productSearch.trim());
+    productQuery.set('exactOnly', 'true');
+  }
 
   const { data: productsData, isLoading: loadingProducts } = useSWR(
-    `/api/products?${productQuery.toString()}`,
+    isProductModalOpen ? `/api/products?${productQuery.toString()}` : null,
     productsFetcher
   );
 
-  // Filter products matching /^MTX-/i
   const rawProductsList: ProductItem[] = (productsData?.data || []).map((p: any) => ({
     id: p.id || p._id || p.productId,
-    productId: p.productId || p.productCode || p.id,
+    productId: p.productId || p.productCode || p.code || p.id,
     name: p.name || 'Product',
     sellPrice: Number(p.sellPrice || p.price || 0),
     price: Number(p.sellPrice || p.price || 0),
-    image: p.image || '',
+    image: p.image || p.imageUrl || p.variants?.colors?.[0]?.image || p.variants?.images?.[0] || '',
   }));
 
-  const mtxFilteredProducts = useMemo(() => {
+  const filteredProducts = useMemo(() => {
     const query = productSearch.trim().toLowerCase();
     const queryClean = query.replace(/[^a-zA-Z0-9]/g, '');
+    const numMatch = query.match(/\d+/);
+    const numPattern = numMatch ? numMatch[0] : null;
 
     let list = rawProductsList;
 
-    // Filter for MTX prefix if any MTX products exist in data
-    const hasMtx = list.some(p => /^MTX-/i.test(p.productId || p.id || ''));
-    if (hasMtx) {
-      list = list.filter(p => /^MTX-/i.test(p.productId || p.id || ''));
-    }
+    if (!query) return list;
 
-    // Client-side search filtering (responsive instantaneous fallback)
-    if (query) {
-      list = list.filter(p => {
-        const pId = String(p.productId || p.id || '').toLowerCase();
-        const pName = String(p.name || '').toLowerCase();
-        const pCode = String((p as any).code || '').toLowerCase();
-        const pIdClean = pId.replace(/[^a-zA-Z0-9]/g, '');
+    // Filter matching products across ID, name, code, clean alphanumeric, and numeric pattern
+    const matched = list.filter(p => {
+      const pId = String(p.productId || p.id || '').toLowerCase();
+      const pName = String(p.name || '').toLowerCase();
+      const pCode = String((p as any).code || (p as any).productCode || '').toLowerCase();
+      const pIdClean = pId.replace(/[^a-zA-Z0-9]/g, '');
+      const pCodeClean = pCode.replace(/[^a-zA-Z0-9]/g, '');
 
-        return (
-          pId.includes(query) ||
-          pName.includes(query) ||
-          pCode.includes(query) ||
-          (queryClean.length >= 2 && pIdClean.includes(queryClean))
-        );
-      });
-    }
+      return (
+        pId.includes(query) ||
+        pName.includes(query) ||
+        pCode.includes(query) ||
+        (queryClean.length >= 2 && (pIdClean.includes(queryClean) || pCodeClean.includes(queryClean))) ||
+        (Boolean(numPattern) && numPattern!.length >= 2 && (pId.includes(numPattern!) || pCode.includes(numPattern!)))
+      );
+    });
 
-    return list;
+    // Rank matches so exact & numeric matches appear at the top
+    matched.sort((a, b) => {
+      const aId = String(a.productId || a.id || '').toLowerCase();
+      const bId = String(b.productId || b.id || '').toLowerCase();
+      const aName = String(a.name || '').toLowerCase();
+      const bName = String(b.name || '').toLowerCase();
+      const aClean = aId.replace(/[^a-zA-Z0-9]/g, '');
+      const bClean = bId.replace(/[^a-zA-Z0-9]/g, '');
+
+      const getRank = (id: string, name: string, clean: string) => {
+        if (id === query || clean === queryClean) return 1;
+        if (numPattern && (id.endsWith(numPattern) || id === numPattern)) return 2;
+        if (id.startsWith(query) || clean.startsWith(queryClean)) return 3;
+        if (name.startsWith(query)) return 4;
+        if (numPattern && id.includes(numPattern)) return 5;
+        if (id.includes(query)) return 6;
+        if (name.includes(query)) return 7;
+        return 8;
+      };
+
+      const rankA = getRank(aId, aName, aClean);
+      const rankB = getRank(bId, bName, bClean);
+      if (rankA !== rankB) return rankA - rankB;
+      return aName.localeCompare(bName);
+    });
+
+    return matched;
   }, [rawProductsList, productSearch]);
 
   // Load order data if in Edit Mode
@@ -802,7 +820,7 @@ function CreateOrderContent() {
                       }}
                       className="mt-3 text-xs font-black text-blue-600 underline uppercase cursor-pointer"
                     >
-                      Click "+ ADD PRODUCT" to search MTX products
+                      Click "+ ADD PRODUCT" to search products
                     </button>
                   </div>
                 ) : (
@@ -811,7 +829,7 @@ function CreateOrderContent() {
                       <thead>
                         <tr className="text-gray-400 uppercase font-black tracking-wider text-[10px]">
                           <th className="py-2.5 px-3">Product Name</th>
-                          <th className="py-2.5 px-3">MTX ID</th>
+                          <th className="py-2.5 px-3">PRODUCT ID</th>
                           <th className="py-2.5 px-3">Price</th>
                           <th className="py-2.5 px-3">Quantity</th>
                           <th className="py-2.5 px-3">Subtotal</th>
@@ -970,7 +988,7 @@ function CreateOrderContent() {
               <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                 <div>
                   <h2 className="text-lg font-black text-[#0f172a] uppercase tracking-tight">ADD PRODUCT</h2>
-                  <p className="text-xs font-bold text-gray-400">Search and select an MTX product</p>
+                  <p className="text-xs font-bold text-gray-400">Search and select a product</p>
                 </div>
                 <button
                   type="button"
@@ -984,37 +1002,106 @@ function CreateOrderContent() {
               {/* VIEW 1: SEARCH PRODUCT LIST (Shown when no product is selected yet) */}
               {!selectedProductForAdd ? (
                 <>
-                  {/* Product Search Input (With Enter Key Fast Selection!) */}
-                  <div className="relative">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                    <input
-                      ref={modalSearchInputRef}
-                      type="text"
-                      value={productSearch}
-                      onChange={e => setProductSearch(e.target.value)}
-                      onKeyDown={e => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          if (mtxFilteredProducts.length > 0) {
-                            handleSelectProduct(mtxFilteredProducts[0]);
-                          }
+                  {/* Product Search Input (With Default Numeric Keyboard & ABC Toggle) */}
+                  <div className="space-y-2">
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        if (filteredProducts.length > 0) {
+                          handleSelectProduct(filteredProducts[0]);
                         }
                       }}
-                      placeholder="Search products..."
-                      className="w-full pl-11 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold text-[#0f172a] focus:outline-none focus:ring-2 focus:ring-[#0f172a]/20 shadow-xs"
-                    />
+                      className="relative flex items-center"
+                    >
+                      <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                      <input
+                        ref={modalSearchInputRef}
+                        type="text"
+                        inputMode={searchKeyboardMode}
+                        enterKeyHint="go"
+                        autoComplete="off"
+                        autoCorrect="off"
+                        spellCheck={false}
+                        value={productSearch}
+                        onChange={e => setProductSearch(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' || e.keyCode === 13) {
+                            e.preventDefault();
+                            if (filteredProducts.length > 0) {
+                              handleSelectProduct(filteredProducts[0]);
+                            }
+                          }
+                        }}
+                        placeholder={searchKeyboardMode === 'numeric' ? "Type product code / number (e.g. 10216)..." : "Search by product name or code..."}
+                        className="w-full pl-11 pr-24 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold text-[#0f172a] focus:outline-none focus:ring-2 focus:ring-[#0f172a]/20 shadow-xs uppercase"
+                      />
+
+                      {/* Actions on right: Clear button + Keyboard Toggle (123 / ABC) */}
+                      <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
+                        {productSearch && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setProductSearch('');
+                              modalSearchInputRef.current?.focus();
+                            }}
+                            className="p-1 rounded-full text-gray-400 hover:text-gray-600 hover:bg-slate-200/60 transition-colors cursor-pointer"
+                            title="Clear search"
+                          >
+                            <X size={14} />
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const nextMode = searchKeyboardMode === 'numeric' ? 'text' : 'numeric';
+                            setSearchKeyboardMode(nextMode);
+                            setTimeout(() => {
+                              modalSearchInputRef.current?.focus();
+                            }, 50);
+                          }}
+                          className={`px-2.5 py-1 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1 cursor-pointer shadow-xs border ${searchKeyboardMode === 'numeric'
+                            ? 'bg-sky-500 text-white border-sky-600 hover:bg-sky-600'
+                            : 'bg-[#0f172a] text-white border-[#0f172a] hover:bg-[#1e293b]'
+                            }`}
+                          title={`Click to switch keyboard to ${searchKeyboardMode === 'numeric' ? 'Text (ABC)' : 'Numeric (123)'}`}
+                        >
+                          {searchKeyboardMode === 'numeric' ? '123' : 'ABC'}
+                        </button>
+                      </div>
+                    </form>
+
+                    {/* Quick Mode Switch Helper */}
+                    <div className="flex items-center justify-between px-1 text-[11px] font-bold">
+                      <span className="text-gray-400 uppercase">
+                        Keyboard: <strong className={searchKeyboardMode === 'numeric' ? 'text-sky-600 font-black' : 'text-[#0f172a] font-black'}>{searchKeyboardMode === 'numeric' ? '123 NUMERIC (DEFAULT)' : 'ABC TEXT'}</strong>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const nextMode = searchKeyboardMode === 'numeric' ? 'text' : 'numeric';
+                          setSearchKeyboardMode(nextMode);
+                          setTimeout(() => {
+                            modalSearchInputRef.current?.focus();
+                          }, 50);
+                        }}
+                        className="text-sky-600 hover:text-sky-800 uppercase font-black cursor-pointer hover:underline"
+                      >
+                        SWITCH TO {searchKeyboardMode === 'numeric' ? 'ABC TEXT' : '123 NUMERIC'}
+                      </button>
+                    </div>
                   </div>
 
-                  {/* Product Search Cards List (Matching Screenshot 2 exact design!) */}
+                  {/* Product Search Cards List */}
                   <div className="flex-1 overflow-y-auto space-y-3 pr-1 max-h-[360px]">
                     {loadingProducts ? (
-                      <div className="py-12 text-center text-xs font-bold text-gray-400 uppercase animate-pulse">Loading MTX products...</div>
-                    ) : mtxFilteredProducts.length === 0 ? (
+                      <div className="py-12 text-center text-xs font-bold text-gray-400 uppercase animate-pulse">Loading products...</div>
+                    ) : filteredProducts.length === 0 ? (
                       <div className="py-12 text-center text-xs font-bold text-gray-400 uppercase">
-                        No MTX products found
+                        No products found
                       </div>
                     ) : (
-                      mtxFilteredProducts.map((product) => (
+                      filteredProducts.map((product) => (
                         <div
                           key={product.id}
                           onClick={() => handleSelectProduct(product)}
@@ -1027,7 +1114,6 @@ function CreateOrderContent() {
                             <p className="text-sm font-black text-slate-700">
                               Rs.{product.sellPrice}
                             </p>
-                            {/* ONLY ID: MTX-XXXX IS SHOWN (Code & buyPrice are removed!) */}
                             <p className="text-xs font-bold text-gray-400">
                               ID: <strong className="text-gray-600 font-mono">{product.productId}</strong>
                             </p>

@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/contexts/auth-context';
 import PinModal from '@/components/pin-modal';
 import Pagination from '@/components/pagination';
 import InvoicePdfModal from '@/components/invoice-pdf-modal';
+import BrDocumentModal from '@/components/br-document-modal';
 import { motion } from 'framer-motion';
 import { Store, Phone, MapPin, ShieldCheck, Heart, Search, Lock, ArrowLeft, FileText, CheckCircle2, Clock, AlertCircle, XCircle, ShoppingBag, DollarSign, Calendar, RefreshCw, Eye, Navigation, ExternalLink, Mail } from 'lucide-react';
 import Link from 'next/link';
@@ -22,6 +23,9 @@ interface Shop {
   address: string;
   mapUrl?: string;
   imageUrl?: string;
+  brNumber?: string;
+  brDocument?: string;
+  brDocumentType?: string;
   deliveredOrders: number;
   pendingOrders: number;
   totalSales: number;
@@ -151,6 +155,7 @@ export default function ShopClient({ params }: { params?: Promise<{ shopId: stri
   const [toDate, setToDate] = useState('');
   const [page, setPage] = useState(1);
   const [selectedInvoice, setSelectedInvoice] = useState<Order | null>(null);
+  const [isBrModalOpen, setIsBrModalOpen] = useState(false);
 
   const queryParams = new URLSearchParams();
   if (searchQuery) queryParams.set('searchQuery', searchQuery);
@@ -343,13 +348,18 @@ export default function ShopClient({ params }: { params?: Promise<{ shopId: stri
                 )}
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-gray-200/60">
                   <div>
-                    <div className="flex items-center gap-2 mb-2">
+                    <div className="flex items-center gap-2 mb-2 flex-wrap">
                       <span className="text-[0.65rem] font-black text-white bg-[#0f172a] px-3.5 py-1 rounded-full uppercase tracking-widest shadow-xs">
                         {shop.shopId}
                       </span>
                       <span className="text-[0.65rem] font-black text-green-800 bg-green-100/90 border border-green-200 px-3 py-1 rounded-full uppercase">
                         ACTIVE SHOP
                       </span>
+                      {shop.brNumber && (
+                        <span className="text-[0.65rem] font-black text-indigo-900 bg-indigo-50 border border-indigo-200 px-3 py-1 rounded-full uppercase tracking-wider">
+                          BR: {shop.brNumber}
+                        </span>
+                      )}
                     </div>
                     <h1 className="text-2xl sm:text-4xl font-black text-[#0f172a] uppercase tracking-wide">
                       {shop.name}
@@ -394,6 +404,22 @@ export default function ShopClient({ params }: { params?: Promise<{ shopId: stri
                         >
                           <Navigation size={11} className="text-blue-400 shrink-0" /> VIEW MAP LOCATION <ExternalLink size={10} />
                         </a>
+                      )}
+
+                      {/* BR Certificate Viewer Trigger */}
+                      {shop.brDocument && (
+                        <button
+                          type="button"
+                          onClick={() => setIsBrModalOpen(true)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1 bg-white/80 hover:bg-[#0f172a] text-[#0f172a] hover:text-white rounded-full text-xs font-bold transition-all border border-white/90 shadow-2xs group/br cursor-pointer"
+                          title="View Business Registration Certificate"
+                        >
+                          <Eye size={12} className="text-indigo-600 group-hover/br:text-indigo-300 shrink-0" />
+                          <span>VIEW BR CERTIFICATE</span>
+                          <span className="text-[0.6rem] px-1.5 py-0.2 bg-gray-100 group-hover/br:bg-white/20 rounded font-mono">
+                            {shop.brDocumentType === 'pdf' || (shop.brDocument && shop.brDocument.toLowerCase().includes('.pdf')) ? 'PDF' : 'IMAGE'}
+                          </span>
+                        </button>
                       )}
                     </div>
                   </div>
@@ -616,6 +642,18 @@ export default function ShopClient({ params }: { params?: Promise<{ shopId: stri
             order={selectedInvoice}
             onClose={() => setSelectedInvoice(null)}
           />
+
+          {shop && (
+            <BrDocumentModal
+              isOpen={isBrModalOpen}
+              onClose={() => setIsBrModalOpen(false)}
+              shopName={shop.name}
+              shopId={shop.shopId}
+              brNumber={shop.brNumber}
+              brDocument={shop.brDocument}
+              brDocumentType={shop.brDocumentType}
+            />
+          )}
 
         </div>
       </main>
