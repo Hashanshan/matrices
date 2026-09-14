@@ -1,155 +1,102 @@
-# Product Catalogue - Mobile APK & Offline Sync Project Scope
+# Matrices Mobile Catalogue & Salesrep Ordering - Technical Scope
 
 ## Executive Summary
-This document defines the technical scope, architectural strategy, and implementation requirements for converting the **Product Catalogue Site** into a native/hybrid **Mobile APK (Android Application)**. The primary goals are to establish a clean separation between web and mobile codebase files, implement native hardware/OS permissions (Camera, Location, Storage), enable robust offline-first functionality (including offline search), and provide a seamless manual **Sync Engine** for pre-loading catalog data onto sales representatives' devices.
+
+The **Matrices Mobile Catalogue Application** is a high-performance hybrid mobile and responsive web application built with **Next.js 16**, **React 19**, **Tailwind CSS v4**, and **Capacitor 8**.
+
+It is purpose-built for field sales representatives traveling on assigned distribution routes. It enables sales reps to showcase product lines with high-resolution imagery, prioritize catalogs using customized wishlist rankings, place instant orders for retail shops, verify shop visits via GPS and camera check-ins, and receive live Over-The-Air (OTA) application updates without reinstalling APKs.
 
 ---
 
-## 1. Modular Architecture & File Separation
-
-To maintain clean code hygiene and prevent APK-specific dependencies from bloating the standard Next.js web application, APK related assets and bridge native modules will be isolated.
-
-### File & Directory Structure
-```
-product-catalogue-site/
-├── mobile/                           # Isolated Mobile & APK Module
-│   ├── android/                      # Native Android Studio project container
-│   ├── capacitor.config.json         # Native runtime configuration
-│   ├── permissions/                  # Native OS Permission Handlers
-│   │   ├── camera.permission.ts
-│   │   ├── location.permission.ts
-│   │   └── storage.permission.ts
-│   ├── storage/                      # Local Offline DB Adapters (IndexedDB / SQLite)
-│   │   ├── catalog-db.ts
-│   │   ├── image-cache-db.ts
-│   │   └── sync-queue-db.ts
-│   ├── sync/                         # Offline-First Sync Engine
-│   │   ├── sync-engine.ts
-│   │   ├── sync-status.listener.ts
-│   │   └── delta-fetcher.ts
-│   └── bridge/                       # Native Bridge (Web ↔ Native Wrapper)
-│       └── native-adapter.ts
-├── app/                              # Next.js Web App Core Routes
-├── components/                       # Shared UI Components
-│   └── mobile/                       # APK-Specific UI (Sync Bar, Network Banner)
-│       ├── sync-button.tsx
-│       ├── offline-indicator.tsx
-│       └── sync-progress-modal.tsx
-└── lib/                              # Shared Utilities & Contexts
-```
-
----
-
-## 2. Device Permission Management System
-
-The mobile application will integrate Capacitor / Native Plugins to interact directly with Android OS hardware APIs. Dedicated user dialogs will request permissions with contextual explanations before calling OS level permission popups.
-
-| Permission | Purpose in Catalogue APK | Required Android Manifest Permissions | Fallback / Graceful Behavior |
-| :--- | :--- | :--- | :--- |
-| **Storage** | Saving downloaded product images, catalog PDFs, offline SQLite/IndexedDB databases, and exported reports locally. | `READ_EXTERNAL_STORAGE`<br>`WRITE_EXTERNAL_STORAGE`<br>`READ_MEDIA_IMAGES` *(Android 13+)* | Fallback to temporary in-memory blob cache (cleared when app closes). |
-| **Camera** | Capturing shop check-in photos, barcode scanning of product packages, and shop storefront verification. | `CAMERA` | Disables image capture feature; allows file upload from existing gallery photos only. |
-| **Location** | Recording salesrep GPS coordinates during shop check-ins, auto-verifying shop distance, and geo-tagging orders. | `ACCESS_FINE_LOCATION`<br>`ACCESS_COARSE_LOCATION` | Manual location lookup or shop selection with audit flag for missing GPS verification. |
-
-### Permission Request Flow
-1. **Contextual Explanation UI**: Show app dialog explaining *why* the permission is needed (e.g., *"Location access is required to verify your shop check-in point"*).
-2. **OS Permission Request**: Trigger native OS prompt (`Camera.requestPermissions()`, `Geolocation.requestPermissions()`).
-3. **Permission Denial Handling**: If denied, display a user-friendly modal with a quick button linking to system settings (`App.openAppSettings()`).
-
----
-
-## 3. Offline-First & Network Resiliency Architecture
-
-Sales representatives frequently operate in low-connectivity or offline environments (e.g., basements, rural shops, warehouses). The app must remain 100% functional without an active network connection.
-
-```
-                  +-----------------------------------+
-                  |        Sales Representative       |
-                  +-----------------------------------+
-                                    |
-                    +---------------+---------------+
-                    |                               |
-              [ Online ]                       [ Offline ]
-                    |                               |
-       Fetch from BFF Server            Query Local IndexedDB / SQLite
-       (app/api/products)               (FlexSearch & Local Caches)
-                    |                               |
-                    +---------------+---------------+
-                                    |
-                       Render Catalogue Smoothly (60fps)
-```
-
-### Core Offline Requirements
-- **Local Storage Engine**: IndexedDB (via `Dexie.js`) or Capacitor SQLite plugin for high-performance offline indexing.
-- **Offline Search Engine**: Client-side full-text search index powered by `FlexSearch` or `Lunr.js` operating directly on locally stored products. Search responses must resolve in under **50ms**.
-- **Offline Wishlist & Prioritization**: Wishlist reordering and sorting priority rules stored locally and synced when online.
-- **Image Offline Cache**: Product thumbnail images and assets stored in CacheStorage or native filesystem (`Capacitor.Filesystem`), served via local Blob URLs when offline.
-- **Network Detection**: Centralized `useNetworkStatus` hook observing `navigator.onLine` and native network state.
-
----
-
-## 4. Bulk Download & Data Sync Engine ("Sync" Button)
-
-A key requirement is the manual **Sync** button that allows sales reps to download all necessary product catalog data, categories, subcategories, shop lists, and images to their device before heading into the field.
-
-### Sync Button UI & Components
-- **Placement**: Header navigation bar (desktop & mobile top bar) and settings menu.
-- **Visual State**:
-  - **Idle / Synced**: Green indicator showing last synced timestamp (e.g., *"Synced 2 hrs ago"*).
-  - **Syncing**: Animated spinning sync icon with live percentage completion pill (e.g., *"Syncing 45%"*).
-  - **Offline / Stale**: Yellow warning badge prompting user to sync when connected to Wi-Fi.
-
-### Data Sync Workflow
-1. **Sync Initiated**: User clicks **"Sync Data"** button.
-2. **Connectivity & Storage Check**: Verify network status and ensure at least 250MB free storage space on device.
-3. **Bulk API Fetch**:
-   - Call `/api/catelogue/sync/all` to fetch JSON payloads of all active categories, subcategories, products, and shop data.
-4. **Local Database Populate**: Atomic write transaction inserting records into local IndexedDB / SQLite store.
-5. **Asset & Image Download Engine**:
-   - Concurrently batch-download product thumbnail images in groups of 10.
-   - Save binary image blobs locally and register path mappings in `image-cache-db`.
-6. **Search Index Rebuild**: Build/update client-side `FlexSearch` index.
-7. **Sync Completion Notification**: Display clear toast/modal: *"Catalog successfully synced! 1,250 products & 180 images downloaded."*
-
-### Incremental / Delta Syncing
-To save bandwidth and time, future syncs after the initial bulk download will use **Delta Syncing**:
-- Request only items modified after `lastSyncTimestamp`.
-- Remove deleted products locally and update modified prices/stock levels.
-
----
-
-## 5. Performance & User Experience Goals
-
-- **60 FPS Smooth Scrolling**: Virtualized lists (`@tanstack/react-virtual` or `react-window`) for browsing 5,000+ catalog items offline.
-- **Instant Filtering**: Category and wishlist filters update instantly (< 20ms) from local memory state.
-- **Zero Blank States**: If network drops mid-session, UI gracefully shifts to offline cache without error screens or broken image icons.
-
----
-
-## 6. Implementation Roadmap
+## 🏛️ Mobile Architecture & Native Bridge
 
 ```mermaid
-gantt
-    title APK & Offline Sync Implementation Roadmap
-    dateFormat  YYYY-MM-DD
-    section Phase 1: Architecture & Permissions
-    Mobile module isolation setup            :p1_1, 2026-08-01, 5d
-    Permission request handlers (Storage/Cam/Loc) :p1_2, after p1_1, 7d
-    section Phase 2: Offline DB & Search
-    IndexedDB / SQLite storage setup         :p2_1, after p1_2, 7d
-    Offline FlexSearch index integration    :p2_2, after p2_1, 5d
-    section Phase 3: Sync Engine & UI
-    BFF Bulk Sync endpoint (/api/sync/all)   :p3_1, after p2_2, 5d
-    Sync Button & Progress UI Components     :p3_2, after p3_1, 5d
-    Image batch caching engine               :p3_3, after p3_2, 6d
-    section Phase 4: Build & APK Packaging
-    Capacitor Android wrapper build          :p4_1, after p3_3, 7d
-    Testing, offline QA & APK Release        :p4_2, after p4_1, 7d
+graph TD
+    subgraph UI & Application Layer [Next.js 16 + React 19]
+        HOME[Catalogue Showcase & Hero Slider]
+        GALLERY[Dynamic Product Gallery & Filters]
+        CART[Zustand Cart State & Order Checkout]
+        WISHLIST[Wishlist Prioritization & Reordering]
+        SETTINGS[Profile & 4-Digit Security PIN]
+    end
+
+    subgraph Native Capacitor Bridge [Capacitor 8]
+        CAM_PLUGIN[@capacitor/camera - Storefront Verification]
+        LOC_PLUGIN[@capacitor/geolocation - GPS Route Check-in]
+        FS_PLUGIN[@capacitor/filesystem - Image & Cache Store]
+        UPD_PLUGIN[@capgo/capacitor-updater - Live OTA Engine]
+    end
+
+    subgraph Operating Systems & Hardware
+        ANDROID_MODERN[Modern Android 7.0+ / API 24-35 APK]
+        ANDROID_LEGACY[Legacy Android 4.4+ / API 19+ POS APK]
+        IOS_APP[Apple iOS 14+ IPA via EAS]
+        MOBILE_WEB[Mobile & Tablet Responsive Web]
+    end
+
+    UI & Application Layer --> Native Capacitor Bridge
+    Native Capacitor Bridge --> ANDROID_MODERN
+    Native Capacitor Bridge --> ANDROID_LEGACY
+    Native Capacitor Bridge --> IOS_APP
 ```
 
 ---
 
-## 7. Next Steps & Action Items
-1. Review and approve `PROJECT_SCOPE.md`.
-2. Create isolated `/mobile` workspace directory inside `product-catalogue-site`.
-3. Set up Capacitor Android environment and permission wrapper classes.
-4. Implement `/api/catelogue/sync/all` endpoint on BFF server for bulk data downloads.
+## 📱 Core Application Modules & User Experience
+
+### 1. Digital Product Showcase & Gallery (`app/gallery/`, `app/category/`)
+* **Dynamic Wishlist Ranking**: The gallery dynamically pulls the logged-in sales representative's wishlist preferences. Categories, subcategories, and individual products starred by the salesrep automatically sort to the very top.
+* **Instant Filtering & Search**: Instant filtering by Category, Subcategory, Price Range, and SKU with client-side cached data.
+* **High-Resolution Visuals**: Product images served from Cloudflare R2 CDN with smooth pinch-to-zoom support (`react-medium-image-zoom`).
+
+### 2. Interactive Cart & Field Order Placement (`app/cart/`, `app/order-confirmation/`)
+* **Persistent Cart**: Powered by `zustand` with local storage persistence to prevent cart loss during network drops.
+* **Shop & Route Selection**: Choose target retail shop along today's active delivery route.
+* **Dynamic Pricing & Discounts**: Automatic application of wholesale price tiers, bulk volume discounts, and payment terms (Cash on Delivery, 30-day credit, Cheque).
+* **Instant Submission**: Order payload sent to `/api/order/create` with offline retry queuing.
+
+### 3. Salesrep Wishlist & Catalogue Prioritization (`app/wishlist/`)
+* **Drag-and-Drop Reordering**: Sales representatives can arrange categories and products in the exact sequence they present to customers.
+* **One-Tap Star/Unstar**: Star categories or items to immediately push them to the top of the catalogue.
+* **Cloud Sync**: Custom order preferences synced to `/api/catelogue/wishlist` so preferences follow the salesrep across all devices.
+
+### 4. Security PIN & Profile Management (`app/settings/`)
+* **4-Digit Security PIN**: Salesreps must enter their 4-digit security PIN to unlock sensitive settings, wholesale cost breakdowns, and profile settings.
+* **Forgot PIN / Reset Flow**: Verify account password to reset security PIN instantly.
+
+---
+
+## 🔌 Native Hardware Integration (Capacitor 8)
+
+| Hardware Feature | Capacitor Plugin | Application Use Case |
+| :--- | :--- | :--- |
+| **Camera** | `@capacitor/camera` | Capturing shop storefront photos, proof of delivery, and barcode scanning. |
+| **GPS Geolocation**| `@capacitor/geolocation` | Recording salesrep GPS coordinates during shop visits and calculating distance to shop. |
+| **Local Filesystem**| `@capacitor/filesystem` | Caching high-res product thumbnails locally for instant offline rendering. |
+| **OTA Updater** | `@capgo/capacitor-updater`| Downloading and swapping live delta web bundles in the background without user intervention. |
+
+---
+
+## 🤖 Multi-Flavor Android Builds & Compatibility
+
+To support the diverse range of handheld hardware used by field sales teams, the build system compiles two distinct APK flavors:
+
+### 1. Modern Android Flavor (`modernDebug` / `modernRelease`)
+* **Target OS**: Android 7.0 (Nougat) through Android 15 (API 24 to 35).
+* **Runtime**: High-performance modern Android System WebView with full ES2023+ support.
+
+### 2. Legacy Android Flavor (`legacyDebug` / `legacyRelease`)
+* **Target OS**: Android 4.4 (KitKat) through Android 6.0 (Marshmallow) (API 19 to 23).
+* **Target Devices**: Rugged handheld barcode scanners, older POS terminals, and legacy field tablets.
+
+---
+
+## ☁️ Over-The-Air (OTA) Release & Cloudflare R2 Pipeline
+
+1. **Automated Compilation**: Running `npm run apk:modern` or `npm run apk:legacy` executes `scripts/build-apk.mjs`.
+2. **Static Export & Asset Pruning**: Generates static HTML/JS export (`out/`) and prunes server API binaries to minimize asset size.
+3. **Gradle Native Build**: Automatically resolves Android SDK paths and triggers Gradle wrapper compilation.
+4. **Cloudflare R2 Bucket Upload**: Uploads compiled APK directly to:
+   `matrices/apk/app-release/matrices-latest.apk` on Cloudflare R2.
+5. **OTA Metadata Sync**: Notifies `/api/updates/upload-apk` and writes `updates/version.json` with file size, MD5 checksum, version code, and release notes.
+6. **Live App Update**: Client devices query `/api/updates/check-update` to either download an instant live zip bundle (`updates/app-vX.X.X.zip`) or prompt for a full APK upgrade.
