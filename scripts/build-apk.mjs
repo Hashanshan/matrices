@@ -92,89 +92,111 @@ async function buildApk() {
   const sizeMb = (stats.size / (1024 * 1024)).toFixed(2);
   console.log(`✅ APK copied successfully (${sizeMb} MB)`);
 
-  // 7. Upload to Cloudinary Bucket under folder 'apk/app-release'
-  console.log('5️⃣ Uploading compiled APK to Cloudinary bucket under folder: apk/app-release...');
+  // 7. Upload to Cloudflare R2 / Storage Bucket under folder '<folder>/apk/app-release'
+  console.log('5️⃣ Uploading compiled APK to storage bucket (Cloudflare R2)...');
   let bucketApkUrl = process.env.APK_BUCKET_URL || process.env.NEXT_PUBLIC_APK_URL || '';
 
   try {
     const { createRequire } = await import('module');
     const require = createRequire(import.meta.url);
-    let cloudinarySdk = null;
 
+    // Try loading R2 helper from backend/utils/r2.js
+    let r2Helper = null;
     try {
-      cloudinarySdk = require('cloudinary').v2;
-    } catch {
+      r2Helper = require(path.join(rootDir, '..', 'backend', 'utils', 'r2.js'));
+    } catch {}
+
+    if (r2Helper && typeof r2Helper.uploadApkToR2 === 'function') {
       try {
-        cloudinarySdk = require(path.join(rootDir, '..', 'backend', 'node_modules', 'cloudinary')).v2;
+        const rootFolder = r2Helper.getR2RootFolder();
+        const r2Res = await r2Helper.uploadApkToR2({
+          filePath: destApkPath,
+          fileName: 'matrices-latest.apk',
+          folder: `${rootFolder}/apk/app-release`
+        });
+        if (r2Res && r2Res.uploaded && r2Res.secureUrl) {
+          bucketApkUrl = r2Res.secureUrl;
+          console.log(`☁️ Cloudflare R2 Bucket Upload Success: ${bucketApkUrl}`);
+        }
+      } catch (r2Err) {
+        console.warn('⚠️ Cloudflare R2 direct upload warning:', r2Err.message || r2Err);
+      }
+    }
+
+    if (!bucketApkUrl) {
+      let cloudinarySdk = null;
+      try {
+        cloudinarySdk = require('cloudinary').v2;
       } catch {
         try {
-          cloudinarySdk = require(path.join(rootDir, '..', 'project', 'node_modules', 'cloudinary')).v2;
+          cloudinarySdk = require(path.join(rootDir, '..', 'backend', 'node_modules', 'cloudinary')).v2;
         } catch {
-          cloudinarySdk = null;
+          try {
+            cloudinarySdk = require(path.join(rootDir, '..', 'project', 'node_modules', 'cloudinary')).v2;
+          } catch {
+            cloudinarySdk = null;
+          }
+        }
+      }
+
+      if (cloudinarySdk) {
+        let cloudName = process.env.CLOUDINARY_CLOUD_NAME || process.env.CLOUD_NAME;
+        let apiKey = process.env.CLOUDINARY_API_KEY || process.env.API_KEY;
+        let apiSecret = process.env.CLOUDINARY_API_SECRET || process.env.API_SECRET;
+
+        const backendEnvPath = path.join(rootDir, '..', 'backend', '.env');
+        if ((!cloudName || !apiKey || !apiSecret) && fs.existsSync(backendEnvPath)) {
+          const envContent = fs.readFileSync(backendEnvPath, 'utf8');
+          const getEnv = (k) => {
+            const match = envContent.match(new RegExp(`^${k}=["']?([^"'\\r\\n]+)["']?`, 'm'));
+            return match ? match[1] : null;
+          };
+          cloudName = cloudName || getEnv('CLOUD_NAME') || getEnv('CLOUDINARY_CLOUD_NAME');
+          apiKey = apiKey || getEnv('API_KEY') || getEnv('CLOUDINARY_API_KEY');
+          apiSecret = apiSecret || getEnv('API_SECRET') || getEnv('CLOUDINARY_API_SECRET');
+        }
+
+        cloudName = cloudName || 'spjswcjp';
+        apiKey = apiKey || '847781563998851';
+        apiSecret = apiSecret || 'vbUitMRN6u95twzg1Jj4lCEMuzg';
+
+        cloudinarySdk.config({
+          cloud_name: cloudName,
+          api_key: apiKey,
+          api_secret: apiSecret
+        });
+
+        // 1. Delete previous APKs from bucket
+        console.log('🗑️ Deleting previous APK(s) from Cloudinary bucket (folder: apk/app-release)...');
+        try {
+          await cloudinarySdk.api.delete_resources_by_prefix('apk/app-release', {
+            resource_type: 'raw',
+            invalidate: true
+          });
+          console.log('✅ Old APK(s) deleted from bucket successfully.');
+        } catch (delErr) {
+          console.log('ℹ️ Bucket cleanup note:', delErr.message || delErr);
+        }
+
+        // 2. Upload the new APK
+        const uploadRes = await cloudinarySdk.uploader.upload(destApkPath, {
+          folder: 'apk/app-release',
+          public_id: 'matrices-latest.apk',
+          resource_type: 'raw',
+          overwrite: true,
+          invalidate: true,
+          use_filename: true,
+          unique_filename: false
+        });
+
+        if (uploadRes && uploadRes.secure_url) {
+          bucketApkUrl = uploadRes.secure_url;
+          console.log(`☁️ Cloudinary Bucket Upload Success: ${bucketApkUrl}`);
         }
       }
     }
-
-    if (cloudinarySdk) {
-      let cloudName = process.env.CLOUDINARY_CLOUD_NAME || process.env.CLOUD_NAME;
-      let apiKey = process.env.CLOUDINARY_API_KEY || process.env.API_KEY;
-      let apiSecret = process.env.CLOUDINARY_API_SECRET || process.env.API_SECRET;
-
-      const backendEnvPath = path.join(rootDir, '..', 'backend', '.env');
-      if ((!cloudName || !apiKey || !apiSecret) && fs.existsSync(backendEnvPath)) {
-        const envContent = fs.readFileSync(backendEnvPath, 'utf8');
-        const getEnv = (k) => {
-          const match = envContent.match(new RegExp(`^${k}=["']?([^"'\\r\\n]+)["']?`, 'm'));
-          return match ? match[1] : null;
-        };
-        cloudName = cloudName || getEnv('CLOUD_NAME') || getEnv('CLOUDINARY_CLOUD_NAME');
-        apiKey = apiKey || getEnv('API_KEY') || getEnv('CLOUDINARY_API_KEY');
-        apiSecret = apiSecret || getEnv('API_SECRET') || getEnv('CLOUDINARY_API_SECRET');
-      }
-
-      cloudName = cloudName || 'spjswcjp';
-      apiKey = apiKey || '847781563998851';
-      apiSecret = apiSecret || 'vbUitMRN6u95twzg1Jj4lCEMuzg';
-
-      cloudinarySdk.config({
-        cloud_name: cloudName,
-        api_key: apiKey,
-        api_secret: apiSecret
-      });
-
-      // 1. Delete previous APKs from bucket
-      console.log('🗑️ Deleting previous APK(s) from Cloudinary bucket (folder: apk/app-release)...');
-      try {
-        await cloudinarySdk.api.delete_resources_by_prefix('apk/app-release', {
-          resource_type: 'raw',
-          invalidate: true
-        });
-        console.log('✅ Old APK(s) deleted from bucket successfully.');
-      } catch (delErr) {
-        // Non-fatal if folder was empty
-        console.log('ℹ️ Bucket cleanup note:', delErr.message || delErr);
-      }
-
-      // 2. Upload the new APK
-      const uploadRes = await cloudinarySdk.uploader.upload(destApkPath, {
-        folder: 'apk/app-release',
-        public_id: 'matrices-latest.apk',
-        resource_type: 'raw',
-        overwrite: true,
-        invalidate: true,
-        use_filename: true,
-        unique_filename: false
-      });
-
-      if (uploadRes && uploadRes.secure_url) {
-        bucketApkUrl = uploadRes.secure_url;
-        console.log(`☁️ Cloudinary Bucket Upload Success: ${bucketApkUrl}`);
-      }
-    } else {
-      console.warn('⚠️ Cloudinary SDK not found. Skipping direct bucket upload.');
-    }
   } catch (uploadErr) {
-    console.warn('⚠️ Cloudinary bucket upload warning:', uploadErr.message || uploadErr);
+    console.warn('⚠️ Storage bucket upload warning:', uploadErr.message || uploadErr);
   }
 
   // 8. Notify Backend Update Route
