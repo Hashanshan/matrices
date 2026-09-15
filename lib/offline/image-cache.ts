@@ -194,16 +194,61 @@ function blobToBase64(blob: Blob): Promise<string> {
   });
 }
 
+export interface ImageCacheItem {
+  url: string;
+  imageUpdatedAt?: string | null;
+  forceRefresh?: boolean;
+}
+
+/**
+ * Checks whether an image needs to be downloaded or updated based on imageUpdatedAt.
+ * Returns true if the image is NOT in cache or if remote imageUpdatedAt > local record imageUpdatedAt.
+ */
+export async function checkImageNeedsUpdate(url: string, remoteImageUpdatedAt?: string | null): Promise<boolean> {
+  if (!url || typeof url !== 'string' || isLocalUri(url)) return false;
+
+  await ensureImageMemoryMap();
+
+  const record = await offlineDB.getImageMap(url);
+  if (!record || !record.localSrc) {
+    const memMatch = getCachedImageUrlSync(url);
+    if (!memMatch) return true;
+  }
+
+  if (remoteImageUpdatedAt && record) {
+    const remoteTime = new Date(remoteImageUpdatedAt).getTime();
+    if (!isNaN(remoteTime)) {
+      const localTime = record.imageUpdatedAt
+        ? new Date(record.imageUpdatedAt).getTime()
+        : new Date(record.updatedAt).getTime();
+      if (!isNaN(localTime) && remoteTime > localTime) {
+        return true; // Remote image has been updated!
+      }
+    }
+  }
+
+  return false;
+}
+
 /**
  * Downloads a single high-resolution image directly from bucket/server and stores it natively/locally
  * Includes automatic retry on transient network failures for resilient background sync.
  */
-export async function downloadAndSaveImage(url: string, retries = 2): Promise<string | null> {
+export async function downloadAndSaveImage(
+  url: string,
+  retries = 2,
+  imageUpdatedAt?: string | null,
+  forceRefresh = false
+): Promise<string | null> {
   if (!url || typeof url !== 'string' || isLocalUri(url)) return url;
 
-  // Check in-memory map first (O(1))
-  const cached = getCachedImageUrlSync(url);
-  if (cached) return cached;
+  if (forceRefresh) {
+    await evictFromImageMemoryMap(url);
+  } else {
+    // Check in-memory map first (O(1))
+    const cached = getCachedImageUrlSync(url);
+    if (cached) return cached;
+  }
 
   const cap = await getCapacitorCore();
   const isNative = cap?.isNativePlatform?.() ?? false;
@@ -255,6 +300,7 @@ export async function downloadAndSaveImage(url: string, retries = 2): Promise<st
                 localSrc: nativeUri,
                 sizeBytes,
                 updatedAt: new Date().toISOString(),
+                imageUpdatedAt: imageUpdatedAt || new Date().toISOString(),
               };
 
               await offlineDB.saveImageMap(record);
@@ -314,6 +360,7 @@ export async function downloadAndSaveImage(url: string, retries = 2): Promise<st
               blob,
               sizeBytes,
               updatedAt: new Date().toISOString(),
+              imageUpdatedAt: imageUpdatedAt || new Date().toISOString(),
             };
 
             await offlineDB.saveImageMap(record);
@@ -350,6 +397,7 @@ export async function downloadAndSaveImage(url: string, retries = 2): Promise<st
         blob,
         sizeBytes,
         updatedAt: new Date().toISOString(),
+        imageUpdatedAt: imageUpdatedAt || new Date().toISOString(),
       };
 
       await offlineDB.saveImageMap(record);
@@ -374,59 +422,93 @@ export async function downloadAndSaveImage(url: string, retries = 2): Promise<st
 /**
  * Returns list of image URLs that are not yet downloaded / cached locally
  */
-export async function getUncachedImageUrls(imageUrls: string[]): Promise<string[]> {
+export async function getUncachedImageUrls(imageUrls: (string | ImageCacheItem)[]): Promise<string[]> {
   if (typeof window === 'undefined') return [];
-  const uniqueUrls = Array.from(new Set(imageUrls.filter(Boolean)));
+  const items: ImageCacheItem[] = imageUrls.map((i) => (typeof i === 'string' ? { url: i } : i)).filter((i) => Boolean(i?.url));
   await ensureImageMemoryMap();
-  return uniqueUrls.filter((url) => !getCachedImageUrlSync(url) && !isLocalUri(url));
+
+  const results: string[] = [];
+  for (const item of items) {
+    if (isLocalUri(item.url)) continue;
+    const needsUpdate = await checkImageNeedsUpdate(item.url, item.imageUpdatedAt);
+    if (needsUpdate) {
+      results.push(item.url);
+    }
+  }
+  return Array.from(new Set(results));
 }
 
 /**
- * Downloads a batch of product and shop image URLs and persists them to LocalDB
+ * Downloads a batch of product and shop image URLs and persists them to LocalDB.
+ * Efficiently reuses already cached images if imageUpdatedAt has not changed.
  */
 export async function cacheProductImages(
-  imageUrls: string[],
+  images: (string | ImageCacheItem)[],
   onProgress?: (done: number, total: number) => void
 ): Promise<{ totalDownloaded: number; totalSizeBytes: number; failedCount: number; balanceRemaining: number }> {
   if (typeof window === 'undefined') return { totalDownloaded: 0, totalSizeBytes: 0, failedCount: 0, balanceRemaining: 0 };
 
-  const uniqueUrls = Array.from(new Set(imageUrls.filter((u) => Boolean(u && typeof u === 'string' && u.trim().length > 0 && !isLocalUri(u)))));
+  // Normalize inputs to ImageCacheItem array
+  const rawItems: ImageCacheItem[] = images
+    .map((item) => (typeof item === 'string' ? { url: item } : item))
+    .filter((item): item is ImageCacheItem => Boolean(item && item.url && typeof item.url === 'string' && item.url.trim().length > 0 && !isLocalUri(item.url)));
+
+  // Deduplicate by URL (prefer item with latest imageUpdatedAt or forceRefresh)
+  const itemMap = new Map<string, ImageCacheItem>();
+  rawItems.forEach((it) => {
+    const existing = itemMap.get(it.url);
+    if (!existing || it.forceRefresh || (it.imageUpdatedAt && (!existing.imageUpdatedAt || new Date(it.imageUpdatedAt) > new Date(existing.imageUpdatedAt)))) {
+      itemMap.set(it.url, it);
+    }
+  });
+
+  const uniqueItems = Array.from(itemMap.values());
   let done = 0;
   let totalSizeBytes = 0;
   let failedCount = 0;
 
-  // Pre-load map so per-image checks are synchronous
+  // Pre-load memory map so per-image checks are synchronous
   await ensureImageMemoryMap();
 
-  // Filter out already-cached URLs
-  const uncachedUrls = uniqueUrls.filter((url) => !getCachedImageUrlSync(url) && !isLocalUri(url));
-  const alreadyCachedCount = uniqueUrls.length - uncachedUrls.length;
+  // Determine which images actually need downloading
+  const itemsToDownload: ImageCacheItem[] = [];
+  for (const item of uniqueItems) {
+    if (item.forceRefresh) {
+      itemsToDownload.push(item);
+    } else {
+      const needs = await checkImageNeedsUpdate(item.url, item.imageUpdatedAt);
+      if (needs) {
+        itemsToDownload.push(item);
+      }
+    }
+  }
 
+  const alreadyCachedCount = uniqueItems.length - itemsToDownload.length;
   if (alreadyCachedCount > 0) {
     done += alreadyCachedCount;
-    onProgress?.(done, uniqueUrls.length);
+    onProgress?.(done, uniqueItems.length);
   }
 
   // Optimized concurrency pool (8 concurrent workers)
   const CONCURRENCY = 8;
-  for (let i = 0; i < uncachedUrls.length; i += CONCURRENCY) {
-    const chunk = uncachedUrls.slice(i, i + CONCURRENCY);
+  for (let i = 0; i < itemsToDownload.length; i += CONCURRENCY) {
+    const chunk = itemsToDownload.slice(i, i + CONCURRENCY);
     await Promise.all(
-      chunk.map(async (url) => {
+      chunk.map(async (item) => {
         try {
-          const res = await downloadAndSaveImage(url);
+          const res = await downloadAndSaveImage(item.url, 2, item.imageUpdatedAt, item.forceRefresh);
           if (res) {
-            const record = await offlineDB.getImageMap(url);
+            const record = await offlineDB.getImageMap(item.url);
             if (record?.sizeBytes) totalSizeBytes += record.sizeBytes;
           } else {
             failedCount++;
           }
         } catch (e) {
           failedCount++;
-          console.warn(`Error processing image ${url}`, e);
+          console.warn(`Error processing image ${item.url}`, e);
         } finally {
           done++;
-          onProgress?.(done, uniqueUrls.length);
+          onProgress?.(done, uniqueItems.length);
         }
       })
     );

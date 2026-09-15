@@ -29,6 +29,7 @@ export interface ImageMapRecord {
   blob?: Blob;
   sizeBytes: number;
   updatedAt: string;
+  imageUpdatedAt?: string;
 }
 
 class OfflineDB {
@@ -110,6 +111,19 @@ class OfflineDB {
       const tx = db.transaction(storeName, 'readwrite');
       const store = tx.objectStore(storeName);
       store.clear(); // Overwrite with fresh sync batch
+      items.forEach((item) => store.put(item));
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  /** Upsert (insert or update) a batch of items without clearing existing records */
+  async upsertBatch<T extends { id: string | number }>(storeName: string, items: T[]): Promise<void> {
+    if (!items || items.length === 0) return;
+    const db = await this.getDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(storeName, 'readwrite');
+      const store = tx.objectStore(storeName);
       items.forEach((item) => store.put(item));
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);

@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { offlineDB, SyncMetadata } from '../offline/indexed-db';
-import { cacheProductImages, clearMatricesFolder, prewarmImageCache, invalidateImageMemoryMap, getUncachedImageUrls } from '../offline/image-cache';
+import { cacheProductImages, clearMatricesFolder, prewarmImageCache, invalidateImageMemoryMap, getUncachedImageUrls, checkImageNeedsUpdate } from '../offline/image-cache';
 import { invalidateProductIndex } from '../offline/offline-search';
 import { NativeAdapter } from '../../mobile/bridge/native-adapter';
 import { resolveApiUrl, getAuthToken } from '../utils';
@@ -39,8 +39,8 @@ interface SyncContextType {
   pushStatusText: string;
   
   // Functions
-  triggerSync: (syncMode?: 'full' | 'resume') => Promise<boolean>;
-  executeSync: (syncMode?: 'full' | 'resume') => Promise<boolean>;
+  triggerSync: (syncMode?: 'auto' | 'full' | 'delta' | 'resume') => Promise<boolean>;
+  executeSync: (syncMode?: 'auto' | 'full' | 'delta' | 'resume') => Promise<boolean>;
   resumeSync: () => Promise<boolean>;
   pushChanges: () => Promise<boolean>;
   retryFailedPush: () => Promise<boolean>;
@@ -81,6 +81,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
   // Resolves after user dismisses PIN modal
   const afterPinResolve = useRef<((ok: boolean) => void) | null>(null);
+  const pendingSyncMode = useRef<'auto' | 'full' | 'delta' | 'resume'>('auto');
 
   const refreshQueue = useCallback(async () => {
     try {
@@ -162,27 +163,22 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     }
 
     setIsPushing(true);
-    setPushStatusText('Preparing offline changes...');
+    setPushStatusText('Initializing queue push...');
 
     try {
-      const result = await processSyncQueueSequential((step, total, item, status, msg) => {
-        setPushStatusText(msg || `Processing item ${step} of ${total}...`);
+      const result = await processSyncQueueSequential((step, total, item) => {
+        setPushStatusText(`Pushing change ${step}/${total}: ${item.operation} ${item.entity}...`);
       });
 
-      await refreshQueue();
-
-      if (result.failedCount > 0 && result.stoppedAt) {
-        const item = result.stoppedAt;
+      if (result.stoppedAt) {
         Swal.fire({
           icon: 'error',
-          title: 'Push Failed',
+          title: 'Push Halted',
           html: `
-            <div style="text-align: left; font-size: 13px;" class="space-y-2">
-              <p><strong>Operation:</strong> ${item.operation} ${item.entity}</p>
-              <p><strong>ID:</strong> <code>${item.entityId}</code></p>
-              <p><strong>Reason:</strong> <span style="color: #dc2626; font-weight: 700;">${result.errorReason || item.errorMessage}</span></p>
-              <hr class="my-2 border-gray-200"/>
-              <p class="text-xs text-gray-500">Processing stopped immediately to preserve queue order. Fix the issue or retry failed item.</p>
+            <div style="text-align: left; font-size: 13px;">
+              <p style="font-weight: 700; color: #dc2626;">Operation failed on item: ${result.stoppedAt.entity} (${result.stoppedAt.operation})</p>
+              <p style="margin-top: 6px;">${result.stoppedAt.errorMessage || result.errorReason || 'Server rejected operation'}</p>
+              <p style="font-size: 11px; color: #64748b; margin-top: 8px;">Subsequent operations were halted to preserve data integrity.</p>
             </div>
           `,
           confirmButtonColor: '#0f172a',
@@ -193,14 +189,14 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       Swal.fire({
         icon: 'success',
         title: 'Push Complete!',
-        text: `Successfully synced ${result.successCount} local offline operations to the server.`,
+        text: 'All local changes successfully uploaded to server.',
         confirmButtonColor: '#0f172a',
       });
       return true;
     } catch (err: any) {
       Swal.fire({
         icon: 'error',
-        title: 'Push Aborted',
+        title: 'Push Failed',
         text: err?.message || 'Error processing sync queue',
         confirmButtonColor: '#0f172a',
       });
@@ -213,32 +209,33 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
   }, [isPushing, queueItems, refreshQueue]);
 
   /**
-   * Retry failed items in push queue
+   * Retry failed queue operations
    */
   const retryFailedPush = useCallback(async (): Promise<boolean> => {
     if (isPushing) return false;
+    if (typeof window !== 'undefined' && !navigator.onLine) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Offline Mode Active',
+        text: 'Cannot retry changes while offline. Please connect to internet.',
+        confirmButtonColor: '#0f172a',
+      });
+      return false;
+    }
+
     setIsPushing(true);
     setPushStatusText('Retrying failed operations...');
 
     try {
-      const result = await retrySyncQueue((step, total, item, status, msg) => {
-        setPushStatusText(msg || `Retrying item ${step} of ${total}...`);
+      const result = await retrySyncQueue((step, total, item) => {
+        setPushStatusText(`Pushing change ${step}/${total}: ${item.operation} ${item.entity}...`);
       });
 
-      await refreshQueue();
-
-      if (result.failedCount > 0 && result.stoppedAt) {
-        const item = result.stoppedAt;
+      if (result.stoppedAt) {
         Swal.fire({
           icon: 'error',
-          title: 'Push Retry Failed',
-          html: `
-            <div style="text-align: left; font-size: 13px;">
-              <p><strong>Operation:</strong> ${item.operation} ${item.entity}</p>
-              <p><strong>ID:</strong> <code>${item.entityId}</code></p>
-              <p><strong>Reason:</strong> <span style="color: #dc2626; font-weight: 700;">${result.errorReason || item.errorMessage}</span></p>
-            </div>
-          `,
+          title: 'Retry Incomplete',
+          text: `Failed on ${result.stoppedAt.entity}: ${result.stoppedAt.errorMessage || result.errorReason || 'Operation failed'}`,
           confirmButtonColor: '#0f172a',
         });
         return false;
@@ -246,8 +243,8 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
       Swal.fire({
         icon: 'success',
-        title: 'Retry Successful!',
-        text: 'All remaining operations pushed to server.',
+        title: 'Retry Complete!',
+        text: 'Failed operations successfully retried and pushed.',
         confirmButtonColor: '#0f172a',
       });
       return true;
@@ -255,7 +252,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       Swal.fire({
         icon: 'error',
         title: 'Retry Failed',
-        text: err?.message || 'Failed to retry queue',
+        text: err?.message || 'Error retrying sync queue',
         confirmButtonColor: '#0f172a',
       });
       return false;
@@ -362,10 +359,27 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
   }, [isSyncing, isPushing, queueItems, pushChanges, refreshQueue]);
 
   /**
-   * Execute Sync (Download fresh catalog or resume balance from server)
-   * syncMode: 'full' (wipe & clean download) | 'resume' (continue & finish balance without wiping existing data)
+   * Helper to normalize string extraction
    */
-  const executeSync = useCallback(async (syncMode: 'full' | 'resume' = 'full'): Promise<boolean> => {
+  const extractStr = (val: any): string => {
+    if (!val) return '';
+    if (typeof val === 'string') return val.trim().replace(/\s+/g, ' ');
+    if (Array.isArray(val)) return extractStr(val[0]);
+    if (typeof val === 'object') {
+      return (val.name || val.categoryName || val.subcategoryName || val.title || val.label || val._id || '').toString().trim().replace(/\s+/g, ' ');
+    }
+    return String(val).trim().replace(/\s+/g, ' ');
+  };
+
+  /**
+   * Execute Sync (Download fresh catalog, perform fast delta updates, or resume balance from server)
+   * syncMode:
+   *   'auto'   - Uses Delta Sync if valid previous sync exists; otherwise runs Full Sync from scratch
+   *   'full'   - Wipes all cached tables/images & downloads full catalog cleanly from scratch
+   *   'delta'  - Queries only items updated since previous sync, computes detected changes & delta upserts
+   *   'resume' - Resumes downloading balance of missing images for stored entities without wiping
+   */
+  const executeSync = useCallback(async (syncMode: 'auto' | 'full' | 'delta' | 'resume' = 'auto'): Promise<boolean> => {
     // RULE ENFORCEMENT: Check pending queue before proceeding
     const items = await getSyncQueue();
     const pendingOrFailed = items.filter((i) => i.status === 'PENDING' || i.status === 'FAILED');
@@ -424,8 +438,38 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         return false;
       }
 
-      // Check if we can do a fast balance resume (if local products & categories already exist in IndexedDB)
+      const existingProductsCount = await offlineDB.getCount('products').catch(() => 0);
+      const currentMeta = await offlineDB.getMeta().catch(() => null);
+      const effectiveLastSyncedAt = lastSyncedAt || currentMeta?.lastSyncedAt || null;
+
+      // Determine effective sync mode
+      let effectiveMode: 'full' | 'delta' | 'resume' = 'full';
       if (syncMode === 'resume') {
+        effectiveMode = 'resume';
+      } else if (syncMode === 'delta') {
+        effectiveMode = effectiveLastSyncedAt && existingProductsCount > 0 ? 'delta' : 'full';
+      } else if (syncMode === 'full') {
+        effectiveMode = 'full';
+      } else {
+        // 'auto' mode:
+        // If valid lastSyncedAt timestamp exists, previous sync was not marked incomplete, and DB has products, use Delta Sync
+        if (effectiveLastSyncedAt && currentMeta && !currentMeta.isIncomplete && existingProductsCount > 0) {
+          effectiveMode = 'delta';
+        } else {
+          effectiveMode = 'full';
+        }
+      }
+
+      const token = getAuthToken();
+      const headers = {
+        Authorization: token ? `Bearer ${token}` : '',
+        'Content-Type': 'application/json',
+      };
+
+      // ──────────────────────────────────────────────────────────────────────────
+      // CASE: RESUME BALANCE SYNC
+      // ──────────────────────────────────────────────────────────────────────────
+      if (effectiveMode === 'resume') {
         const localProducts = await offlineDB.getAll<any>('products').catch(() => []);
         const localCats = await offlineDB.getAll<any>('categories').catch(() => []);
         const localSubcats = await offlineDB.getAll<any>('subcategories').catch(() => []);
@@ -468,7 +512,6 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
           invalidateProductIndex();
           await prewarmImageCache().catch(() => {});
 
-          // Query actual stored database records directly for strict verification
           const verifiedProducts = await offlineDB.getCount('products').catch(() => 0);
           const verifiedCategories = await offlineDB.getCount('categories').catch(() => 0);
           const verifiedSubcategories = await offlineDB.getCount('subcategories').catch(() => 0);
@@ -587,23 +630,308 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      // Full fresh sync execution: Reset previous metadata & timestamps so stats show unsynced during download
-      if (syncMode === 'full') {
-        setLastSyncedAt(null);
-        setMeta(null);
-        await offlineDB.clear('meta').catch(() => {});
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem('matrices_last_synced_user_email');
-          localStorage.removeItem('matrices_last_synced_user_name');
-          window.dispatchEvent(new Event('matrices-sync-stats-updated'));
+      // ──────────────────────────────────────────────────────────────────────────
+      // CASE: DELTA SYNC (INCREMENTAL UPDATE)
+      // ──────────────────────────────────────────────────────────────────────────
+      if (effectiveMode === 'delta' && effectiveLastSyncedAt) {
+        setProgress(15);
+        setSyncStatusText(`Checking for server updates since previous sync (${new Date(effectiveLastSyncedAt).toLocaleTimeString()})...`);
+
+        const deltaSince = encodeURIComponent(effectiveLastSyncedAt);
+        const productsUrl = resolveApiUrl(`/api/products?limit=5000&updatedSince=${deltaSince}`);
+        const filtersUrl = resolveApiUrl('/api/products/filters');
+        const shopsUrl = resolveApiUrl(`/api/shops?limit=5000&updatedSince=${deltaSince}`);
+        const ordersUrl = resolveApiUrl(`/api/orders?limit=5000&updatedSince=${deltaSince}`);
+        const wishlistUrl = resolveApiUrl('/api/wishlist');
+
+        const [productsRes, filtersRes, shopsRes, ordersRes, wishlistRes] = await Promise.allSettled([
+          fetch(productsUrl, { headers, cache: 'no-store' }),
+          fetch(filtersUrl, { headers, cache: 'no-store' }),
+          fetch(shopsUrl, { headers, cache: 'no-store' }),
+          fetch(ordersUrl, { headers, cache: 'no-store' }),
+          fetch(wishlistUrl, { headers, cache: 'no-store' }),
+        ]);
+
+        let deltaProducts: any[] = [];
+        let deltaShops: any[] = [];
+        let deltaOrders: any[] = [];
+        let categories: any[] = [];
+        let subcategories: any[] = [];
+        let wishlist: any = null;
+
+        if (productsRes.status === 'fulfilled' && productsRes.value.ok) {
+          const json = await productsRes.value.json();
+          deltaProducts = json.data || json.products || (Array.isArray(json) ? json : []);
         }
+
+        if (shopsRes.status === 'fulfilled' && shopsRes.value.ok) {
+          const json = await shopsRes.value.json();
+          deltaShops = json.data || json.shops || (Array.isArray(json) ? json : []);
+        }
+
+        if (ordersRes.status === 'fulfilled' && ordersRes.value.ok) {
+          const json = await ordersRes.value.json();
+          deltaOrders = json.orders || json.data || (Array.isArray(json) ? json : []);
+        }
+
+        if (filtersRes.status === 'fulfilled' && filtersRes.value.ok) {
+          const json = await filtersRes.value.json();
+          if (Array.isArray(json)) categories = json;
+          else if (Array.isArray(json?.categories)) categories = json.categories;
+          else if (Array.isArray(json?.data)) categories = json.data;
+          else if (Array.isArray(json?.data?.categories)) categories = json.data.categories;
+
+          if (Array.isArray(json?.subcategories)) subcategories = json.subcategories;
+          else if (Array.isArray(json?.data?.subcategories)) subcategories = json.data.subcategories;
+        }
+
+        if (wishlistRes.status === 'fulfilled' && wishlistRes.value.ok) {
+          wishlist = await wishlistRes.value.json();
+        }
+
+        // Format updated products with imageUpdatedAt support & fallback
+        const formattedDeltaProducts = deltaProducts.map((p: any, idx: number) => {
+          const catName = extractStr(p.categoryName || p.category?.name || p.category || p.categories).toUpperCase();
+          const subName = extractStr(p.subcategoryName || p.subcategory?.name || p.subCategory || p.subcategory || p.subcategories || p.subCategories).toUpperCase();
+          const img = p.image || p.imageUrl || (Array.isArray(p.images) && p.images[0] ? p.images[0] : '');
+          const priceVal = Number(p.sellPrice || p.price || 0);
+
+          const updatedAtVal = p.updatedAt || p.updated_at || p.createdAt || p.created_at || '';
+          const createdAtVal = p.createdAt || p.created_at || '';
+          const effectiveImageUpdatedAt = p.imageUpdatedAt || (img ? (updatedAtVal || createdAtVal || null) : null);
+
+          return {
+            id: String(p._id || p.id || p.productId || `prod_${idx}`),
+            productId: String(p.productId || p._id || p.id || `prod_${idx}`),
+            name: String(p.name || p.productName || 'Unnamed Product').toUpperCase(),
+            code: p.code || p.productCode || '',
+            description: p.description || '',
+            price: priceVal,
+            sellPrice: priceVal,
+            categoryId: String(p.categoryId || p.category?._id || (typeof p.category === 'object' ? p.category?._id : p.category) || ''),
+            subcategoryId: String(p.subcategoryId || p.subcategory?._id || (typeof p.subcategory === 'object' ? p.subcategory?._id : p.subcategory) || ''),
+            category: catName,
+            categoryName: catName,
+            categories: catName,
+            subcategory: subName,
+            subcategoryName: subName,
+            subcategories: subName,
+            image: img,
+            imageUrl: img,
+            images: p.images || (img ? [img] : []),
+            imageUpdatedAt: effectiveImageUpdatedAt,
+            updatedAt: updatedAtVal,
+            createdAt: createdAtVal,
+          };
+        });
+
+        // Format updated shops
+        const formattedDeltaShops = deltaShops.map((s: any, idx: number) => {
+          const pList = Array.isArray(s.phones) && s.phones.length > 0
+            ? s.phones
+            : (s.phone ? s.phone.split(',').map((p: string) => p.trim()).filter(Boolean) : []);
+          return {
+            ...s,
+            id: String(s._id || s.id || s.shopId || `shop_${idx}`),
+            shopId: String(s.shopId || s._id || s.id || `shop_${idx}`),
+            name: s.name || s.shopName || 'Shop',
+            phone: s.phone || (pList[0] || ''),
+            phones: pList,
+            address: s.address || '',
+            imageUrl: s.imageUrl || s.image || '',
+            mapUrl: s.mapUrl || '',
+            brNumber: s.brNumber || '',
+            brDocument: s.brDocument || '',
+            brDocumentType: s.brDocumentType || '',
+            deliveredOrders: s.deliveredOrders || 0,
+            pendingOrders: s.pendingOrders || 0,
+            currentCredit: s.currentCredit || 0,
+            updatedAt: s.updatedAt || s.createdAt || new Date().toISOString(),
+            createdAt: s.createdAt || s.updatedAt || new Date().toISOString(),
+          };
+        });
+
+        // Format updated orders
+        const formattedDeltaOrders = deltaOrders.map((o: any, idx: number) => ({
+          id: String(o._id || o.id || o.orderId || `order_${idx}`),
+          orderId: String(o.orderId || o._id || o.id || `order_${idx}`),
+          date: o.date || o.createdAt || o.orderDate || new Date().toISOString(),
+          createdAt: o.createdAt || o.date || o.orderDate || new Date().toISOString(),
+          shop: o.shop || {},
+          items: o.items || [],
+          subtotal: Number(o.subtotal || 0),
+          discount: Number(o.discount || 0),
+          discountAmount: Number(o.discountAmount || 0),
+          total: Number(o.total || 0),
+          status: o.status || 'PENDING',
+          totalPaid: Number(o.totalPaid || 0),
+          remainingAmount: Number(o.remainingAmount || 0),
+          payments: Array.isArray(o.payments) ? o.payments : [],
+          salesrep: o.salesrep || o.salesRep || o.createdBy || null,
+          notes: o.notes || '',
+        }));
+
+        // Collect image candidates from delta products and shops
+        const deltaImageCandidates = [
+          ...formattedDeltaProducts.map((p) => ({ url: p.imageUrl || p.image, imageUpdatedAt: p.imageUpdatedAt })),
+          ...formattedDeltaProducts.flatMap((p) => (Array.isArray(p.images) ? p.images.map((img: string) => ({ url: img, imageUpdatedAt: p.imageUpdatedAt })) : [])),
+          ...formattedDeltaShops.map((s) => ({ url: s.imageUrl || s.image, imageUpdatedAt: s.updatedAt })),
+        ].filter((item) => Boolean(item && item.url && typeof item.url === 'string' && item.url.trim().length > 0));
+
+        // Deduplicate by URL
+        const deltaMap = new Map<string, { url: string; imageUpdatedAt?: string }>();
+        deltaImageCandidates.forEach((c) => {
+          if (!deltaMap.has(c.url)) deltaMap.set(c.url, c);
+        });
+        const uniqueDeltaImages = Array.from(deltaMap.values());
+
+        // Check which images actually need downloading or updating
+        const imagesToDownload = [];
+        for (const item of uniqueDeltaImages) {
+          const needsUpdate = await checkImageNeedsUpdate(item.url, item.imageUpdatedAt);
+          if (needsUpdate) {
+            imagesToDownload.push(item);
+          }
+        }
+
+        // Calculate detected changes
+        const changeSummaryText = `Detected: ${formattedDeltaProducts.length} updated products, ${formattedDeltaShops.length} updated shops, ${formattedDeltaOrders.length} updated orders, ${imagesToDownload.length} image updates.`;
+        setProgress(35);
+        setSyncStatusText(changeSummaryText);
+
+        const totalChanges = formattedDeltaProducts.length + formattedDeltaShops.length + formattedDeltaOrders.length + imagesToDownload.length;
+
+        // If no changes were detected, update lastSyncedAt timestamp and finish
+        if (totalChanges === 0) {
+          const verifiedProducts = await offlineDB.getCount('products').catch(() => 0);
+          const verifiedCategories = await offlineDB.getCount('categories').catch(() => 0);
+          const verifiedSubcategories = await offlineDB.getCount('subcategories').catch(() => 0);
+          const verifiedShops = await offlineDB.getCount('shops').catch(() => 0);
+          const verifiedOrders = await offlineDB.getCount('orders').catch(() => 0);
+          const summary = await offlineDB.getImageStorageSummary().catch(() => ({ count: 0, totalBytes: 0 }));
+          const imageMB = Number((summary.totalBytes / (1024 * 1024)).toFixed(2));
+
+          const updatedMeta: SyncMetadata = {
+            lastSyncedAt: new Date().toISOString(),
+            totalProducts: verifiedProducts,
+            totalCategories: verifiedCategories,
+            totalSubcategories: verifiedSubcategories,
+            totalShops: verifiedShops,
+            totalOrders: verifiedOrders,
+            totalImages: summary.count,
+            imageStorageMB: imageMB,
+            isIncomplete: false,
+            syncedUserId: user?.id || (user as any)?._id || (user?.email ? String(user.email) : ''),
+            syncedUserEmail: user?.email || '',
+            syncedUserName: user?.name || '',
+          };
+
+          await offlineDB.setMeta(updatedMeta);
+          setMeta(updatedMeta);
+          setLastSyncedAt(updatedMeta.lastSyncedAt);
+
+          setProgress(100);
+          setSyncStatusText('All offline data is already up to date! 0 new changes since last sync.');
+
+          window.dispatchEvent(new Event('matrices-data-mode-change'));
+          window.dispatchEvent(new Event('matrices-sync-stats-updated'));
+          return true;
+        }
+
+        // Apply changes to IndexedDB
+        setProgress(50);
+        setSyncStatusText(`Applying changes: ${formattedDeltaProducts.length} products, ${formattedDeltaShops.length} shops...`);
+
+        if (formattedDeltaProducts.length > 0) {
+          await offlineDB.upsertBatch('products', formattedDeltaProducts);
+        }
+        if (formattedDeltaShops.length > 0) {
+          await offlineDB.upsertBatch('shops', formattedDeltaShops);
+        }
+        if (formattedDeltaOrders.length > 0) {
+          // Preserve local drafts
+          const existingDbOrders = await offlineDB.getAll<any>('orders').catch(() => []);
+          const localDrafts = existingDbOrders.filter((o: any) =>
+            o.isLocallyCreated === true ||
+            !o.isSynced ||
+            (o.id && (String(o.id).startsWith('LOCAL_') || String(o.id).startsWith('DRAFT-')))
+          );
+          await offlineDB.upsertBatch('orders', formattedDeltaOrders);
+          if (localDrafts.length > 0) {
+            await offlineDB.upsertBatch('orders', localDrafts);
+          }
+        }
+
+        // Download new/updated images
+        if (imagesToDownload.length > 0) {
+          setProgress(70);
+          setSyncStatusText(`Downloading ${imagesToDownload.length} updated/new offline images...`);
+
+          let lastDeltaProgressTime = 0;
+          await cacheProductImages(imagesToDownload, (done, total) => {
+            const now = Date.now();
+            if (now - lastDeltaProgressTime > 120 || done === total || done === 1) {
+              lastDeltaProgressTime = now;
+              const imageProgress = 70 + Math.floor((done / total) * 25);
+              setProgress(imageProgress);
+              setSyncStatusText(`Downloading updated images (${done}/${total})...`);
+            }
+          });
+        }
+
+        setProgress(95);
+        setSyncStatusText('Verifying updated offline database & cache...');
+
+        invalidateImageMemoryMap();
+        invalidateProductIndex();
+        await prewarmImageCache().catch(() => {});
+
+        const verifiedProducts = await offlineDB.getCount('products').catch(() => 0);
+        const verifiedCategories = await offlineDB.getCount('categories').catch(() => 0);
+        const verifiedSubcategories = await offlineDB.getCount('subcategories').catch(() => 0);
+        const verifiedShops = await offlineDB.getCount('shops').catch(() => 0);
+        const verifiedOrders = await offlineDB.getCount('orders').catch(() => 0);
+        const summary = await offlineDB.getImageStorageSummary().catch(() => ({ count: 0, totalBytes: 0 }));
+        const imageMB = Number((summary.totalBytes / (1024 * 1024)).toFixed(2));
+
+        const newMeta: SyncMetadata = {
+          lastSyncedAt: new Date().toISOString(),
+          totalProducts: verifiedProducts,
+          totalCategories: verifiedCategories,
+          totalSubcategories: verifiedSubcategories,
+          totalShops: verifiedShops,
+          totalOrders: verifiedOrders,
+          totalImages: summary.count,
+          imageStorageMB: imageMB,
+          isIncomplete: false,
+          syncedUserId: user?.id || (user as any)?._id || (user?.email ? String(user.email) : ''),
+          syncedUserEmail: user?.email || '',
+          syncedUserName: user?.name || '',
+        };
+
+        await offlineDB.setMeta(newMeta);
+        setMeta(newMeta);
+        setLastSyncedAt(newMeta.lastSyncedAt);
+
+        setProgress(100);
+        setSyncStatusText(`Delta Sync Complete! Synced ${formattedDeltaProducts.length} products, ${formattedDeltaShops.length} shops, and ${imagesToDownload.length} images.`);
+
+        window.dispatchEvent(new Event('matrices-data-mode-change'));
+        window.dispatchEvent(new Event('matrices-sync-stats-updated'));
+        return true;
       }
 
-      const token = getAuthToken();
-      const headers = {
-        Authorization: token ? `Bearer ${token}` : '',
-        'Content-Type': 'application/json',
-      };
+      // ──────────────────────────────────────────────────────────────────────────
+      // CASE: FULL SYNC (FROM SCRATCH)
+      // ──────────────────────────────────────────────────────────────────────────
+      setLastSyncedAt(null);
+      setMeta(null);
+      await offlineDB.clear('meta').catch(() => {});
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('matrices_last_synced_user_email');
+        localStorage.removeItem('matrices_last_synced_user_name');
+        window.dispatchEvent(new Event('matrices-sync-stats-updated'));
+      }
 
       setProgress(20);
       setSyncStatusText('Connecting to Magnum Server...');
@@ -615,7 +943,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       const wishlistUrl = resolveApiUrl('/api/wishlist');
 
       setProgress(30);
-      setSyncStatusText('Syncing Products & Categories...');
+      setSyncStatusText('Syncing Products & Categories from scratch...');
 
       const [productsRes, filtersRes, shopsRes, ordersRes, wishlistRes] = await Promise.allSettled([
         fetch(productsUrl, { headers, cache: 'no-store' }),
@@ -663,16 +991,6 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      const extractStr = (val: any): string => {
-        if (!val) return '';
-        if (typeof val === 'string') return val.trim().replace(/\s+/g, ' ');
-        if (Array.isArray(val)) return extractStr(val[0]);
-        if (typeof val === 'object') {
-          return (val.name || val.categoryName || val.subcategoryName || val.title || val.label || val._id || '').toString().trim().replace(/\s+/g, ' ');
-        }
-        return String(val).trim().replace(/\s+/g, ' ');
-      };
-
       // Fallback: build categories & subcategories from products if filters endpoint was empty or unparseable
       if (categories.length === 0 && products.length > 0) {
         const catMap = new Map<string, { name: string; image: string; subcats: Map<string, { name: string; image: string }> }>();
@@ -710,14 +1028,14 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       }
 
       setProgress(50);
-      setSyncStatusText('Syncing Customer Shops assigned to logged-in salesrep...');
+      setSyncStatusText('Syncing Customer Shops assigned to salesrep...');
       if (shopsRes.status === 'fulfilled' && shopsRes.value.ok) {
         const json = await shopsRes.value.json();
         shops = json.data || json.shops || (Array.isArray(json) ? json : []);
       }
 
       setProgress(65);
-      setSyncStatusText('Syncing Salesrep Invoices & Orders...');
+      setSyncStatusText('Syncing Invoices & Orders...');
       if (ordersRes.status === 'fulfilled' && ordersRes.value.ok) {
         const json = await ordersRes.value.json();
         orders = json.orders || json.data || (Array.isArray(json) ? json : []);
@@ -728,7 +1046,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       }
 
       setProgress(78);
-      setSyncStatusText(`Saving ${products.length} products, ${shops.length} shops, and ${orders.length} orders offline...`);
+      setSyncStatusText(`Formatting ${products.length} products, ${shops.length} shops, and ${orders.length} orders...`);
 
       // Deduplicate and merge categories by normalized uppercase name
       const catMap = new Map<string, any>();
@@ -821,6 +1139,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
         const updatedAtVal = p.updatedAt || p.updated_at || p.createdAt || p.created_at || '';
         const createdAtVal = p.createdAt || p.created_at || '';
+        const effectiveImageUpdatedAt = p.imageUpdatedAt || (img ? (updatedAtVal || createdAtVal || null) : null);
 
         return {
           id: String(p._id || p.id || p.productId || `prod_${idx}`),
@@ -841,12 +1160,12 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
           image: img,
           imageUrl: img,
           images: p.images || (img ? [img] : []),
+          imageUpdatedAt: effectiveImageUpdatedAt,
           updatedAt: updatedAtVal,
           createdAt: createdAtVal,
         };
       });
 
-      // Sort products newest first by MongoDB document product.updatedAt (latest to oldest)
       formattedProducts.sort((a: any, b: any) => {
         const timeA = a.updatedAt ? new Date(a.updatedAt).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
         const timeB = b.updatedAt ? new Date(b.updatedAt).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
@@ -878,7 +1197,6 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         };
       });
 
-      // Sort shops newest first by MongoDB document shop.updatedAt (latest to oldest)
       formattedShops.sort((a: any, b: any) => {
         const timeA = a.updatedAt ? new Date(a.updatedAt).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
         const timeB = b.updatedAt ? new Date(b.updatedAt).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
@@ -915,7 +1233,6 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         },
       ];
 
-      // Preserve locally created orders so full sync never erases local device orders
       const existingDbOrders = await offlineDB.getAll<any>('orders').catch(() => []);
       const localOrdersToPreserve = (existingDbOrders || []).filter((o: any) =>
         o.isLocallyCreated === true ||
@@ -931,27 +1248,23 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
       const mergedOrders = [...localOrdersToPreserve, ...remoteOrdersFormatted];
 
-      // For full sync (Resync All): Clear all old cached catalog data & image stores before saving fresh data
-      if (syncMode === 'full') {
-        setProgress(42);
-        setSyncStatusText('Clearing old cached data for clean resync...');
-        await offlineDB.clear('categories').catch(() => {});
-        await offlineDB.clear('subcategories').catch(() => {});
-        await offlineDB.clear('products').catch(() => {});
-        await offlineDB.clear('shops').catch(() => {});
-        await offlineDB.clear('wishlist').catch(() => {});
-        await offlineDB.clear('image_map').catch(() => {});
-        await clearMatricesFolder().catch(() => {});
-        if (typeof window !== 'undefined' && 'caches' in window) {
-          try {
-            await caches.delete('matrices-product-images-v1');
-          } catch {}
-        }
-        invalidateImageMemoryMap();
-        invalidateProductIndex();
+      setProgress(42);
+      setSyncStatusText('Clearing old cached data for clean resync from scratch...');
+      await offlineDB.clear('categories').catch(() => {});
+      await offlineDB.clear('subcategories').catch(() => {});
+      await offlineDB.clear('products').catch(() => {});
+      await offlineDB.clear('shops').catch(() => {});
+      await offlineDB.clear('wishlist').catch(() => {});
+      await offlineDB.clear('image_map').catch(() => {});
+      await clearMatricesFolder().catch(() => {});
+      if (typeof window !== 'undefined' && 'caches' in window) {
+        try {
+          await caches.delete('matrices-product-images-v1');
+        } catch {}
       }
+      invalidateImageMemoryMap();
+      invalidateProductIndex();
 
-      // Save fresh data into IndexedDB tables
       await offlineDB.saveBatch('categories', formattedCategories);
       await offlineDB.saveBatch('subcategories', formattedSubcategories);
       await offlineDB.saveBatch('products', formattedProducts);
@@ -962,22 +1275,25 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       setProgress(80);
       setSyncStatusText('Preparing full offline image download...');
 
-      // Collect ALL unique image URLs from categories, subcategories, products, and shops
-      const allImageUrls: string[] = [
-        ...formattedCategories.map((c: { image?: string; imageUrl?: string; categoryImage?: string }) => c.image || c.imageUrl || c.categoryImage),
-        ...formattedSubcategories.map((s: { image?: string; imageUrl?: string }) => s.image || s.imageUrl),
-        ...formattedProducts.map((p: { image?: string; imageUrl?: string }) => p.imageUrl || p.image),
-        ...formattedProducts.flatMap((p: { images?: string[]; imageUrl?: string }) => (Array.isArray(p.images) ? p.images : (p.imageUrl ? [p.imageUrl] : []))),
-        ...formattedShops.map((s: { imageUrl?: string; image?: string }) => s.imageUrl || s.image),
-      ].filter((url): url is string => Boolean(url && typeof url === 'string' && url.trim().length > 0));
+      const fullImageCandidates = [
+        ...formattedCategories.map((c: any) => ({ url: c.image || c.imageUrl || c.categoryImage })),
+        ...formattedSubcategories.map((s) => ({ url: s.image || s.imageUrl })),
+        ...formattedProducts.map((p) => ({ url: p.imageUrl || p.image, imageUpdatedAt: p.imageUpdatedAt })),
+        ...formattedProducts.flatMap((p) => (Array.isArray(p.images) ? p.images.map((img: string) => ({ url: img, imageUpdatedAt: p.imageUpdatedAt })) : (p.imageUrl ? [{ url: p.imageUrl, imageUpdatedAt: p.imageUpdatedAt }] : []))),
+        ...formattedShops.map((s) => ({ url: s.imageUrl || s.image, imageUpdatedAt: s.updatedAt })),
+      ].filter((item) => Boolean(item && item.url && typeof item.url === 'string' && item.url.trim().length > 0));
 
-      const uniqueImageUrls = Array.from(new Set(allImageUrls));
+      const fullMap = new Map<string, { url: string; imageUpdatedAt?: string }>();
+      fullImageCandidates.forEach((c) => {
+        if (!fullMap.has(c.url)) fullMap.set(c.url, c);
+      });
+      const uniqueImageItems = Array.from(fullMap.values());
 
-      if (uniqueImageUrls.length > 0) {
-        setSyncStatusText(`Downloading ${uniqueImageUrls.length} images for full offline access (0/${uniqueImageUrls.length})...`);
+      if (uniqueImageItems.length > 0) {
+        setSyncStatusText(`Downloading ${uniqueImageItems.length} images for full offline access (0/${uniqueImageItems.length})...`);
 
         let lastFullProgressTime = 0;
-        await cacheProductImages(uniqueImageUrls, (done, total) => {
+        await cacheProductImages(uniqueImageItems, (done, total) => {
           const now = Date.now();
           if (now - lastFullProgressTime > 120 || done === total || done === 1) {
             lastFullProgressTime = now;
@@ -991,12 +1307,10 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       setProgress(96);
       setSyncStatusText('Performing final verification of offline database & local images...');
 
-      // Invalidate & rebuild all in-memory image & search caches
       invalidateImageMemoryMap();
       invalidateProductIndex();
       await prewarmImageCache().catch(() => {});
 
-      // Query actual stored database records directly for strict verification
       const verifiedProductCount = await offlineDB.getCount('products').catch(() => 0);
       const verifiedCategoryCount = await offlineDB.getCount('categories').catch(() => 0);
       const verifiedSubcategoryCount = await offlineDB.getCount('subcategories').catch(() => 0);
@@ -1005,7 +1319,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       const summary = await offlineDB.getImageStorageSummary().catch(() => ({ count: 0, totalBytes: 0 }));
       const finalImageMB = Number((summary.totalBytes / (1024 * 1024)).toFixed(2));
 
-      const totalExpectedImages = uniqueImageUrls.length;
+      const totalExpectedImages = uniqueImageItems.length;
       const actualStoredImages = summary.count;
       const minimumRequiredImages = totalExpectedImages > 0 ? Math.floor(totalExpectedImages * 0.95) : 0;
 
@@ -1118,15 +1432,12 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       const errMsg = err?.message || 'Server connection or network interrupted';
       setSyncStatusText(`Sync Interrupted: ${errMsg}`);
 
-      // CRITICAL REQUIREMENT: Do NOT force into offline mode if sync fails midway!
-      // Keep app in online mode so user can continue using live data
       if (typeof window !== 'undefined') {
         localStorage.setItem('matrices_data_mode', 'online');
         window.dispatchEvent(new Event('matrices-data-mode-change'));
         window.dispatchEvent(new Event('matrices-sync-stats-updated'));
       }
 
-      // Mark metadata as incomplete with NO lastSyncedAt timestamp on interrupted sync
       setLastSyncedAt(null);
       const productsCount = await offlineDB.getCount('products').catch(() => 0);
       const incompleteMeta: SyncMetadata = {
@@ -1190,7 +1501,6 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         return false;
       }
 
-      // Interactive Swal dialog allowing user to resume balance sync or resync all with recommendation
       Swal.fire({
         icon: 'error',
         title: 'Sync Interrupted',
@@ -1236,9 +1546,9 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       }
       setTimeout(() => setIsSyncing(false), 1800);
     }
-  }, [meta]);
+  }, [meta, lastSyncedAt, user]);
 
-  const triggerSync = useCallback(async (syncMode: 'full' | 'resume' = 'full'): Promise<boolean> => {
+  const triggerSync = useCallback(async (syncMode: 'auto' | 'full' | 'delta' | 'resume' = 'auto'): Promise<boolean> => {
     if (isSyncing) {
       setIsSyncModalOpen(true);
       return true;
@@ -1256,6 +1566,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     if (!isPinVerified) {
       return new Promise<boolean>((resolve) => {
         afterPinResolve.current = resolve;
+        pendingSyncMode.current = syncMode;
         setShowPinModal(true);
       });
     }
@@ -1269,7 +1580,8 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
   const handlePinSuccess = useCallback(() => {
     setShowPinModal(false);
-    executeSync('full').then((ok) => afterPinResolve.current?.(ok));
+    const mode = pendingSyncMode.current || 'auto';
+    executeSync(mode).then((ok) => afterPinResolve.current?.(ok));
     afterPinResolve.current = null;
   }, [executeSync]);
 

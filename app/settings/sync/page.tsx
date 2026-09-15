@@ -626,30 +626,87 @@ export default function SyncSettingsPage() {
                       </motion.button>
                     )}
 
-                    <motion.button
-                      whileHover={{ scale: isOffline || totalUnpushed > 0 ? 1 : 1.02 }}
-                      whileTap={{ scale: isOffline || totalUnpushed > 0 ? 1 : 0.98 }}
-                      onClick={async () => {
-                        if (isSyncing) {
-                          openSyncModal();
-                        } else {
-                          await triggerSync('full');
-                          await refreshStats();
-                        }
-                      }}
-                      disabled={isOffline || totalUnpushed > 0}
-                      className={`w-full px-6 py-4 rounded-full font-black text-xs sm:text-sm uppercase tracking-wider shadow-xl transition-all flex items-center justify-center gap-3 cursor-pointer ${isOffline || totalUnpushed > 0
-                        ? 'bg-gray-200 text-gray-400 border border-gray-300 cursor-not-allowed'
-                        : isSyncing
-                          ? 'bg-sky-600 hover:bg-sky-700 text-white shadow-sky-600/30'
-                          : 'bg-[#0f172a] hover:bg-[#1e293b] text-white shadow-slate-900/20'
-                        }`}
-                    >
-                      <RefreshCw size={18} className={isSyncing ? 'animate-spin' : ''} />
-                      {isSyncing
-                        ? `SYNCING IN BACKGROUND (${progress}%) — VIEW POPUP`
-                        : (isIncompleteSync || dbMeta?.isIncomplete ? '🔄 RESYNC ALL FROM SCRATCH' : 'SYNC ALL DATA NOW')}
-                    </motion.button>
+                    {isSyncValid && !isIncompleteSync && !dbMeta?.isIncomplete ? (
+                      <>
+                        <motion.button
+                          whileHover={{ scale: isOffline || totalUnpushed > 0 ? 1 : 1.02 }}
+                          whileTap={{ scale: isOffline || totalUnpushed > 0 ? 1 : 0.98 }}
+                          onClick={async () => {
+                            if (isSyncing) {
+                              openSyncModal();
+                            } else {
+                              await triggerSync('delta');
+                              await refreshStats();
+                            }
+                          }}
+                          disabled={isOffline || totalUnpushed > 0}
+                          className={`w-full px-6 py-4 rounded-full font-black text-xs sm:text-sm uppercase tracking-wider shadow-xl transition-all flex items-center justify-center gap-3 cursor-pointer ${isOffline || totalUnpushed > 0
+                            ? 'bg-gray-200 text-gray-400 border border-gray-300 cursor-not-allowed'
+                            : isSyncing
+                              ? 'bg-sky-600 hover:bg-sky-700 text-white shadow-sky-600/30'
+                              : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20'
+                            }`}
+                        >
+                          <RefreshCw size={18} className={isSyncing ? 'animate-spin' : ''} />
+                          {isSyncing
+                            ? `SYNCING IN BACKGROUND (${progress}%) — VIEW POPUP`
+                            : '⚡ FAST SYNC (DELTA UPDATES)'}
+                        </motion.button>
+
+                        <motion.button
+                          whileHover={{ scale: isSyncing || isOffline || totalUnpushed > 0 ? 1 : 1.01 }}
+                          whileTap={{ scale: isSyncing || isOffline || totalUnpushed > 0 ? 1 : 0.98 }}
+                          onClick={async () => {
+                            if (isSyncing) {
+                              openSyncModal();
+                            } else {
+                              const confirm = await Swal.fire({
+                                icon: 'warning',
+                                title: 'Resync All From Scratch?',
+                                text: 'This will clear all local cached items and redownload the complete catalog and all images.',
+                                showCancelButton: true,
+                                confirmButtonText: 'Yes, Resync From Scratch',
+                                cancelButtonText: 'Cancel',
+                                confirmButtonColor: '#0f172a',
+                              });
+                              if (confirm.isConfirmed) {
+                                await triggerSync('full');
+                                await refreshStats();
+                              }
+                            }
+                          }}
+                          disabled={isSyncing || isOffline || totalUnpushed > 0}
+                          className="w-full py-2.5 px-4 rounded-full font-bold text-xs uppercase tracking-wider text-gray-500 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                        >
+                          🔄 Resync All From Scratch
+                        </motion.button>
+                      </>
+                    ) : (
+                      <motion.button
+                        whileHover={{ scale: isOffline || totalUnpushed > 0 ? 1 : 1.02 }}
+                        whileTap={{ scale: isOffline || totalUnpushed > 0 ? 1 : 0.98 }}
+                        onClick={async () => {
+                          if (isSyncing) {
+                            openSyncModal();
+                          } else {
+                            await triggerSync('full');
+                            await refreshStats();
+                          }
+                        }}
+                        disabled={isOffline || totalUnpushed > 0}
+                        className={`w-full px-6 py-4 rounded-full font-black text-xs sm:text-sm uppercase tracking-wider shadow-xl transition-all flex items-center justify-center gap-3 cursor-pointer ${isOffline || totalUnpushed > 0
+                          ? 'bg-gray-200 text-gray-400 border border-gray-300 cursor-not-allowed'
+                          : isSyncing
+                            ? 'bg-sky-600 hover:bg-sky-700 text-white shadow-sky-600/30'
+                            : 'bg-[#0f172a] hover:bg-[#1e293b] text-white shadow-slate-900/20'
+                          }`}
+                      >
+                        <RefreshCw size={18} className={isSyncing ? 'animate-spin' : ''} />
+                        {isSyncing
+                          ? `SYNCING IN BACKGROUND (${progress}%) — VIEW POPUP`
+                          : (isIncompleteSync || dbMeta?.isIncomplete ? '🔄 RESYNC ALL FROM SCRATCH' : 'SYNC ALL DATA NOW (FROM SCRATCH)')}
+                      </motion.button>
+                    )}
                   </div>
 
                   {isSyncing && (
