@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { offlineDB, SyncMetadata } from '../offline/indexed-db';
-import { cacheProductImages, clearMatricesFolder, prewarmImageCache, invalidateImageMemoryMap, getUncachedImageUrls, checkImageNeedsUpdate } from '../offline/image-cache';
+import { cacheProductImages, clearMatricesFolder, prewarmImageCache, invalidateImageMemoryMap, getUncachedImageUrls, checkImageNeedsUpdate, evictImageAndFile } from '../offline/image-cache';
 import { invalidateProductIndex } from '../offline/offline-search';
 import { NativeAdapter } from '../../mobile/bridge/native-adapter';
 import { resolveApiUrl, getAuthToken } from '../utils';
@@ -653,6 +653,8 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         ]);
 
         let deltaProducts: any[] = [];
+        let removedProducts: any[] = [];
+        let removedProductIds: string[] = [];
         let deltaShops: any[] = [];
         let deltaOrders: any[] = [];
         let categories: any[] = [];
@@ -662,6 +664,8 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         if (productsRes.status === 'fulfilled' && productsRes.value.ok) {
           const json = await productsRes.value.json();
           deltaProducts = json.data || json.products || (Array.isArray(json) ? json : []);
+          removedProducts = Array.isArray(json.removedProducts) ? json.removedProducts : [];
+          removedProductIds = Array.isArray(json.removedProductIds) ? json.removedProductIds : [];
         }
 
         if (shopsRes.status === 'fulfilled' && shopsRes.value.ok) {
@@ -687,6 +691,94 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
         if (wishlistRes.status === 'fulfilled' && wishlistRes.value.ok) {
           wishlist = await wishlistRes.value.json();
+        }
+
+        // Format updated categories and subcategories if filters were returned
+        let formattedCategories: any[] = [];
+        let formattedSubcategories: any[] = [];
+
+        if (categories.length > 0) {
+          const catMap = new Map<string, any>();
+          categories.forEach((c: any, idx: number) => {
+            const cName = extractStr(c.name || c.categoryName || 'Category').toUpperCase();
+            if (!cName) return;
+            const cImage = c.image || c.imageUrl || c.categoryImage || '';
+
+            if (!catMap.has(cName)) {
+              catMap.set(cName, {
+                id: `cat_${cName.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
+                name: cName,
+                categoryName: cName,
+                image: cImage,
+                order: c.order ?? idx,
+                totalCount: 0,
+                subcatMap: new Map<string, any>(),
+              });
+            }
+
+            const catEntry = catMap.get(cName)!;
+            catEntry.totalCount += Number(c.totalCount || 0);
+            if (!catEntry.image && cImage) {
+              catEntry.image = cImage;
+            }
+
+            const rawSubs = Array.isArray(c.subcategories) ? c.subcategories : [];
+            rawSubs.forEach((s: any) => {
+              const sName = (typeof s === 'string' ? extractStr(s) : extractStr(s.name || s.subcategoryName)).toUpperCase();
+              if (!sName) return;
+              const sImg = (typeof s === 'object' ? s.image || s.imageUrl : '') || '';
+              const sCount = typeof s === 'object' ? Number(s.count || 0) : 0;
+
+              if (!catEntry.subcatMap.has(sName)) {
+                catEntry.subcatMap.set(sName, {
+                  name: sName,
+                  image: sImg,
+                  count: 0,
+                });
+              }
+
+              const subEntry = catEntry.subcatMap.get(sName)!;
+              subEntry.count += sCount;
+              if (!subEntry.image && sImg) {
+                subEntry.image = sImg;
+              }
+            });
+          });
+
+          formattedCategories = Array.from(catMap.values()).map((cat: any) => {
+            const subsArr = Array.from(cat.subcatMap.values());
+            return {
+              id: cat.id,
+              name: cat.name,
+              categoryName: cat.name,
+              image: cat.image,
+              order: cat.order,
+              totalCount: cat.totalCount,
+              subcategories: subsArr,
+            };
+          });
+
+          const uniqueSubMap = new Map<string, any>();
+          formattedCategories.forEach((cat: any) => {
+            cat.subcategories.forEach((sub: any, idx: number) => {
+              if (!sub.name) return;
+              const key = `${cat.name}>${sub.name}`;
+              if (!uniqueSubMap.has(key)) {
+                uniqueSubMap.set(key, {
+                  id: `subcat_${cat.id}_${sub.name.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
+                  name: sub.name,
+                  subcategoryName: sub.name,
+                  category: cat.name,
+                  categoryName: cat.name,
+                  categoryId: cat.id,
+                  image: sub.image || '',
+                  count: sub.count || 0,
+                  order: idx,
+                });
+              }
+            });
+          });
+          formattedSubcategories = Array.from(uniqueSubMap.values());
         }
 
         // Format updated products with imageUpdatedAt support & fallback
@@ -794,12 +886,23 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
           }
         }
 
+        const totalRemovals = removedProducts.length > 0 ? removedProducts.length : (removedProductIds.length > 0 ? removedProductIds.length : 0);
+
         // Calculate detected changes
-        const changeSummaryText = `Detected: ${formattedDeltaProducts.length} updated products, ${formattedDeltaShops.length} updated shops, ${formattedDeltaOrders.length} updated orders, ${imagesToDownload.length} image updates.`;
+        const changeParts = [];
+        if (formattedDeltaProducts.length > 0) changeParts.push(`${formattedDeltaProducts.length} updated products`);
+        if (totalRemovals > 0) changeParts.push(`${totalRemovals} removed/disabled products`);
+        if (formattedDeltaShops.length > 0) changeParts.push(`${formattedDeltaShops.length} updated shops`);
+        if (formattedDeltaOrders.length > 0) changeParts.push(`${formattedDeltaOrders.length} updated orders`);
+        if (imagesToDownload.length > 0) changeParts.push(`${imagesToDownload.length} image updates`);
+
+        const changeSummaryText = changeParts.length > 0
+          ? `Detected: ${changeParts.join(', ')}.`
+          : 'Detected: 0 new changes.';
         setProgress(35);
         setSyncStatusText(changeSummaryText);
 
-        const totalChanges = formattedDeltaProducts.length + formattedDeltaShops.length + formattedDeltaOrders.length + imagesToDownload.length;
+        const totalChanges = formattedDeltaProducts.length + totalRemovals + formattedDeltaShops.length + formattedDeltaOrders.length + imagesToDownload.length;
 
         // If no changes were detected, update lastSyncedAt timestamp and finish
         if (totalChanges === 0) {
@@ -840,10 +943,48 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
         // Apply changes to IndexedDB
         setProgress(50);
-        setSyncStatusText(`Applying changes: ${formattedDeltaProducts.length} products, ${formattedDeltaShops.length} shops...`);
+        setSyncStatusText(`Applying changes: ${formattedDeltaProducts.length} products, ${totalRemovals > 0 ? `${totalRemovals} removals, ` : ''}${formattedDeltaShops.length} shops...`);
 
+        // 1. Process removals first: delete removed products from IndexedDB and evict their cached images
+        if (removedProducts.length > 0 || removedProductIds.length > 0) {
+          const idsToDelete = new Set<string | number>();
+          removedProductIds.forEach((id) => { if (id) idsToDelete.add(String(id)); });
+
+          for (const p of removedProducts) {
+            const idKey = String(p.id || p._id || p.productId || '');
+            const pCode = String(p.productId || p.productCode || '');
+            if (idKey) idsToDelete.add(idKey);
+            if (pCode) idsToDelete.add(pCode);
+
+            // Find existing local product before deleting to evict any cached image
+            const localProd = (idKey ? await offlineDB.getOne<any>('products', idKey) : null) ||
+                              (pCode ? await offlineDB.getOne<any>('products', pCode) : null);
+
+            const oldImg = localProd?.image || localProd?.imageUrl || p.image;
+            if (oldImg) {
+              await evictImageAndFile(oldImg);
+            }
+            if (Array.isArray(localProd?.images)) {
+              for (const extraImg of localProd.images) {
+                if (extraImg) await evictImageAndFile(extraImg);
+              }
+            }
+          }
+
+          if (idsToDelete.size > 0) {
+            await offlineDB.deleteBatch('products', Array.from(idsToDelete));
+          }
+        }
+
+        // 2. Save active delta products & shops
         if (formattedDeltaProducts.length > 0) {
           await offlineDB.upsertBatch('products', formattedDeltaProducts);
+        }
+        if (formattedCategories.length > 0) {
+          await offlineDB.saveBatch('categories', formattedCategories);
+        }
+        if (formattedSubcategories.length > 0) {
+          await offlineDB.saveBatch('subcategories', formattedSubcategories);
         }
         if (formattedDeltaShops.length > 0) {
           await offlineDB.upsertBatch('shops', formattedDeltaShops);
@@ -913,8 +1054,14 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         setMeta(newMeta);
         setLastSyncedAt(newMeta.lastSyncedAt);
 
+        const completionParts = [];
+        if (formattedDeltaProducts.length > 0) completionParts.push(`${formattedDeltaProducts.length} products`);
+        if (totalRemovals > 0) completionParts.push(`removed ${totalRemovals} disabled/deleted products`);
+        if (formattedDeltaShops.length > 0) completionParts.push(`${formattedDeltaShops.length} shops`);
+        if (imagesToDownload.length > 0) completionParts.push(`${imagesToDownload.length} images`);
+
         setProgress(100);
-        setSyncStatusText(`Delta Sync Complete! Synced ${formattedDeltaProducts.length} products, ${formattedDeltaShops.length} shops, and ${imagesToDownload.length} images.`);
+        setSyncStatusText(`Delta Sync Complete! ${completionParts.length > 0 ? 'Synced ' + completionParts.join(', ') + '.' : 'All data is up to date.'}`);
 
         window.dispatchEvent(new Event('matrices-data-mode-change'));
         window.dispatchEvent(new Event('matrices-sync-stats-updated'));

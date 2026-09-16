@@ -184,6 +184,49 @@ function hashUrl(url: string): string {
   return `img_${Math.abs(hash)}.${cleanExt}`;
 }
 
+/**
+ * Evicts an image URL from memory map, IndexedDB image_map, CacheStorage,
+ * and deletes the native file on device (Capacitor Filesystem).
+ */
+export async function evictImageAndFile(url: string | null | undefined): Promise<void> {
+  if (!url || typeof url !== 'string' || isLocalUri(url)) return;
+
+  // 1. Evict from in-memory map & IndexedDB image_map store
+  await evictFromImageMemoryMap(url);
+
+  // 2. Delete native file from Capacitor Filesystem if running on Android/iOS
+  const cap = await getCapacitorCore();
+  const isNative = cap?.isNativePlatform?.() ?? false;
+  if (isNative) {
+    try {
+      const fsModule = await loadCapacitorFilesystem();
+      if (fsModule?.Filesystem && fsModule?.Directory?.Data) {
+        const fileName = hashUrl(url);
+        await fsModule.Filesystem.deleteFile({
+          path: `Matrices/${fileName}`,
+          directory: fsModule.Directory.Data,
+        }).catch(() => {});
+      }
+    } catch (e) {
+      console.warn(`Error deleting native image file for ${url}:`, e);
+    }
+  }
+
+  // 3. Delete from web CacheStorage
+  if (typeof window !== 'undefined' && 'caches' in window) {
+    try {
+      const cache = await caches.open(IMAGE_CACHE_NAME);
+      const targetFetchUrl = resolveApiUrl(url);
+      await cache.delete(url);
+      if (targetFetchUrl && targetFetchUrl !== url) {
+        await cache.delete(targetFetchUrl);
+      }
+    } catch (e) {
+      console.warn(`Error deleting image from CacheStorage for ${url}:`, e);
+    }
+  }
+}
+
 // Convert Blob to Base64 String
 function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {

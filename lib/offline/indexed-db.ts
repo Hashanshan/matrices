@@ -313,6 +313,24 @@ class OfflineDB {
     });
   }
 
+  /** Delete a batch of records by their keys */
+  async deleteBatch(storeName: string, ids: (string | number)[]): Promise<void> {
+    if (!ids || ids.length === 0) return;
+    const db = await this.getDB();
+    if (!db.objectStoreNames.contains(storeName)) return;
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(storeName, 'readwrite');
+      const store = tx.objectStore(storeName);
+      ids.forEach((id) => {
+        if (id !== undefined && id !== null) {
+          store.delete(id);
+        }
+      });
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
   /** Get a single record by its key */
   async getOne<T>(storeName: string, id: string | number): Promise<T | null> {
     const db = await this.getDB();
