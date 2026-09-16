@@ -165,7 +165,7 @@ export default function Page() {
             />
           </div>
 
-          <div className="max-w-7xl mx-auto px-6 lg:px-8 py-16 md:py-24 flex flex-col md:flex-row items-center gap-10 relative z-10">
+          <div className="max-w-9xl mx-auto px-6 lg:px-8 py-16 md:py-24 flex flex-col md:flex-row items-center gap-10 relative z-10">
             {/* Left content */}
             <motion.div
               initial={{ opacity: 0, x: -40 }}
@@ -232,7 +232,7 @@ export default function Page() {
         </section>
 
         {/* ────────────────────── PRODUCT CATEGORIES ────────────────────── */}
-        <section id="categories" className="max-w-7xl mx-auto px-6 lg:px-8 py-16 md:py-20">
+        <section id="categories" className="max-w-9xl mx-auto px-6 lg:px-8 py-16 md:py-20">
           <motion.h2
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -276,7 +276,7 @@ export default function Page() {
           id="new-arrivals"
           className="bg-gradient-to-br from-[#1e3a6e] via-[#1b3260] to-[#142647] py-16 md:py-20"
         >
-          <div className="max-w-7xl mx-auto px-6 lg:px-8">
+          <div className="max-w-9xl mx-auto px-6 lg:px-8">
             <motion.h2
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -334,7 +334,7 @@ export default function Page() {
         </section>
 
         {/* ────────────────────── WHY CHOOSE MATRICES ────────────────────── */}
-        <section className="max-w-7xl mx-auto px-6 lg:px-8 py-16 md:py-20">
+        <section className="max-w-9xl mx-auto px-6 lg:px-8 py-16 md:py-20">
           <motion.h2
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -372,7 +372,7 @@ export default function Page() {
 
         {/* ────────────────────── ABOUT MATRICES ────────────────────── */}
         <section id="about" className="bg-gradient-to-br from-[#1e3a6e] via-[#1b3260] to-[#142647] py-16 md:py-20">
-          <div className="max-w-7xl mx-auto px-6 lg:px-8">
+          <div className="max-w-9xl mx-auto px-6 lg:px-8">
             <motion.div
               initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -421,7 +421,7 @@ export default function Page() {
 
         {/* ────────────────────── CONTACT FOOTER ────────────────────── */}
         <section id="contact" className="bg-[#0f1f3d] py-12">
-          <div className="max-w-7xl mx-auto px-6 lg:px-8">
+          <div className="max-w-9xl mx-auto px-6 lg:px-8">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}

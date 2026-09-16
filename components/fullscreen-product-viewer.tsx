@@ -504,7 +504,7 @@ export default function FullscreenProductViewer({
           <p className="text-gray-400 text-sm max-w-sm mx-auto">TRY SEARCHING FOR OTHER ITEMS OR CLEAR THE SEARCH FILTER</p>
         </div>
 
-        <div className="w-full max-w-7xl">
+        <div className="w-full max-w-9xl">
           <RelatedProducts />
         </div>
       </div>

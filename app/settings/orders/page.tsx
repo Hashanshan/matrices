@@ -181,7 +181,7 @@ export default function SettingsOrdersPage() {
         onSuccess={() => setShowPinModal(false)}
       />
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+      <main className="max-w-9xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
         {!isPinVerified ? (
           <div className="flex flex-col items-center justify-center py-24 sm:py-32 text-center px-4">
             <div className="w-16 h-16 sm:w-20 sm:h-20 bg-[#0f172a] text-white rounded-full flex items-center justify-center mb-4 shadow-xl border border-white/20">

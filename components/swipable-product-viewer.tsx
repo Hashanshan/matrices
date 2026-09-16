@@ -120,7 +120,7 @@ export default function SwipableProductViewer({
     <div className="w-full min-h-screen bg-background">
       {/* Navigation Bar */}
       <div className="sticky top-0 z-40 bg-background border-b border-border">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
+        <div className="max-w-9xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
           <div className="text-sm text-muted-foreground">
             Product {currentIndex + 1} of {MOCK_PRODUCTS.length}
           </div>
@@ -135,7 +135,7 @@ export default function SwipableProductViewer({
       </div>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-9xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Left: Swipable Product Image */}
           <div className="flex flex-col gap-4">

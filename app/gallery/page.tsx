@@ -14,7 +14,7 @@ function GalleryContent() {
     <>
       <Header showSearch={false} />
       <main className="min-h-screen pb-28">
-        <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="max-w-9xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <ProductGallery searchQuery="" initialCategory={initialCategory} initialSubcategory={initialSubcategory} />
         </div>
       </main>

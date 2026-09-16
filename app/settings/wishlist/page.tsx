@@ -104,7 +104,7 @@ export default function SettingsWishlistPage() {
     <>
       <Header showSearch={false} />
       <main className="min-h-screen bg-[url(/bg.png)] bg-cover bg-center bg-no-repeat bg-fixed py-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-9xl mx-auto px-4 sm:px-6 lg:px-8">
 
           {/* PIN Verification Gate Modal (for salesreps only) */}
           {!isShop && (
