@@ -92,7 +92,7 @@ async function buildApk() {
   const sizeMb = (stats.size / (1024 * 1024)).toFixed(2);
   console.log(`✅ APK copied successfully (${sizeMb} MB)`);
 
-  // 7. Upload to Cloudflare R2 / Storage Bucket under folder '<folder>/apk/app-release'
+  // 7. Upload to Cloudflare R2 / Storage Bucket under folder '<R2_FOLDER_NAME>/apk/app-release'
   console.log('5️⃣ Uploading compiled APK to storage bucket (Cloudflare R2)...');
   let bucketApkUrl = process.env.APK_BUCKET_URL || process.env.NEXT_PUBLIC_APK_URL || '';
 
@@ -100,19 +100,33 @@ async function buildApk() {
     const { createRequire } = await import('module');
     const require = createRequire(import.meta.url);
 
+    // Resolve R2_FOLDER_NAME from backend/.env or environment
+    let rootFolder = process.env.R2_FOLDER_NAME || process.env.UPLOAD_FOLDER_NAME || '';
+    const backendEnvPath = path.join(rootDir, '..', 'backend', '.env');
+    if (!rootFolder && fs.existsSync(backendEnvPath)) {
+      const envContent = fs.readFileSync(backendEnvPath, 'utf8');
+      const match = envContent.match(new RegExp(`^R2_FOLDER_NAME=["']?([^"'\\r\\n]+)["']?`, 'm'));
+      if (match && match[1]) rootFolder = match[1].trim();
+    }
+
     // Try loading R2 helper from backend/utils/r2.js
     let r2Helper = null;
     try {
       r2Helper = require(path.join(rootDir, '..', 'backend', 'utils', 'r2.js'));
+      if (r2Helper && typeof r2Helper.getR2RootFolder === 'function') {
+        rootFolder = r2Helper.getR2RootFolder() || rootFolder;
+      }
     } catch {}
+
+    rootFolder = (rootFolder || 'matrices').replace(/^\/+|\/+$/g, '');
+    const apkReleaseFolder = `${rootFolder}/apk/app-release`;
 
     if (r2Helper && typeof r2Helper.uploadApkToR2 === 'function') {
       try {
-        const rootFolder = r2Helper.getR2RootFolder();
         const r2Res = await r2Helper.uploadApkToR2({
           filePath: destApkPath,
-          fileName: 'matrices-latest.apk',
-          folder: `${rootFolder}/apk/app-release`
+          fileName: destApkName,
+          folder: apkReleaseFolder
         });
         if (r2Res && r2Res.uploaded && r2Res.secureUrl) {
           bucketApkUrl = r2Res.secureUrl;
@@ -144,7 +158,6 @@ async function buildApk() {
         let apiKey = process.env.CLOUDINARY_API_KEY || process.env.API_KEY;
         let apiSecret = process.env.CLOUDINARY_API_SECRET || process.env.API_SECRET;
 
-        const backendEnvPath = path.join(rootDir, '..', 'backend', '.env');
         if ((!cloudName || !apiKey || !apiSecret) && fs.existsSync(backendEnvPath)) {
           const envContent = fs.readFileSync(backendEnvPath, 'utf8');
           const getEnv = (k) => {
@@ -167,9 +180,9 @@ async function buildApk() {
         });
 
         // 1. Delete previous APKs from bucket
-        console.log('🗑️ Deleting previous APK(s) from Cloudinary bucket (folder: apk/app-release)...');
+        console.log(`🗑️ Deleting previous APK(s) from Cloudinary bucket (folder: ${apkReleaseFolder})...`);
         try {
-          await cloudinarySdk.api.delete_resources_by_prefix('apk/app-release', {
+          await cloudinarySdk.api.delete_resources_by_prefix(apkReleaseFolder, {
             resource_type: 'raw',
             invalidate: true
           });
@@ -180,7 +193,7 @@ async function buildApk() {
 
         // 2. Upload the new APK
         const uploadRes = await cloudinarySdk.uploader.upload(destApkPath, {
-          folder: 'apk/app-release',
+          folder: apkReleaseFolder,
           public_id: 'matrices-latest.apk',
           resource_type: 'raw',
           overwrite: true,
@@ -202,6 +215,7 @@ async function buildApk() {
   // 8. Notify Backend Update Route
   const backendApiUrl = (process.env.NEXT_PUBLIC_API_URL || 'https://magnum-backend.vercel.app').replace(/\/$/, '');
   try {
+    const rootFolder = (process.env.R2_FOLDER_NAME || 'matrices').replace(/^\/+|\/+$/g, '');
     const syncRes = await fetch(`${backendApiUrl}/api/updates/upload-apk`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -209,7 +223,7 @@ async function buildApk() {
         version,
         build: 1,
         fileName: destApkName,
-        folder: 'apk/app-release',
+        folder: `${rootFolder}/apk/app-release`,
         apkFileSizeMb: `${sizeMb} MB`,
         apkUrl: bucketApkUrl || `${backendApiUrl}/api/updates/download-apk`,
         releaseNotes: `Matrices Android APK v${version}`
