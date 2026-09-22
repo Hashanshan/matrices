@@ -990,16 +990,42 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
           await offlineDB.upsertBatch('shops', formattedDeltaShops);
         }
         if (formattedDeltaOrders.length > 0) {
-          // Preserve local drafts
+          // Preserve local drafts and preserve sync state
           const existingDbOrders = await offlineDB.getAll<any>('orders').catch(() => []);
           const localDrafts = existingDbOrders.filter((o: any) =>
             o.isLocallyCreated === true ||
             !o.isSynced ||
-            (o.id && (String(o.id).startsWith('LOCAL_') || String(o.id).startsWith('DRAFT-')))
+            (o.id && (String(o.id).startsWith('LOCAL_') || String(o.id).startsWith('DRAFT-'))) ||
+            (o.orderId && (String(o.orderId).startsWith('LOCAL_') || String(o.orderId).startsWith('DRAFT-')))
           );
+
+          const remoteOrderMap = new Map<string, any>();
+          formattedDeltaOrders.forEach((ro: any) => {
+            if (ro.orderId) remoteOrderMap.set(String(ro.orderId), ro);
+            if (ro.id) remoteOrderMap.set(String(ro.id), ro);
+          });
+
+          const mergedLocalDrafts = localDrafts.map((ld: any) => {
+            const matchedRemote = (ld.liveOrderId && remoteOrderMap.get(String(ld.liveOrderId))) ||
+                                  (ld.orderId && remoteOrderMap.get(String(ld.orderId))) ||
+                                  (ld.id && remoteOrderMap.get(String(ld.id)));
+            if (matchedRemote) {
+              return {
+                ...matchedRemote,
+                ...ld,
+                orderId: matchedRemote.orderId || ld.orderId,
+                liveOrderId: matchedRemote.orderId || ld.liveOrderId,
+                isSynced: true,
+                isLocallyCreated: true,
+                status: matchedRemote.status || ld.status || 'synced'
+              };
+            }
+            return ld;
+          });
+
           await offlineDB.upsertBatch('orders', formattedDeltaOrders);
-          if (localDrafts.length > 0) {
-            await offlineDB.upsertBatch('orders', localDrafts);
+          if (mergedLocalDrafts.length > 0) {
+            await offlineDB.upsertBatch('orders', mergedLocalDrafts);
           }
         }
 
@@ -1386,14 +1412,40 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         !o.isSynced ||
         (o.id && (String(o.id).startsWith('LOCAL_') || String(o.id).startsWith('DRAFT-'))) ||
         (o.orderId && (String(o.orderId).startsWith('LOCAL_') || String(o.orderId).startsWith('DRAFT-')))
-      ).map((o: any) => ({ ...o, isLocallyCreated: true }));
+      );
 
       const preservedIds = new Set(localOrdersToPreserve.map((o: any) => String(o.id)));
+      const preservedOrderIds = new Set(localOrdersToPreserve.map((o: any) => String(o.orderId || o.liveOrderId || '')).filter(Boolean));
+
+      const remoteOrderMap = new Map<string, any>();
+      formattedOrders.forEach((ro: any) => {
+        if (ro.orderId) remoteOrderMap.set(String(ro.orderId), ro);
+        if (ro.id) remoteOrderMap.set(String(ro.id), ro);
+      });
+
+      const mergedPreservedLocals = localOrdersToPreserve.map((lo: any) => {
+        const matchedRemote = (lo.liveOrderId && remoteOrderMap.get(String(lo.liveOrderId))) ||
+                              (lo.orderId && remoteOrderMap.get(String(lo.orderId))) ||
+                              (lo.id && remoteOrderMap.get(String(lo.id)));
+        if (matchedRemote) {
+          return {
+            ...matchedRemote,
+            ...lo,
+            orderId: matchedRemote.orderId || lo.orderId,
+            liveOrderId: matchedRemote.orderId || lo.liveOrderId,
+            isSynced: true,
+            isLocallyCreated: true,
+            status: matchedRemote.status || lo.status || 'synced'
+          };
+        }
+        return { ...lo, isLocallyCreated: true };
+      });
+
       const remoteOrdersFormatted = formattedOrders
-        .filter((ro: any) => !preservedIds.has(String(ro.id)))
+        .filter((ro: any) => !preservedIds.has(String(ro.id)) && !preservedOrderIds.has(String(ro.orderId || ro.id)))
         .map((ro: any) => ({ ...ro, isLocallyCreated: false, isSynced: true }));
 
-      const mergedOrders = [...localOrdersToPreserve, ...remoteOrdersFormatted];
+      const mergedOrders = [...mergedPreservedLocals, ...remoteOrdersFormatted];
 
       setProgress(42);
       setSyncStatusText('Clearing old cached data for clean resync from scratch...');

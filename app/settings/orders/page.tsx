@@ -8,7 +8,7 @@ import Pagination from '@/components/pagination';
 import { motion } from 'framer-motion';
 import {
   ShoppingBag, Search, Plus, Trash2, Edit3, Clock,
-  RefreshCw, Store, FileText, Heart, ShieldCheck, Calendar, MapPin, Phone, Lock
+  RefreshCw, Store, FileText, Heart, ShieldCheck, Calendar, MapPin, Phone, Lock, Eye
 } from 'lucide-react';
 import Link from 'next/link';
 import Swal from 'sweetalert2';
@@ -58,6 +58,7 @@ export default function SettingsOrdersPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [page, setPage] = useState(1);
   const [localOrders, setLocalOrders] = useState<LocalOrder[]>([]);
+  const [pendingQueueIds, setPendingQueueIds] = useState<Set<string>>(new Set());
   const [loadingLocal, setLoadingLocal] = useState(true);
 
   // Require Security PIN on every visit to /settings/orders
@@ -74,7 +75,17 @@ export default function SettingsOrdersPage() {
   const loadLocalOrders = useCallback(async () => {
     setLoadingLocal(true);
     try {
-      const rawOrders = await offlineDB.getAll<LocalOrder>('orders').catch(() => []);
+      const [rawOrders, queue] = await Promise.all([
+        offlineDB.getAll<LocalOrder>('orders').catch(() => []),
+        getSyncQueue().catch(() => [])
+      ]);
+
+      const pendingIds = new Set(
+        (queue || [])
+          .filter(q => q.status === 'PENDING' || q.status === 'PROCESSING')
+          .flatMap(q => [q.entityId, q.payload?.id, q.payload?.orderId].filter(Boolean).map(String))
+      );
+      setPendingQueueIds(pendingIds);
 
       // Show ONLY orders created locally on this device (whether unsynced or already synced!)
       // Exclude remote live DB orders created by other salesreps/devices downloaded during sync
@@ -82,7 +93,9 @@ export default function SettingsOrdersPage() {
         o.isLocallyCreated === true ||
         !o.isSynced ||
         (o.id && (String(o.id).startsWith('LOCAL_') || String(o.id).startsWith('DRAFT-'))) ||
-        (o.orderId && (String(o.orderId).startsWith('LOCAL_') || String(o.orderId).startsWith('DRAFT-')))
+        (o.orderId && (String(o.orderId).startsWith('LOCAL_') || String(o.orderId).startsWith('DRAFT-'))) ||
+        pendingIds.has(String(o.id)) ||
+        pendingIds.has(String(o.orderId))
       );
 
       const sorted = locallyCreatedOnly.sort((a, b) =>
@@ -106,7 +119,13 @@ export default function SettingsOrdersPage() {
       loadLocalOrders();
     };
     window.addEventListener('matrices-sync-queue-updated', handleSyncEvent);
-    return () => window.removeEventListener('matrices-sync-queue-updated', handleSyncEvent);
+    window.addEventListener('matrices-local-orders-updated', handleSyncEvent);
+    window.addEventListener('matrices-sync-stats-updated', handleSyncEvent);
+    return () => {
+      window.removeEventListener('matrices-sync-queue-updated', handleSyncEvent);
+      window.removeEventListener('matrices-local-orders-updated', handleSyncEvent);
+      window.removeEventListener('matrices-sync-stats-updated', handleSyncEvent);
+    };
   }, [loadLocalOrders]);
 
   let allOrdersList = [...localOrders];
@@ -299,110 +318,142 @@ export default function SettingsOrdersPage() {
               </div>
             ) : (
               <div className="space-y-4">
-                {paginatedOrders.map((ord) => (
-                  <motion.div
-                    key={ord.id || ord.orderId}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="bg-white/80 backdrop-blur-xl border border-white/90 rounded-3xl p-5 shadow-sm hover:shadow-md transition-all group"
-                  >
-                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                {paginatedOrders.map((ord) => {
+                  const isSynced = Boolean(
+                    ord.isSynced === true ||
+                    ord.isSynced === ('true' as any) ||
+                    (ord.status && String(ord.status).toLowerCase() === 'synced') ||
+                    (ord.liveOrderId && !String(ord.liveOrderId).startsWith('LOCAL_') && !String(ord.liveOrderId).startsWith('DRAFT-')) ||
+                    (ord.orderId && !String(ord.orderId).startsWith('DRAFT-') && !String(ord.orderId).startsWith('LOCAL_') && !pendingQueueIds.has(String(ord.id)) && !pendingQueueIds.has(String(ord.orderId)))
+                  );
+                  const displayOrderId = ord.liveOrderId || ord.orderId || ord.id;
 
-                      {/* Left Details */}
-                      <div className="space-y-2.5">
-                        <div className="flex flex-wrap items-center gap-2.5">
-                          <span className="text-sm font-black text-[#0f172a] font-mono uppercase bg-gray-100 px-3 py-1 rounded-xl">
-                            {ord.orderId || ord.id}
-                          </span>
+                  return (
+                    <motion.div
+                      key={ord.id || ord.orderId}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="bg-white/80 backdrop-blur-xl border border-white/90 rounded-3xl p-5 shadow-sm hover:shadow-md transition-all group"
+                    >
+                      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
 
-                          {ord.isSynced ? (
-                            <span className="text-[11px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-900 border border-emerald-300 px-3 py-1 rounded-full flex items-center gap-1.5">
-                              <ShieldCheck size={13} className="text-emerald-600" /> Synced to Server
+                        {/* Left Details */}
+                        <div className="space-y-2.5">
+                          <div className="flex flex-wrap items-center gap-2.5">
+                            <span className="text-sm font-black text-[#0f172a] font-mono uppercase bg-gray-100 px-3 py-1 rounded-xl">
+                              {displayOrderId}
                             </span>
-                          ) : (
-                            <span className="text-[11px] font-black uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-300 px-3 py-1 rounded-full flex items-center gap-1.5 animate-pulse">
-                              <Clock size={13} className="text-amber-600" /> Local Draft (Unsynced)
-                            </span>
-                          )}
 
-                          <span className="text-xs font-bold text-gray-500 flex items-center gap-1">
-                            <Calendar size={13} />
-                            {new Date(ord.orderDate || ord.createdAt).toLocaleDateString()}
-                          </span>
-                        </div>
-
-                        {/* Shop Information */}
-                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-600 font-bold">
-                          <span className="font-black text-[#0f172a] text-sm uppercase flex items-center gap-1.5">
-                            <Store size={16} className="text-blue-600" />
-                            {ord.shop?.name || 'Customer Shop'}
-                            {ord.shop?.shopId && (
-                              <span className="text-[11px] font-mono text-gray-400">({ord.shop.shopId})</span>
+                            {isSynced ? (
+                              <span className="text-[11px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-900 border border-emerald-300 px-3 py-1 rounded-full flex items-center gap-1.5 shadow-xs">
+                                <ShieldCheck size={13} className="text-emerald-600" /> Synced to Server
+                              </span>
+                            ) : (
+                              <span className="text-[11px] font-black uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-300 px-3 py-1 rounded-full flex items-center gap-1.5 animate-pulse shadow-xs">
+                                <Clock size={13} className="text-amber-600" /> Local Draft (Unsynced)
+                              </span>
                             )}
-                          </span>
-                          {ord.shop?.phone && (
-                            <span className="flex items-center gap-1 text-gray-500">
-                              <Phone size={12} /> {ord.shop.phone}
+
+                            <span className="text-xs font-bold text-gray-500 flex items-center gap-1">
+                              <Calendar size={13} />
+                              {new Date(ord.orderDate || ord.createdAt).toLocaleDateString()}
                             </span>
-                          )}
-                          {ord.shop?.address && (
-                            <span className="flex items-center gap-1 text-gray-500 truncate max-w-xs">
-                              <MapPin size={12} /> {ord.shop.address}
+                          </div>
+
+                          {/* Shop Information */}
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-600 font-bold">
+                            <span className="font-black text-[#0f172a] text-sm uppercase flex items-center gap-1.5">
+                              <Store size={16} className="text-blue-600" />
+                              {ord.shop?.name || 'Customer Shop'}
+                              {ord.shop?.shopId && (
+                                <span className="text-[11px] font-mono text-gray-400">({ord.shop.shopId})</span>
+                              )}
                             </span>
-                          )}
+                            {ord.shop?.phone && (
+                              <span className="flex items-center gap-1 text-gray-500">
+                                <Phone size={12} /> {ord.shop.phone}
+                              </span>
+                            )}
+                            {ord.shop?.address && (
+                              <span className="flex items-center gap-1 text-gray-500 truncate max-w-xs">
+                                <MapPin size={12} /> {ord.shop.address}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Items Summary */}
+                          <div className="flex flex-wrap items-center gap-2 pt-1">
+                            <span className="text-xs font-extrabold text-gray-500 bg-gray-50 px-2.5 py-1 rounded-lg border border-gray-200/60">
+                              {(ord.items || []).length} {ord.items?.length === 1 ? 'ITEM' : 'ITEMS'}
+                            </span>
+                            {(ord.items || []).slice(0, 3).map((it, idx) => (
+                              <span key={idx} className="text-[11px] font-bold text-gray-600 bg-white border border-gray-200 px-2.5 py-1 rounded-lg">
+                                {it.name} ({it.quantity}x)
+                              </span>
+                            ))}
+                            {(ord.items || []).length > 3 && (
+                              <span className="text-[11px] font-extrabold text-gray-400">
+                                +{(ord.items || []).length - 3} more
+                              </span>
+                            )}
+                          </div>
                         </div>
 
-                        {/* Items Summary */}
-                        <div className="flex flex-wrap items-center gap-2 pt-1">
-                          <span className="text-xs font-extrabold text-gray-500 bg-gray-50 px-2.5 py-1 rounded-lg border border-gray-200/60">
-                            {(ord.items || []).length} {ord.items?.length === 1 ? 'ITEM' : 'ITEMS'}
-                          </span>
-                          {(ord.items || []).slice(0, 3).map((it, idx) => (
-                            <span key={idx} className="text-[11px] font-bold text-gray-600 bg-white border border-gray-200 px-2.5 py-1 rounded-lg">
-                              {it.name} ({it.quantity}x)
-                            </span>
-                          ))}
-                          {(ord.items || []).length > 3 && (
-                            <span className="text-[11px] font-extrabold text-gray-400">
-                              +{(ord.items || []).length - 3} more
-                            </span>
-                          )}
+                        {/* Right Totals & Actions */}
+                        <div className="flex flex-col sm:flex-row lg:flex-col items-start sm:items-center lg:items-end justify-between gap-3 pt-3 lg:pt-0 border-t lg:border-t-0 border-gray-100">
+                          <div className="text-left sm:text-right">
+                            <p className="text-[11px] font-black text-gray-400 uppercase tracking-wider">Total Amount</p>
+                            <p className="text-xl font-black text-[#0f172a]">{formatPrice(ord.total || 0)}</p>
+                            {ord.discount > 0 && (
+                              <p className="text-[10px] font-black text-emerald-600 uppercase">
+                                Includes {ord.discount}% Discount (-{formatPrice(ord.discountAmount)})
+                              </p>
+                            )}
+                          </div>
+
+                          {/* Action Buttons */}
+                          <div className="flex items-center gap-2">
+                            {isSynced ? (
+                              <>
+                                <Link
+                                  href={`/settings/invoices/${encodeURIComponent(ord.liveOrderId || ord.orderId)}`}
+                                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase rounded-full shadow-xs flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
+                                >
+                                  <Eye size={14} /> VIEW INVOICE
+                                </Link>
+
+                                <button
+                                  onClick={() => handleDeleteOrder(ord)}
+                                  className="px-4 py-2 bg-gray-100 hover:bg-red-50 text-gray-500 hover:text-red-600 text-xs font-black uppercase rounded-full border border-gray-200 hover:border-red-200 flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
+                                  title="Remove from local view"
+                                >
+                                  <Trash2 size={14} /> REMOVE
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <Link
+                                  href={`/settings/orders/create?editId=${encodeURIComponent(ord.id)}`}
+                                  className="px-4 py-2 bg-[#0f172a] hover:bg-[#1e293b] text-white text-xs font-black uppercase rounded-full shadow-xs flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
+                                >
+                                  <Edit3 size={14} /> EDIT
+                                </Link>
+
+                                <button
+                                  onClick={() => handleDeleteOrder(ord)}
+                                  className="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 text-xs font-black uppercase rounded-full border border-red-200 flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
+                                >
+                                  <Trash2 size={14} /> DELETE
+                                </button>
+                              </>
+                            )}
+                          </div>
                         </div>
+
                       </div>
-
-                      {/* Right Totals & Actions */}
-                      <div className="flex flex-col sm:flex-row lg:flex-col items-start sm:items-center lg:items-end justify-between gap-3 pt-3 lg:pt-0 border-t lg:border-t-0 border-gray-100">
-                        <div className="text-left sm:text-right">
-                          <p className="text-[11px] font-black text-gray-400 uppercase tracking-wider">Total Amount</p>
-                          <p className="text-xl font-black text-[#0f172a]">{formatPrice(ord.total || 0)}</p>
-                          {ord.discount > 0 && (
-                            <p className="text-[10px] font-black text-emerald-600 uppercase">
-                              Includes {ord.discount}% Discount (-{formatPrice(ord.discountAmount)})
-                            </p>
-                          )}
-                        </div>
-
-                        {/* Action Buttons */}
-                        <div className="flex items-center gap-2">
-                          <Link
-                            href={`/settings/orders/create?editId=${encodeURIComponent(ord.id)}`}
-                            className="px-4 py-2 bg-[#0f172a] hover:bg-[#1e293b] text-white text-xs font-black uppercase rounded-full shadow-xs flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
-                          >
-                            <Edit3 size={14} /> EDIT
-                          </Link>
-
-                          <button
-                            onClick={() => handleDeleteOrder(ord)}
-                            className="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 text-xs font-black uppercase rounded-full border border-red-200 flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
-                          >
-                            <Trash2 size={14} /> DELETE
-                          </button>
-                        </div>
-                      </div>
-
-                    </div>
-                  </motion.div>
-                ))}
+                    </motion.div>
+                  );
+                })}
               </div>
             )}
 

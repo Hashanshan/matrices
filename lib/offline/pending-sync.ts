@@ -299,7 +299,7 @@ export async function processSyncQueueSequential(
       // Handle order sync status update if an order was created
       const isOrderCreate = targetItem.endpoint.includes('/orders/create') || targetItem.entity === 'Order';
       if (isOrderCreate) {
-        await markOrderSyncedSuccess(targetItem.entityId, resJson.order);
+        await markOrderSyncedSuccess(targetItem.entityId, resJson.order || resJson.data || resJson, targetItem.payload);
       }
 
       // Success! Mark item as SUCCESS
@@ -620,19 +620,59 @@ async function resolveShopIdMapping(oldTempId: string, realShopId: string, serve
 /**
  * Marks an order in local IndexedDB as synced with server returned live order ID.
  */
-async function markOrderSyncedSuccess(localOrderId: string, serverOrder: any) {
+async function markOrderSyncedSuccess(localOrderId: string, serverOrder: any, payload?: any) {
   try {
-    const localOrders = await offlineDB.getAll<any>('orders');
-    const target = localOrders.find((o: any) => String(o.id) === String(localOrderId) || String(o.orderId) === String(localOrderId));
+    const candidateIds = new Set<string>();
+    if (localOrderId) candidateIds.add(String(localOrderId).trim());
+    if (payload?.id) candidateIds.add(String(payload.id).trim());
+    if (payload?.orderId) candidateIds.add(String(payload.orderId).trim());
+    if (payload?.tempId) candidateIds.add(String(payload.tempId).trim());
+    if (payload?.oldId) candidateIds.add(String(payload.oldId).trim());
+
+    const localOrders = await offlineDB.getAll<any>('orders').catch(() => []);
+    const target = localOrders.find((o: any) => {
+      const oId = String(o.id || '').trim();
+      const oOrderId = String(o.orderId || '').trim();
+      const oTempId = String(o.tempId || '').trim();
+      const oOldId = String(o.oldId || '').trim();
+      return candidateIds.has(oId) || candidateIds.has(oOrderId) || (oTempId && candidateIds.has(oTempId)) || (oOldId && candidateIds.has(oOldId));
+    });
+
+    const liveId = serverOrder?.orderId || serverOrder?.id || (typeof serverOrder === 'string' ? serverOrder : '');
+
     if (target) {
       target.isSynced = true;
       target.isLocallyCreated = true;
       target.status = 'synced';
-      if (serverOrder && serverOrder.orderId) {
-        target.liveOrderId = serverOrder.orderId;
-        target.orderId = serverOrder.orderId;
+      if (liveId) {
+        target.liveOrderId = liveId;
+        target.orderId = liveId;
+      }
+      if (serverOrder && typeof serverOrder === 'object') {
+        if (serverOrder.total !== undefined) target.total = serverOrder.total;
+        if (serverOrder.subtotal !== undefined) target.subtotal = serverOrder.subtotal;
+        if (serverOrder.discount !== undefined) target.discount = serverOrder.discount;
+        if (serverOrder.discountAmount !== undefined) target.discountAmount = serverOrder.discountAmount;
+        if (serverOrder.items) target.items = serverOrder.items;
       }
       await offlineDB.upsert('orders', target);
+    } else if (liveId && payload) {
+      // Fallback: If not found in local table, insert the synced order
+      const newSyncedOrder = {
+        ...payload,
+        id: payload.id || liveId,
+        orderId: liveId,
+        liveOrderId: liveId,
+        isSynced: true,
+        isLocallyCreated: true,
+        status: 'synced',
+      };
+      await offlineDB.upsert('orders', newSyncedOrder);
+    }
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('matrices-sync-queue-updated'));
+      window.dispatchEvent(new Event('matrices-local-orders-updated'));
     }
   } catch (err) {
     console.warn('Error marking order synced in local DB:', err);

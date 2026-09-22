@@ -63,7 +63,7 @@ const fetcher = async (url: string) => {
     const rawOrders = await offlineDB.getAll<any>('orders').catch(() => []);
     const id = extractId();
     const found = rawOrders.find((o: any) =>
-      String(o.orderId) === id || String(o.id) === id || String(o._id) === id
+      String(o.orderId) === id || String(o.id) === id || String(o._id) === id || String(o.liveOrderId) === id
     );
     return { hasOrder: !!found, response: found ? { success: true, order: found } : { success: false, order: null } };
   };
