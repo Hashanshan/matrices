@@ -981,10 +981,10 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
           await offlineDB.upsertBatch('products', formattedDeltaProducts);
         }
         if (formattedCategories.length > 0) {
-          await offlineDB.saveBatch('categories', formattedCategories);
+          await offlineDB.upsertBatch('categories', formattedCategories);
         }
         if (formattedSubcategories.length > 0) {
-          await offlineDB.saveBatch('subcategories', formattedSubcategories);
+          await offlineDB.upsertBatch('subcategories', formattedSubcategories);
         }
         if (formattedDeltaShops.length > 0) {
           await offlineDB.upsertBatch('shops', formattedDeltaShops);

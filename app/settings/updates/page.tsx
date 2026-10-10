@@ -47,10 +47,15 @@ export default function UpdatesSettingsPage() {
 
   const frontEndUrl = (process.env.NEXT_PUBLIC_FRONT_END_URL || 'https://matrices.devcodz.com').replace(/\/$/, '');
   const fallbackApkUrl = `${frontEndUrl}/api/updates/download-apk`;
-  const finalApkDownloadUrl =
+  let finalApkDownloadUrl =
     manifest?.apkUrl && manifest.apkUrl.startsWith('http') && !manifest.apkUrl.includes('localhost')
       ? manifest.apkUrl
       : fallbackApkUrl;
+
+  // Force Cloudinary URLs to use the R2 bucket for APK downloads
+  if (finalApkDownloadUrl.includes('cloudinary.com') && finalApkDownloadUrl.includes('.apk')) {
+    finalApkDownloadUrl = 'https://pub-c21ca23422064fc880b5eb6abde8a05e.r2.dev/matrices/apk/app-release/matrices-latest.apk';
+  }
 
   const formatReleaseDate = (dateStr?: string) => {
     if (!dateStr) return 'Latest Release';
@@ -343,16 +348,13 @@ export default function UpdatesSettingsPage() {
                 </div>
 
                 {/* Direct Download Action Button */}
-                <a
-                  href={finalApkDownloadUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  download={manifest?.apkFileName || "matrices-latest.apk"}
+                <button
+                  onClick={() => window.open(finalApkDownloadUrl, '_system')}
                   className="w-full py-3 px-4 rounded-2xl bg-blue-600 hover:bg-blue-500 active:scale-[0.98] text-white font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-600/40 mb-3"
                 >
                   <Download className="w-4 h-4" />
                   Download Android APK
-                </a>
+                </button>
 
                 {/* Copy Link Button */}
                 <button
