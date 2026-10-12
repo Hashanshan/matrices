@@ -348,13 +348,31 @@ export default function UpdatesSettingsPage() {
                 </div>
 
                 {/* Direct Download Action Button */}
-                <button
-                  onClick={() => window.open(finalApkDownloadUrl, '_system')}
-                  className="w-full py-3 px-4 rounded-2xl bg-blue-600 hover:bg-blue-500 active:scale-[0.98] text-white font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-600/40 mb-3"
+                <a
+                  href={finalApkDownloadUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  download={manifest?.apkFileName || 'matrices-latest.apk'}
+                  onClick={(e) => {
+                    if (typeof window !== 'undefined') {
+                      try {
+                        const a = document.createElement('a');
+                        a.href = finalApkDownloadUrl;
+                        a.target = '_blank';
+                        a.download = manifest?.apkFileName || 'matrices-latest.apk';
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                      } catch {
+                        window.location.href = finalApkDownloadUrl;
+                      }
+                    }
+                  }}
+                  className="w-full py-3 px-4 rounded-2xl bg-blue-600 hover:bg-blue-500 active:scale-[0.98] text-white font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-600/40 mb-3 cursor-pointer text-center"
                 >
                   <Download className="w-4 h-4" />
                   Download Android APK
-                </button>
+                </a>
 
                 {/* Copy Link Button */}
                 <button

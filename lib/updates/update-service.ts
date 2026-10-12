@@ -26,6 +26,8 @@ export interface UpdateStatus {
   currentVersion?: string;
 }
 
+export const APP_VERSION = '1.2.0';
+
 class UpdateService {
   private isInitialized = false;
 
@@ -52,14 +54,19 @@ class UpdateService {
    */
   async getCurrentVersion(): Promise<string> {
     if (!Capacitor.isNativePlatform()) {
-      return '1.0.0-web';
+      return APP_VERSION;
     }
 
     try {
       const current = await CapacitorUpdater.current();
-      return current.bundle.version || current.bundle.id || '1.0.0';
+      const bundleVer = current?.bundle?.version;
+      // If a real semver bundle version exists and is not 'builtin'/'default', return it
+      if (bundleVer && bundleVer !== 'builtin' && bundleVer !== 'default' && /[0-9]+\.[0-9]+/.test(bundleVer)) {
+        return bundleVer;
+      }
+      return APP_VERSION;
     } catch {
-      return '1.0.0';
+      return APP_VERSION;
     }
   }
 
@@ -101,20 +108,24 @@ class UpdateService {
     }
 
     if (!manifest) {
+      const curVer = await this.getCurrentVersion();
       return {
         hasUpdate: false,
         isWebUpdate: false,
         isApkUpdate: false,
+        currentVersion: curVer,
       };
     }
 
     const currentVersion = await this.getCurrentVersion();
-    const isWebUpdate = this.isNewerVersion(currentVersion, manifest.version);
+    const isWebUpdate = manifest.version ? this.isNewerVersion(currentVersion, manifest.version) : false;
+    const isApkUpdate = manifest.apkVersion ? this.isNewerVersion(currentVersion, manifest.apkVersion) : false;
+    const hasUpdate = isWebUpdate || isApkUpdate;
 
     return {
-      hasUpdate: isWebUpdate,
+      hasUpdate,
       isWebUpdate,
-      isApkUpdate: false,
+      isApkUpdate,
       manifest,
       currentVersion,
     };

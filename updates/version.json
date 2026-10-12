@@ -2,7 +2,7 @@
   "version": "1.2.0",
   "build": 1,
   "bundleFileName": "app-v1.2.0.zip",
-  "checksum": "",
+  "checksum": "f6293f3fc0879d52b3b5b18e4bf9ba5e08a235a06aff694bf3feec316e61c101",
   "apkFileName": "matrices-latest.apk",
   "apkUrl": "https://pub-c21ca23422064fc880b5eb6abde8a05e.r2.dev/matrices/apk/app-release/matrices-latest.apk",
   "apkVersion": "1.2.0",
