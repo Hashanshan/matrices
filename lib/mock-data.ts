@@ -405,7 +405,7 @@ export const MOCK_PRODUCTS: Product[] = [
     name: 'School Backpack Pro',
     price: 8999,
     category: 'Bags',
-    subcategory: 'School Bags',
+    subcategory: 'School Bag',
     image: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=500&h=500&fit=crop',
     images: [
       'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=800&h=800&fit=crop',
@@ -452,7 +452,7 @@ export const MOCK_PRODUCTS: Product[] = [
     name: 'Colorful School Bag',
     price: 5999,
     category: 'Bags',
-    subcategory: 'School Bags',
+    subcategory: 'School Bag',
     image: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=500&h=500&fit=crop',
     images: [
       'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=800&h=800&fit=crop',

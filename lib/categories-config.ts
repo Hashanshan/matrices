@@ -28,11 +28,11 @@ export const CATEGORIES_CONFIG: CategoryConfig[] = [
   },
   {
     name: 'Accessories',
-    subcategories: ['Eyewear', 'Handbags', 'Backpacks', 'School Bags', 'Watches'],
+    subcategories: ['Eyewear', 'Handbags', 'Backpacks', 'School Bag', 'Watches'],
   },
   {
     name: 'Bags',
-    subcategories: ['Handbags', 'School Bags', 'Backpacks', 'Crossbody Bags', 'Duffle Bags'],
+    subcategories: ['Handbags', 'School Bag', 'Backpacks', 'Crossbody Bags', 'Duffle Bags'],
   },
   {
     name: 'Home',
