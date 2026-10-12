@@ -1018,15 +1018,29 @@ export default function CartPage() {
                     <button
                       type="button"
                       onClick={() => setSelectedProductForAdd(null)}
-                      className="w-1/2 py-3.5 bg-slate-100 text-slate-700 font-black text-xs uppercase rounded-full hover:bg-slate-200 transition-all cursor-pointer"
+                      className="flex-1 py-3.5 bg-slate-100 text-slate-700 font-black text-xs uppercase rounded-full hover:bg-slate-200 transition-all cursor-pointer text-center"
                     >
                       BACK TO SEARCH
                     </button>
+                    {isProductInCart(selectedProductForAdd.productId || selectedProductForAdd.id) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          removeFromCart(selectedProductForAdd.productId || selectedProductForAdd.id);
+                          setSelectedProductForAdd(null);
+                          setIsProductModalOpen(false);
+                        }}
+                        className="py-3.5 px-4 bg-rose-50 text-rose-600 border border-rose-200 font-black text-xs uppercase rounded-full hover:bg-rose-100 transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                        title="Remove from Cart"
+                      >
+                        <Trash2 size={14} /> REMOVE
+                      </button>
+                    )}
                     <button
                       type="submit"
-                      className="w-1/2 py-3.5 bg-[#0f172a] text-white font-black text-xs uppercase rounded-full hover:bg-[#1e293b] shadow-md transition-all cursor-pointer active:scale-95"
+                      className="flex-1 py-3.5 bg-[#0f172a] text-white font-black text-xs uppercase rounded-full hover:bg-[#1e293b] shadow-md transition-all cursor-pointer active:scale-95 text-center"
                     >
-                      ADD TO CART (ENTER)
+                      {isProductInCart(selectedProductForAdd.productId || selectedProductForAdd.id) ? 'UPDATE IN CART' : 'ADD TO CART (ENTER)'}
                     </button>
                   </div>
                 </form>

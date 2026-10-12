@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Product } from '@/lib/types';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Minus, Plus, Check, ShoppingCart, ZoomIn } from 'lucide-react';
+import { X, Minus, Plus, Check, ShoppingCart, ZoomIn, Trash2 } from 'lucide-react';
 import { useCart } from '@/lib/contexts/cart-context';
 import { Button } from '@/components/ui/button';
 import { formatPrice } from '@/lib/currency';
@@ -68,8 +68,24 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
     setQuantity(isNaN(parsed) ? '' : parsed);
   };
 
+  const { addToCart, getAddToCartButtonLabel, getCartItem, isProductInCart, removeFromCart } = useCart();
+
+  const prodKey = product?.productId || product?.id || '';
+  const existingCartItem = getCartItem(prodKey);
+  const isAlreadyInCart = Boolean(existingCartItem);
+
+  const handleRemoveFromCart = () => {
+    const targetId = existingCartItem?.id || existingCartItem?.productId || product?.productId || product?.id || '';
+    if (targetId) {
+      removeFromCart(targetId);
+    }
+    onClose();
+  };
+
   const handleQuantityBlur = () => {
-    if (quantity === '' || Number(quantity) < 1 || isNaN(Number(quantity))) {
+    if (quantity === '' || isNaN(Number(quantity))) {
+      setQuantity(1);
+    } else if (Number(quantity) < 1 && !isAlreadyInCart) {
       setQuantity(1);
     }
   };
@@ -81,14 +97,12 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
 
   const decrementQuantity = () => {
     const current = typeof quantity === 'number' ? quantity : (parseInt(String(quantity), 10) || 1);
+    if (current <= 1 && isAlreadyInCart) {
+      handleRemoveFromCart();
+      return;
+    }
     setQuantity(Math.max(1, current - 1));
   };
-
-  const { addToCart, getAddToCartButtonLabel, getCartItem, isProductInCart } = useCart();
-
-  const prodKey = product?.productId || product?.id || '';
-  const existingCartItem = getCartItem(prodKey);
-  const isAlreadyInCart = Boolean(existingCartItem);
 
   useEffect(() => {
     setMounted(true);
@@ -153,6 +167,12 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
   }, [product?.image, product?.imageUrl]);
 
   const handleAddToCart = async () => {
+    const parsedQty = typeof quantity === 'number' ? quantity : parseInt(String(quantity), 10);
+    if ((quantity === 0 || parsedQty === 0) && isAlreadyInCart) {
+      handleRemoveFromCart();
+      return;
+    }
+
     setIsSubmitting(true);
     const finalQty = Math.max(1, typeof quantity === 'number' ? quantity : (parseInt(String(quantity), 10) || 1));
 
@@ -254,9 +274,20 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
                   <div className="flex items-center gap-2 mb-2 flex-wrap">
                     <span className="text-sm text-gray-400 font-bold uppercase tracking-wider">{product.category || product.categories}</span>
                     {isAlreadyInCart && (
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-black uppercase tracking-wider border border-emerald-300 shadow-xs">
-                        <Check size={14} className="stroke-[3]" /> Already in Cart ({existingCartItem?.quantity})
-                      </span>
+                      <div className="inline-flex items-center gap-2">
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-black uppercase tracking-wider border border-emerald-300 shadow-xs">
+                          <Check size={14} className="stroke-[3]" /> Already in Cart ({existingCartItem?.quantity})
+                        </span>
+                        <button
+                          type="button"
+                          onClick={handleRemoveFromCart}
+                          className="inline-flex items-center gap-1 text-xs font-bold text-rose-600 hover:text-rose-800 hover:bg-rose-50 px-2 py-1 rounded-lg border border-rose-200 transition-colors cursor-pointer"
+                          title="Remove from Cart"
+                        >
+                          <Trash2 size={12} />
+                          <span>Remove</span>
+                        </button>
+                      </div>
                     )}
                   </div>
                   <h3 className="text-2xl md:text-3xl font-black text-[#0f172a] mb-3 leading-tight">{product.name}</h3>
@@ -361,9 +392,18 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
                       <button
                         type="button"
                         onClick={decrementQuantity}
-                        className="p-2.5 hover:bg-white hover:shadow-sm rounded-lg transition-all text-gray-500 hover:text-[#0f172a] cursor-pointer"
+                        className={`p-2.5 hover:bg-white hover:shadow-sm rounded-lg transition-all cursor-pointer ${
+                          Number(quantity) <= 1 && isAlreadyInCart
+                            ? 'text-rose-500 hover:text-rose-700 hover:bg-rose-50'
+                            : 'text-gray-500 hover:text-[#0f172a]'
+                        }`}
+                        title={Number(quantity) <= 1 && isAlreadyInCart ? 'Remove from Cart' : 'Decrease Quantity'}
                       >
-                        <Minus size={18} />
+                        {Number(quantity) <= 1 && isAlreadyInCart ? (
+                          <Trash2 size={18} />
+                        ) : (
+                          <Minus size={18} />
+                        )}
                       </button>
                       <input
                         ref={quantityInputRef}
@@ -450,19 +490,35 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
 
                 {/* Success / Action Area */}
                 <div className="mt-8 pt-6 border-t border-gray-100">
-                  <div className="flex gap-4 flex-col sm:flex-row">
+                  <div className="flex gap-3 flex-col sm:flex-row">
                     <button
                       type="button"
                       onClick={onClose}
                       disabled={isSubmitting}
-                      className="px-6 py-4 rounded-xl border-2 border-gray-200 text-gray-600 font-bold hover:border-gray-300 hover:bg-gray-50 transition-all text-center cursor-pointer"
+                      className="px-5 py-4 rounded-xl border-2 border-gray-200 text-gray-600 font-bold hover:border-gray-300 hover:bg-gray-50 transition-all text-center cursor-pointer order-3 sm:order-1"
                     >
                       Cancel
                     </button>
+
+                    {isAlreadyInCart && (
+                      <button
+                        type="button"
+                        onClick={handleRemoveFromCart}
+                        disabled={isSubmitting}
+                        className="px-5 py-4 rounded-xl border-2 border-rose-200 bg-rose-50/70 hover:bg-rose-100 hover:border-rose-300 text-rose-600 font-bold transition-all flex items-center justify-center gap-2 cursor-pointer order-2 sm:order-2"
+                        title="Remove product from cart"
+                      >
+                        <Trash2 size={18} className="text-rose-600 shrink-0" />
+                        <span className="whitespace-nowrap uppercase text-xs sm:text-sm font-black">
+                          Remove from Cart
+                        </span>
+                      </button>
+                    )}
+
                     <button
                       type="submit"
                       disabled={isSubmitting}
-                      className="flex-1 bg-[#0f172a] hover:bg-[#1e293b] text-white font-bold py-4 px-6 rounded-xl flex items-center justify-center gap-2 transition-all hover:shadow-lg disabled:opacity-50 overflow-hidden cursor-pointer"
+                      className="flex-1 bg-[#0f172a] hover:bg-[#1e293b] text-white font-bold py-4 px-6 rounded-xl flex items-center justify-center gap-2 transition-all hover:shadow-lg disabled:opacity-50 overflow-hidden cursor-pointer order-1 sm:order-3"
                     >
                       {isSubmitting ? (
                         <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity }} className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full" />
@@ -470,7 +526,7 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
                         <>
                           <ShoppingCart size={18} className="shrink-0" />
                           <span className="truncate whitespace-nowrap inline-block max-w-full text-xs sm:text-sm uppercase font-black">
-                            {addToCartBtnText}
+                            {Number(quantity) === 0 && isAlreadyInCart ? 'REMOVE FROM CART' : addToCartBtnText}
                           </span>
                         </>
                       )}
