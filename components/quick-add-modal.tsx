@@ -490,12 +490,12 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
 
                 {/* Success / Action Area */}
                 <div className="mt-8 pt-6 border-t border-gray-100">
-                  <div className="flex gap-3 flex-col sm:flex-row">
+                  <div className="flex gap-2.5 sm:gap-3 items-center">
                     <button
                       type="button"
                       onClick={onClose}
                       disabled={isSubmitting}
-                      className="px-5 py-4 rounded-xl border-2 border-gray-200 text-gray-600 font-bold hover:border-gray-300 hover:bg-gray-50 transition-all text-center cursor-pointer order-3 sm:order-1"
+                      className="px-5 sm:px-6 py-3.5 sm:py-4 rounded-xl border-2 border-gray-200 text-gray-600 font-bold hover:border-gray-300 hover:bg-gray-50 transition-all text-center cursor-pointer shrink-0 text-xs sm:text-sm"
                     >
                       Cancel
                     </button>
@@ -505,20 +505,18 @@ export default function QuickAddModal({ isOpen, product, onClose }: QuickAddModa
                         type="button"
                         onClick={handleRemoveFromCart}
                         disabled={isSubmitting}
-                        className="px-5 py-4 rounded-xl border-2 border-rose-200 bg-rose-50/70 hover:bg-rose-100 hover:border-rose-300 text-rose-600 font-bold transition-all flex items-center justify-center gap-2 cursor-pointer order-2 sm:order-2"
+                        className="p-3.5 sm:p-4 rounded-xl border-2 border-rose-200 bg-rose-50/70 hover:bg-rose-100 hover:border-rose-300 text-rose-600 transition-all flex items-center justify-center cursor-pointer shrink-0 shadow-xs"
                         title="Remove product from cart"
+                        aria-label="Remove product from cart"
                       >
-                        <Trash2 size={18} className="text-rose-600 shrink-0" />
-                        <span className="whitespace-nowrap uppercase text-xs sm:text-sm font-black">
-                          Remove from Cart
-                        </span>
+                        <Trash2 size={20} className="text-rose-600 shrink-0" />
                       </button>
                     )}
 
                     <button
                       type="submit"
                       disabled={isSubmitting}
-                      className="flex-1 bg-[#0f172a] hover:bg-[#1e293b] text-white font-bold py-4 px-6 rounded-xl flex items-center justify-center gap-2 transition-all hover:shadow-lg disabled:opacity-50 overflow-hidden cursor-pointer order-1 sm:order-3"
+                      className="flex-1 bg-[#0f172a] hover:bg-[#1e293b] text-white font-bold py-3.5 sm:py-4 px-4 sm:px-6 rounded-xl flex items-center justify-center gap-2 transition-all hover:shadow-lg disabled:opacity-50 overflow-hidden cursor-pointer"
                     >
                       {isSubmitting ? (
                         <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity }} className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full" />
