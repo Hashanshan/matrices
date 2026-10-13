@@ -22,6 +22,7 @@ import { useDataMode } from '@/lib/contexts/data-mode-context';
 import SmartImage from '@/components/smart-image';
 import BrDocumentUpload from '@/components/br-document-upload';
 import BrDocumentModal from '@/components/br-document-modal';
+import { compressImage } from '@/lib/imageUtils';
 
 interface Shop {
   shopId: string;
@@ -302,8 +303,8 @@ export default function ShopsSettingsPage() {
     );
   };
 
-  // Image File Upload Handler
-  const handleImageFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Image File Upload Handler with Client-Side Optimization
+  const handleImageFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -312,14 +313,19 @@ export default function ShopsSettingsPage() {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      if (event.target?.result) {
-        setFormImageUrl(event.target.result as string);
-      }
-    };
-    reader.readAsDataURL(file);
-    e.target.value = '';
+    try {
+      const optimizedBase64 = await compressImage(file, {
+        maxWidth: 1200,
+        maxHeight: 1200,
+        quality: 0.82
+      });
+      setFormImageUrl(optimizedBase64);
+    } catch (err: any) {
+      console.error('Image compression error:', err);
+      Swal.fire({ icon: 'error', title: 'Image Processing Error', text: err?.message || 'Failed to process image.' });
+    } finally {
+      e.target.value = '';
+    }
   };
 
   // WebCam Live Camera Viewfinder Controls

@@ -4,6 +4,7 @@ import React, { useState, useRef, ChangeEvent, DragEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Upload, FileText, Image as ImageIcon, Eye, Trash2, ExternalLink, Camera, X, CheckCircle2 } from 'lucide-react';
 import Swal from 'sweetalert2';
+import { compressImage } from '@/lib/imageUtils';
 
 interface BrDocumentUploadProps {
   value?: string;
@@ -28,6 +29,7 @@ export default function BrDocumentUpload({
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [showCameraModal, setShowCameraModal] = useState(false);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const [isOptimizing, setIsOptimizing] = useState(false);
 
   // Helper to determine whether the document is a PDF
   const isPdf =
@@ -39,7 +41,7 @@ export default function BrDocumentUpload({
 
   const hasDocument = Boolean(value && typeof value === 'string' && value.trim().length > 0);
 
-  const handleFile = (file: File) => {
+  const handleFile = async (file: File) => {
     if (!file) return;
 
     const maxSizeMb = 10;
@@ -64,20 +66,39 @@ export default function BrDocumentUpload({
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const base64 = (event.target?.result as string) || '';
-      const type = isFilePdf ? 'pdf' : 'image';
-      onChange(base64, type);
-    };
-    reader.onerror = () => {
+    try {
+      setIsOptimizing(true);
+      if (isFileImage) {
+        const compressedBase64 = await compressImage(file, {
+          maxWidth: 1600,
+          maxHeight: 1600,
+          quality: 0.85
+        });
+        onChange(compressedBase64, 'image');
+      } else {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const base64 = (event.target?.result as string) || '';
+          onChange(base64, 'pdf');
+        };
+        reader.onerror = () => {
+          Swal.fire({
+            icon: 'error',
+            title: 'Read Error',
+            text: 'Failed to read the selected file. Please try again.',
+          });
+        };
+        reader.readAsDataURL(file);
+      }
+    } catch (err: any) {
       Swal.fire({
         icon: 'error',
-        title: 'Read Error',
-        text: 'Failed to read the selected file. Please try again.',
+        title: 'Optimization Error',
+        text: err?.message || 'Failed to process document image.',
       });
-    };
-    reader.readAsDataURL(file);
+    } finally {
+      setIsOptimizing(false);
+    }
   };
 
   const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
