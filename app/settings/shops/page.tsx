@@ -440,11 +440,15 @@ export default function ShopsSettingsPage() {
           title: `${isEdit ? 'Updated' : 'Created'} Customer Shop (${formName})`,
         });
 
+        const emailNote = cleanEmail
+          ? ' Login credentials will be automatically emailed when changes are pushed to the live database.'
+          : '';
+
         Swal.fire({
           icon: 'success',
           title: isEdit ? 'Shop Saved Offline' : 'Shop Created Offline',
-          text: 'Saved locally to IndexedDB and queued in SyncQueue for server push.',
-          timer: 2500,
+          text: `Saved locally to IndexedDB and queued in SyncQueue.${emailNote}`,
+          timer: 3000,
           showConfirmButton: false,
         });
 
@@ -470,11 +474,19 @@ export default function ShopsSettingsPage() {
         throw new Error(result.msg || result.message || 'Failed to save shop details');
       }
 
+      const emailSentMessage = isEdit
+        ? (cleanEmail && cleanEmail !== (editingShop?.email || '').toLowerCase()
+            ? `Shop updated and login credentials sent to ${cleanEmail}`
+            : 'Shop details updated successfully')
+        : (cleanEmail
+            ? `New shop created and login credentials sent to ${cleanEmail}`
+            : 'New shop created successfully');
+
       Swal.fire({
         icon: 'success',
         title: isEdit ? 'Shop Updated' : 'Shop Created',
-        text: isEdit ? 'Shop details updated successfully' : 'New shop created successfully',
-        timer: 2000,
+        text: emailSentMessage,
+        timer: 2500,
         showConfirmButton: false,
       });
 
