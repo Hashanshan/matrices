@@ -35,7 +35,7 @@ export default function SingleViewPage({
   const activeSubcategory = initialSubcategory || (savedFilters.subcategories.length > 0 ? savedFilters.subcategories.join(',') : undefined);
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery || savedFilters.searchQuery || '');
   const [sortBy, setSortBy] = useState(initialSortBy || savedFilters.sortBy || 'newest');
-  const [timeFilter, setTimeFilter] = useState(isShop ? '1month' : (initialTimeFilter || savedFilters.timeFilter || 'all'));
+  const [timeFilter, setTimeFilter] = useState(isShop ? '1week' : (initialTimeFilter || savedFilters.timeFilter || 'all'));
 
   const backendSort = sortBy === 'price-low' ? 'price-low'
     : sortBy === 'price-high' ? 'price-high'
@@ -51,7 +51,7 @@ export default function SingleViewPage({
     prioritizeIndex,
   } = useViewProducts({
     sort: backendSort || 'newest',
-    timeFilter: isShop ? '1month' : (timeFilter || 'all'),
+    timeFilter: isShop ? '1week' : (timeFilter || 'all'),
     category: activeCategory,
     subcategory: activeSubcategory,
     search: searchQuery || initialProductId,

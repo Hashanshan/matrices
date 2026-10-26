@@ -37,7 +37,7 @@ export default function CategoriesPage({ fallbackData }: { fallbackData?: any } 
 
   // Fetch filters (categories, subcategories) from API with fallbackData
   const { categories, isLoading, isValidating, mutate: mutateFilters } = useFilters({
-    timeFilter: isShop ? '1month' : undefined,
+    timeFilter: isShop ? '1week' : undefined,
     fallbackData,
   });
 

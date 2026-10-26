@@ -282,13 +282,13 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
         ? [urlMinPrice ? parseInt(urlMinPrice) || 0 : 0, urlMaxPrice ? parseInt(urlMaxPrice) || 40000 : 40000]
         : (saved.priceRange || [0, 40000]),
       sortBy: (urlSort as any) || saved.sortBy || 'newest',
-      timeFilter: isShop ? '1month' : ((urlTime as any) || saved.timeFilter || 'all'),
+      timeFilter: isShop ? '1week' : ((urlTime as any) || saved.timeFilter || 'all'),
       gridSize: saved.gridSize || 4,
     };
   });
 
   const { categories: apiCategories, priceRange: apiPriceRange, mutate: mutateFilters } = useFilters({
-    timeFilter: isShop ? '1month' : filters.timeFilter,
+    timeFilter: isShop ? '1week' : filters.timeFilter,
   });
 
   // Revalidate filters immediately when sync completes or data mode changes
@@ -386,7 +386,7 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
     const defaultMaxP = apiPriceRange.max > 0 ? apiPriceRange.max : 40000;
     setFilters({
       ...DEFAULT_FILTERS,
-      timeFilter: isShop ? '1month' : 'all',
+      timeFilter: isShop ? '1week' : 'all',
       searchQuery: '',
       categories: [],
       subcategories: [],
@@ -445,7 +445,7 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
     exactMatchFound,
   } = useProducts({
     sort: backendSort,
-    timeFilter: isShop ? '1month' : filters.timeFilter,
+    timeFilter: isShop ? '1week' : filters.timeFilter,
     limit: Math.max(actualGridSize * 5, 20),
     category: filters.categories.length > 0 ? filters.categories : undefined,
     subcategory: filters.subcategories.length > 0 ? filters.subcategories : undefined,
