@@ -95,6 +95,21 @@ export default function CategoriesPage({ fallbackData }: { fallbackData?: any } 
     mutateFilters().catch(() => {});
   }, [mutateWishlist, mutateFilters]);
 
+  // Revalidate filters and wishlist immediately when delta sync or data mode changes
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleSync = () => {
+      mutateFilters();
+      mutateWishlist();
+    };
+    window.addEventListener('matrices-sync-stats-updated', handleSync);
+    window.addEventListener('matrices-data-mode-change', handleSync);
+    return () => {
+      window.removeEventListener('matrices-sync-stats-updated', handleSync);
+      window.removeEventListener('matrices-data-mode-change', handleSync);
+    };
+  }, [mutateFilters, mutateWishlist]);
+
   // Deduplicate and merge categories from hook
   const deduplicatedCategories = useMemo(() => {
     const map = new Map<string, typeof categories[0]>();

@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { offlineDB, SyncMetadata } from '../offline/indexed-db';
 import { cacheProductImages, clearMatricesFolder, prewarmImageCache, invalidateImageMemoryMap, getUncachedImageUrls, checkImageNeedsUpdate, evictImageAndFile } from '../offline/image-cache';
 import { invalidateProductIndex } from '../offline/offline-search';
+import { invalidateOfflineProductsCache } from '../hooks/use-products';
 import { NativeAdapter } from '../../mobile/bridge/native-adapter';
 import { resolveApiUrl, getAuthToken } from '../utils';
 import SyncProgressModal from '@/components/sync-progress-modal';
@@ -326,6 +327,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       // Invalidate memory maps
       invalidateImageMemoryMap();
       invalidateProductIndex();
+      invalidateOfflineProductsCache();
 
       setMeta(null);
       setLastSyncedAt(null);
@@ -510,6 +512,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
           invalidateImageMemoryMap();
           invalidateProductIndex();
+          invalidateOfflineProductsCache();
           await prewarmImageCache().catch(() => {});
 
           const verifiedProducts = await offlineDB.getCount('products').catch(() => 0);
@@ -906,6 +909,16 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
         // If no changes were detected, update lastSyncedAt timestamp and finish
         if (totalChanges === 0) {
+          if (formattedCategories.length > 0) {
+            await offlineDB.saveBatch('categories', formattedCategories);
+          }
+          if (formattedSubcategories.length > 0) {
+            await offlineDB.saveBatch('subcategories', formattedSubcategories);
+          }
+          invalidateImageMemoryMap();
+          invalidateProductIndex();
+          invalidateOfflineProductsCache();
+
           const verifiedProducts = await offlineDB.getCount('products').catch(() => 0);
           const verifiedCategories = await offlineDB.getCount('categories').catch(() => 0);
           const verifiedSubcategories = await offlineDB.getCount('subcategories').catch(() => 0);
@@ -981,10 +994,86 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
           await offlineDB.upsertBatch('products', formattedDeltaProducts);
         }
         if (formattedCategories.length > 0) {
-          await offlineDB.upsertBatch('categories', formattedCategories);
+          await offlineDB.saveBatch('categories', formattedCategories);
+        } else {
+          // If server filters was empty or unreachable, rebuild categories & subcategories from offline products
+          try {
+            const allLocalProducts = await offlineDB.getAll<any>('products').catch(() => []);
+            if (allLocalProducts.length > 0) {
+              const localCatMap = new Map<string, any>();
+              allLocalProducts.forEach((p: any, idx: number) => {
+                const cName = extractStr(p.categoryName || p.category?.name || p.category || p.categories).toUpperCase();
+                if (!cName) return;
+                const sName = extractStr(p.subcategoryName || p.subcategory?.name || p.subCategory || p.subcategory || p.subcategories || p.subCategories).toUpperCase();
+                const pImg = p.image || p.imageUrl || (Array.isArray(p.images) && p.images[0]) || '';
+
+                if (!localCatMap.has(cName)) {
+                  localCatMap.set(cName, {
+                    id: `cat_${cName.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
+                    name: cName,
+                    categoryName: cName,
+                    image: pImg,
+                    order: idx,
+                    totalCount: 0,
+                    subcatMap: new Map<string, any>(),
+                  });
+                }
+                const catObj = localCatMap.get(cName)!;
+                catObj.totalCount += 1;
+                if (!catObj.image && pImg) catObj.image = pImg;
+
+                if (sName) {
+                  if (!catObj.subcatMap.has(sName)) {
+                    catObj.subcatMap.set(sName, {
+                      name: sName,
+                      image: pImg,
+                      count: 0,
+                    });
+                  }
+                  const subObj = catObj.subcatMap.get(sName)!;
+                  subObj.count += 1;
+                  if (!subObj.image && pImg) subObj.image = pImg;
+                }
+              });
+
+              const rebuiltCategories = Array.from(localCatMap.values()).map((cat: any) => ({
+                id: cat.id,
+                name: cat.name,
+                categoryName: cat.name,
+                image: cat.image,
+                order: cat.order,
+                totalCount: cat.totalCount,
+                subcategories: Array.from(cat.subcatMap.values()),
+              }));
+
+              const rebuiltSubcategories: any[] = [];
+              rebuiltCategories.forEach((cat: any) => {
+                cat.subcategories.forEach((sub: any, idx: number) => {
+                  rebuiltSubcategories.push({
+                    id: `subcat_${cat.id}_${sub.name.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
+                    name: sub.name,
+                    subcategoryName: sub.name,
+                    category: cat.name,
+                    categoryName: cat.name,
+                    categoryId: cat.id,
+                    image: sub.image || '',
+                    count: sub.count || 0,
+                    order: idx,
+                  });
+                });
+              });
+
+              if (rebuiltCategories.length > 0) {
+                await offlineDB.saveBatch('categories', rebuiltCategories);
+                await offlineDB.saveBatch('subcategories', rebuiltSubcategories);
+              }
+            }
+          } catch (rebuildErr) {
+            console.warn('Failed to rebuild offline categories fallback:', rebuildErr);
+          }
         }
         if (formattedSubcategories.length > 0) {
-          await offlineDB.upsertBatch('subcategories', formattedSubcategories);
+          await offlineDB.saveBatch('subcategories', formattedSubcategories);
         }
         if (formattedDeltaShops.length > 0) {
           await offlineDB.upsertBatch('shops', formattedDeltaShops);
@@ -1051,6 +1140,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
         invalidateImageMemoryMap();
         invalidateProductIndex();
+        invalidateOfflineProductsCache();
         await prewarmImageCache().catch(() => {});
 
         const verifiedProducts = await offlineDB.getCount('products').catch(() => 0);
@@ -1340,9 +1430,17 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       });
 
       formattedProducts.sort((a: any, b: any) => {
-        const timeA = a.updatedAt ? new Date(a.updatedAt).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
-        const timeB = b.updatedAt ? new Date(b.updatedAt).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
-        return timeB - timeA;
+        const updatedA = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+        const updatedB = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+        if (updatedB !== updatedA) return updatedB - updatedA;
+
+        const createdA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const createdB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        if (createdB !== createdA) return createdB - createdA;
+
+        const idA = String(a.productId || a.id || '');
+        const idB = String(b.productId || b.id || '');
+        return idB.localeCompare(idA);
       });
 
       const formattedShops = shops.map((s: any, idx: number) => {
@@ -1463,6 +1561,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       }
       invalidateImageMemoryMap();
       invalidateProductIndex();
+      invalidateOfflineProductsCache();
 
       await offlineDB.saveBatch('categories', formattedCategories);
       await offlineDB.saveBatch('subcategories', formattedSubcategories);
@@ -1508,6 +1607,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
       invalidateImageMemoryMap();
       invalidateProductIndex();
+      invalidateOfflineProductsCache();
       await prewarmImageCache().catch(() => {});
 
       const verifiedProductCount = await offlineDB.getCount('products').catch(() => 0);

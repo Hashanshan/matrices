@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import useSWRInfinite from 'swr/infinite';
 import useSWR from 'swr';
 import { resolveApiUrl, getAuthToken, handleTokenExpiredRedirect } from '../utils';
@@ -38,6 +39,22 @@ let cachedRawProducts: any[] | null = null;
 let cachedRawWishlist: any[] | null = null;
 let cachedRawCategories: any[] | null = null;
 let cachedRawSubcategories: any[] | null = null;
+
+export function invalidateOfflineProductsCache(): void {
+  cachedRawProducts = null;
+  cachedRawWishlist = null;
+  cachedRawCategories = null;
+  cachedRawSubcategories = null;
+}
+
+if (typeof window !== 'undefined') {
+  const handleCacheInvalidate = () => {
+    invalidateOfflineProductsCache();
+  };
+  window.addEventListener('matrices-sync-stats-updated', handleCacheInvalidate);
+  window.addEventListener('matrices-data-mode-change', handleCacheInvalidate);
+  window.addEventListener('matrices-sync-queue-updated', handleCacheInvalidate);
+}
 
 async function getRawProductsAndWishlist(): Promise<[any[], any[]]> {
   if (cachedRawProducts && cachedRawWishlist) {
@@ -268,76 +285,130 @@ export async function getOfflineProducts(options: {
   const hasWishlist = wishlistedProdMap.size > 0 || wishlistedSubMap.size > 0 || wishlistedCatMap.size > 0;
 
   // Apply sorting (Wishlist score primary, options.sort / category priority secondary)
-  if (hasWishlist || options.sort || options.prioritizeCategory) {
-    const s = (options.sort || '').toLowerCase();
-    const prioCat = options.prioritizeCategory ? options.prioritizeCategory.trim().toUpperCase() : null;
+  // Default sort matches backend MongoDB: { updatedAt: -1, createdAt: -1, _id: -1 }
+  const s = (options.sort || '').toLowerCase();
+  const prioCat = options.prioritizeCategory ? options.prioritizeCategory.trim().toUpperCase() : null;
 
-    filtered.sort((a: any, b: any) => {
-      // 1. Target prioritized category if requested
-      if (prioCat) {
-        const catA = (a.categoryName || a.categories || a.category || '').trim().toUpperCase();
-        const catB = (b.categoryName || b.categories || b.category || '').trim().toUpperCase();
-        const aPrio = catA === prioCat ? 0 : 1;
-        const bPrio = catB === prioCat ? 0 : 1;
-        if (aPrio !== bPrio) return aPrio - bPrio;
-      }
+  filtered.sort((a: any, b: any) => {
+    // 1. Target prioritized category if requested
+    if (prioCat) {
+      const catA = (a.categoryName || a.categories || a.category || '').trim().toUpperCase();
+      const catB = (b.categoryName || b.categories || b.category || '').trim().toUpperCase();
+      const aPrio = catA === prioCat ? 0 : 1;
+      const bPrio = catB === prioCat ? 0 : 1;
+      if (aPrio !== bPrio) return aPrio - bPrio;
+    }
 
-      // 2. Primary sort: Wishlist score (matches backend productController.js MongoDB aggregation)
-      if (hasWishlist && !prioritizedProd) {
-        const scoreA = getWishlistScore(a);
-        const scoreB = getWishlistScore(b);
-        if (scoreA !== scoreB) return scoreA - scoreB;
-      }
+    // 2. Primary sort: Wishlist score (matches backend productController.js MongoDB aggregation)
+    if (hasWishlist && !prioritizedProd) {
+      const scoreA = getWishlistScore(a);
+      const scoreB = getWishlistScore(b);
+      if (scoreA !== scoreB) return scoreA - scoreB;
+    }
 
-      // 3. Secondary sort: Explicit sort option
-      if (s === 'price_asc' || s === 'price-low' || s === 'low-to-high') {
-        return (a.sellPrice || a.price || 0) - (b.sellPrice || b.price || 0);
-      } else if (s === 'price_desc' || s === 'price-high' || s === 'high-to-low') {
-        return (b.sellPrice || b.price || 0) - (a.sellPrice || a.price || 0);
-      } else if (s === 'name_asc' || s === 'a-z') {
-        return String(a.name || '').localeCompare(String(b.name || ''));
-      } else if (s === 'name_desc' || s === 'z-a') {
-        return String(b.name || '').localeCompare(String(a.name || ''));
-      } else if (s === 'view') {
-        const subA = String(a.subcategoryName || a.subcategories || '');
-        const subB = String(b.subcategoryName || b.subcategories || '');
-        if (subA !== subB) return subA.localeCompare(subB);
-        return String(a.name || '').localeCompare(String(b.name || ''));
-      } else if (s === 'newest' || s === 'newest-first' || s === 'latest' || s === 'updatedat' || s === 'default' || !s) {
-        const timeA = a.updatedAt ? new Date(a.updatedAt).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
-        const timeB = b.updatedAt ? new Date(b.updatedAt).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
-        return timeB - timeA;
-      }
+    // 3. Secondary sort: Explicit sort option or default newest
+    if (s === 'price_asc' || s === 'price-low' || s === 'low-to-high') {
+      const diff = (a.sellPrice || a.price || 0) - (b.sellPrice || b.price || 0);
+      if (diff !== 0) return diff;
+      return String(a.productId || a.id || a._id || '').localeCompare(String(b.productId || b.id || b._id || ''));
+    } else if (s === 'price_desc' || s === 'price-high' || s === 'high-to-low') {
+      const diff = (b.sellPrice || b.price || 0) - (a.sellPrice || a.price || 0);
+      if (diff !== 0) return diff;
+      return String(b.productId || b.id || b._id || '').localeCompare(String(a.productId || a.id || a._id || ''));
+    } else if (s === 'name_asc' || s === 'a-z') {
+      const diff = String(a.name || '').localeCompare(String(b.name || ''));
+      if (diff !== 0) return diff;
+      return String(a.productId || a.id || a._id || '').localeCompare(String(b.productId || b.id || b._id || ''));
+    } else if (s === 'name_desc' || s === 'z-a') {
+      const diff = String(b.name || '').localeCompare(String(a.name || ''));
+      if (diff !== 0) return diff;
+      return String(b.productId || b.id || b._id || '').localeCompare(String(a.productId || a.id || a._id || ''));
+    } else if (s === 'rating') {
+      const diff = (b.rating || 0) - (a.rating || 0);
+      if (diff !== 0) return diff;
+      return String(b.productId || b.id || b._id || '').localeCompare(String(a.productId || a.id || a._id || ''));
+    } else if (s === 'view') {
+      const subA = String(a.subcategoryName || a.subcategories || a.subcategory || '');
+      const subB = String(b.subcategoryName || b.subcategories || b.subcategory || '');
+      const subDiff = subA.localeCompare(subB);
+      if (subDiff !== 0) return subDiff;
+      const catA = String(a.categoryName || a.categories || a.category || '');
+      const catB = String(b.categoryName || b.categories || b.category || '');
+      const catDiff = catA.localeCompare(catB);
+      if (catDiff !== 0) return catDiff;
+      const nameDiff = String(a.name || '').localeCompare(String(b.name || ''));
+      if (nameDiff !== 0) return nameDiff;
+      return String(a.productId || a.id || a._id || '').localeCompare(String(b.productId || b.id || b._id || ''));
+    } else if (s === 'oldest') {
+      const timeA = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+      const timeB = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+      if (timeA !== timeB) return timeA - timeB;
 
-      const timeA = a.updatedAt ? new Date(a.updatedAt).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
-      const timeB = b.updatedAt ? new Date(b.updatedAt).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
-      return timeB - timeA;
-    });
-  }
+      const createdA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const createdB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      if (createdA !== createdB) return createdA - createdB;
+
+      return String(a.productId || a.id || a._id || '').localeCompare(String(b.productId || b.id || b._id || ''));
+    }
+
+    // Default newest: { updatedAt: -1, createdAt: -1, _id: -1 }
+    const updatedA = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+    const updatedB = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+    if (updatedB !== updatedA) return updatedB - updatedA;
+
+    const createdA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+    const createdB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+    if (createdB !== createdA) return createdB - createdA;
+
+    const idA = String(a.productId || a.id || a._id || '');
+    const idB = String(b.productId || b.id || b._id || '');
+    return idB.localeCompare(idA);
+  });
 
   const getSortComparator = (sortStr: string) => {
-    const s = (sortStr || '').toLowerCase();
-    if (s === 'price_asc' || s === 'price-low' || s === 'low-to-high') {
-      return (a: any, b: any) => (a.sellPrice || a.price || 0) - (b.sellPrice || b.price || 0);
-    } else if (s === 'price_desc' || s === 'price-high' || s === 'high-to-low') {
-      return (a: any, b: any) => (b.sellPrice || b.price || 0) - (a.sellPrice || a.price || 0);
-    } else if (s === 'name_asc' || s === 'a-z') {
-      return (a: any, b: any) => String(a.name || '').localeCompare(String(b.name || ''));
-    } else if (s === 'name_desc' || s === 'z-a') {
-      return (a: any, b: any) => String(b.name || '').localeCompare(String(a.name || ''));
-    } else if (s === 'rating') {
-      return (a: any, b: any) => (b.rating || 0) - (a.rating || 0);
-    } else if (s === 'newest' || s === 'newest-first' || s === 'latest' || s === 'updatedat' || s === 'default' || !s) {
+    const sortKey = (sortStr || '').toLowerCase();
+    if (sortKey === 'price_asc' || sortKey === 'price-low' || sortKey === 'low-to-high') {
       return (a: any, b: any) => {
-        const timeA = a.updatedAt ? new Date(a.updatedAt).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
-        const timeB = b.updatedAt ? new Date(b.updatedAt).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
-        return timeB - timeA;
+        const diff = (a.sellPrice || a.price || 0) - (b.sellPrice || b.price || 0);
+        if (diff !== 0) return diff;
+        return String(a.productId || a.id || a._id || '').localeCompare(String(b.productId || b.id || b._id || ''));
+      };
+    } else if (sortKey === 'price_desc' || sortKey === 'price-high' || sortKey === 'high-to-low') {
+      return (a: any, b: any) => {
+        const diff = (b.sellPrice || b.price || 0) - (a.sellPrice || a.price || 0);
+        if (diff !== 0) return diff;
+        return String(b.productId || b.id || b._id || '').localeCompare(String(a.productId || a.id || a._id || ''));
+      };
+    } else if (sortKey === 'name_asc' || sortKey === 'a-z') {
+      return (a: any, b: any) => String(a.name || '').localeCompare(String(b.name || ''));
+    } else if (sortKey === 'name_desc' || sortKey === 'z-a') {
+      return (a: any, b: any) => String(b.name || '').localeCompare(String(a.name || ''));
+    } else if (sortKey === 'rating') {
+      return (a: any, b: any) => (b.rating || 0) - (a.rating || 0);
+    } else if (sortKey === 'oldest') {
+      return (a: any, b: any) => {
+        const timeA = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+        const timeB = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+        if (timeA !== timeB) return timeA - timeB;
+        const createdA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const createdB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        if (createdA !== createdB) return createdA - createdB;
+        return String(a.productId || a.id || a._id || '').localeCompare(String(b.productId || b.id || b._id || ''));
       };
     }
+    // Default newest: { updatedAt: -1, createdAt: -1, _id: -1 }
     return (a: any, b: any) => {
-      const timeA = a.updatedAt ? new Date(a.updatedAt).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
-      const timeB = b.updatedAt ? new Date(b.updatedAt).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
-      return timeB - timeA;
+      const updatedA = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+      const updatedB = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+      if (updatedB !== updatedA) return updatedB - updatedA;
+
+      const createdA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const createdB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      if (createdB !== createdA) return createdB - createdA;
+
+      const idA = String(a.productId || a.id || a._id || '');
+      const idB = String(b.productId || b.id || b._id || '');
+      return idB.localeCompare(idA);
     };
   };
 
@@ -1049,6 +1120,20 @@ export function useProducts(options: UseProductsOptions = {}) {
     fallbackData,
   });
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleSync = () => {
+      invalidateOfflineProductsCache();
+      mutate();
+    };
+    window.addEventListener('matrices-sync-stats-updated', handleSync);
+    window.addEventListener('matrices-data-mode-change', handleSync);
+    return () => {
+      window.removeEventListener('matrices-sync-stats-updated', handleSync);
+      window.removeEventListener('matrices-data-mode-change', handleSync);
+    };
+  }, [mutate]);
+
   const products: CatalogueProduct[] = pages ? pages.flatMap((page) => page.data) : [];
   const isLoadingInitial = isLoading;
   const isLoadingMore = size > 0 && pages && typeof pages[size - 1] === 'undefined';
@@ -1156,6 +1241,20 @@ export function useFilters(options: { timeFilter?: string; fallbackData?: Filter
     dedupingInterval: 2000,
     keepPreviousData: true,
   });
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleSync = () => {
+      invalidateOfflineProductsCache();
+      mutate();
+    };
+    window.addEventListener('matrices-sync-stats-updated', handleSync);
+    window.addEventListener('matrices-data-mode-change', handleSync);
+    return () => {
+      window.removeEventListener('matrices-sync-stats-updated', handleSync);
+      window.removeEventListener('matrices-data-mode-change', handleSync);
+    };
+  }, [mutate]);
   // console.log("data", data);
 
   return {

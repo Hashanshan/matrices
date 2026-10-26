@@ -102,6 +102,7 @@ function CategorySection({
         const offlineRes = await getOfflineProducts({
           category,
           timeFilter,
+          sort: 'newest',
           limit: fetchLimit,
         });
         if (offlineRes.data && offlineRes.data.length > 0) {
@@ -290,6 +291,42 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
     timeFilter: isShop ? '1month' : filters.timeFilter,
   });
 
+  // Revalidate filters immediately when sync completes or data mode changes
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleSync = () => {
+      mutateFilters();
+    };
+    window.addEventListener('matrices-sync-stats-updated', handleSync);
+    window.addEventListener('matrices-data-mode-change', handleSync);
+    return () => {
+      window.removeEventListener('matrices-sync-stats-updated', handleSync);
+      window.removeEventListener('matrices-data-mode-change', handleSync);
+    };
+  }, [mutateFilters]);
+
+  // If a selected category or subcategory was changed/removed on server, prune it from active filters
+  useEffect(() => {
+    if (!apiCategories || apiCategories.length === 0) return;
+    const validCatNames = new Set(apiCategories.map(c => (c.name || '').trim().replace(/\s+/g, ' ').toUpperCase()));
+    const validSubNames = new Set(
+      apiCategories.flatMap(c => (c.subcategories || []).map(s => (s.name || '').trim().replace(/\s+/g, ' ').toUpperCase()))
+    );
+
+    setFilters(prev => {
+      const filteredCats = prev.categories.filter(c => validCatNames.has(c.trim().replace(/\s+/g, ' ').toUpperCase()));
+      const filteredSubs = prev.subcategories.filter(s => validSubNames.has(s.trim().replace(/\s+/g, ' ').toUpperCase()));
+      if (filteredCats.length !== prev.categories.length || filteredSubs.length !== prev.subcategories.length) {
+        return {
+          ...prev,
+          categories: filteredCats,
+          subcategories: filteredSubs,
+        };
+      }
+      return prev;
+    });
+  }, [apiCategories]);
+
   // Persist filters to sessionStorage whenever state changes
   useEffect(() => {
     saveGalleryFilters(filters);
@@ -383,7 +420,8 @@ export default function ProductGallery({ searchQuery, initialCategory, initialSu
   // Map frontend sortBy to backend sort param
   const backendSort = filters.sortBy === 'price-low' ? 'price-low'
     : filters.sortBy === 'price-high' ? 'price-high'
-      : undefined; // default = newest
+      : filters.sortBy === 'rating' ? 'rating'
+      : 'newest'; // default = newest
 
   const actualGridSize = sidebarOpen && filters.gridSize === 4 ? 3 : (filters.gridSize || 4);
 

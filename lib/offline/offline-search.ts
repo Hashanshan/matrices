@@ -268,9 +268,17 @@ export async function searchOfflineProducts(
       case 'newest':
       case 'default':
       default: {
-        const timeA = a.product.updatedAt ? new Date(a.product.updatedAt).getTime() : (a.product.createdAt ? new Date(a.product.createdAt).getTime() : 0);
-        const timeB = b.product.updatedAt ? new Date(b.product.updatedAt).getTime() : (b.product.createdAt ? new Date(b.product.createdAt).getTime() : 0);
-        return timeB - timeA;
+        const updatedA = a.product.updatedAt ? new Date(a.product.updatedAt).getTime() : 0;
+        const updatedB = b.product.updatedAt ? new Date(b.product.updatedAt).getTime() : 0;
+        if (updatedB !== updatedA) return updatedB - updatedA;
+
+        const createdA = a.product.createdAt ? new Date(a.product.createdAt).getTime() : 0;
+        const createdB = b.product.createdAt ? new Date(b.product.createdAt).getTime() : 0;
+        if (createdB !== createdA) return createdB - createdA;
+
+        const idA = String(a.product.productId || a.product.id || '');
+        const idB = String(b.product.productId || b.product.id || '');
+        return idB.localeCompare(idA);
       }
     }
   });
