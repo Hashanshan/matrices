@@ -455,7 +455,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       } else {
         // 'auto' mode:
         // If valid lastSyncedAt timestamp exists, previous sync was not marked incomplete, and DB has products, use Delta Sync
-        if (effectiveLastSyncedAt && currentMeta && !currentMeta.isIncomplete && existingProductsCount > 0) {
+        if (effectiveLastSyncedAt && existingProductsCount > 0 && (!currentMeta || !currentMeta.isIncomplete)) {
           effectiveMode = 'delta';
         } else {
           effectiveMode = 'full';
@@ -991,6 +991,27 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
         // 2. Save active delta products & shops
         if (formattedDeltaProducts.length > 0) {
+          // Evict old images that were replaced or removed on updated delta products
+          for (const p of formattedDeltaProducts) {
+            const idKey = String(p.id || p.productId || '');
+            const localProd = idKey ? await offlineDB.getOne<any>('products', idKey).catch(() => null) : null;
+            if (localProd) {
+              const oldImg = localProd.image || localProd.imageUrl;
+              const newImg = p.image || p.imageUrl;
+              if (oldImg && oldImg !== newImg) {
+                await evictImageAndFile(oldImg).catch(() => {});
+              }
+              if (Array.isArray(localProd.images)) {
+                const newImagesSet = new Set(Array.isArray(p.images) ? p.images : []);
+                for (const oldExtra of localProd.images) {
+                  if (oldExtra && !newImagesSet.has(oldExtra)) {
+                    await evictImageAndFile(oldExtra).catch(() => {});
+                  }
+                }
+              }
+            }
+          }
+
           await offlineDB.upsertBatch('products', formattedDeltaProducts);
         }
         if (formattedCategories.length > 0) {
@@ -1124,7 +1145,8 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
           setSyncStatusText(`Downloading ${imagesToDownload.length} updated/new offline images...`);
 
           let lastDeltaProgressTime = 0;
-          await cacheProductImages(imagesToDownload, (done, total) => {
+          const forceRefreshImages = imagesToDownload.map((img) => ({ ...img, forceRefresh: true }));
+          await cacheProductImages(forceRefreshImages, (done, total) => {
             const now = Date.now();
             if (now - lastDeltaProgressTime > 120 || done === total || done === 1) {
               lastDeltaProgressTime = now;

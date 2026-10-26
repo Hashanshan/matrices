@@ -515,13 +515,15 @@ export async function getOfflineProducts(options: {
     }
 
     others.sort((a: any, b: any) => {
-      const catA = (a.categoryName || a.categories || a.category || '').toLowerCase().trim();
-      const catB = (b.categoryName || b.categories || b.category || '').toLowerCase().trim();
-      if (catA !== catB) return catA.localeCompare(catB);
+      if (s === 'view') {
+        const catA = (a.categoryName || a.categories || a.category || '').toLowerCase().trim();
+        const catB = (b.categoryName || b.categories || b.category || '').toLowerCase().trim();
+        if (catA !== catB) return catA.localeCompare(catB);
 
-      const subA = (a.subcategoryName || a.subcategories || a.subcategory || '').toLowerCase().trim();
-      const subB = (b.subcategoryName || b.subcategories || b.subcategory || '').toLowerCase().trim();
-      if (subA !== subB) return subA.localeCompare(subB);
+        const subA = (a.subcategoryName || a.subcategories || a.subcategory || '').toLowerCase().trim();
+        const subB = (b.subcategoryName || b.subcategories || b.subcategory || '').toLowerCase().trim();
+        if (subA !== subB) return subA.localeCompare(subB);
+      }
 
       const customSortResult = sortFn(a, b);
       if (customSortResult !== 0) return customSortResult;

@@ -521,7 +521,7 @@ export async function cacheProductImages(
     } else {
       const needs = await checkImageNeedsUpdate(item.url, item.imageUpdatedAt);
       if (needs) {
-        itemsToDownload.push(item);
+        itemsToDownload.push({ ...item, forceRefresh: true });
       }
     }
   }
