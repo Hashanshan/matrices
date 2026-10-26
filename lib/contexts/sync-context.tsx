@@ -800,7 +800,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
           const updatedAtVal = p.updatedAt || p.updated_at || p.createdAt || p.created_at || '';
           const createdAtVal = p.createdAt || p.created_at || '';
-          const effectiveImageUpdatedAt = p.imageUpdatedAt || (img ? (updatedAtVal || createdAtVal || null) : null);
+          const effectiveImageUpdatedAt = p.imageUpdatedAt || null;
 
           return {
             id: String(p._id || p.id || p.productId || `prod_${idx}`),
@@ -891,7 +891,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         const deltaImageCandidates = [
           ...formattedDeltaProducts.map((p) => ({ url: p.imageUrl || p.image, imageUpdatedAt: p.imageUpdatedAt })),
           ...formattedDeltaProducts.flatMap((p) => (Array.isArray(p.images) ? p.images.map((img: string) => ({ url: img, imageUpdatedAt: p.imageUpdatedAt })) : [])),
-          ...formattedDeltaShops.map((s) => ({ url: s.imageUrl || s.image, imageUpdatedAt: s.updatedAt })),
+          ...formattedDeltaShops.map((s) => ({ url: s.imageUrl || s.image, imageUpdatedAt: s.imageUpdatedAt || null })),
         ].filter((item) => Boolean(item && item.url && typeof item.url === 'string' && item.url.trim().length > 0));
 
         // Deduplicate by URL
@@ -1461,7 +1461,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
         const updatedAtVal = p.updatedAt || p.updated_at || p.createdAt || p.created_at || '';
         const createdAtVal = p.createdAt || p.created_at || '';
-        const effectiveImageUpdatedAt = p.imageUpdatedAt || (img ? (updatedAtVal || createdAtVal || null) : null);
+        const effectiveImageUpdatedAt = p.imageUpdatedAt || null;
 
         return {
           id: String(p._id || p.id || p.productId || `prod_${idx}`),
