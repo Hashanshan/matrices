@@ -640,22 +640,36 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         setProgress(15);
         setSyncStatusText(`Checking for server updates since previous sync (${new Date(effectiveLastSyncedAt).toLocaleTimeString()})...`);
 
-        const deltaSince = encodeURIComponent(effectiveLastSyncedAt);
-        const productsUrl = resolveApiUrl(`/api/products?limit=5000&updatedSince=${deltaSince}`);
+        // Sync catalog metadata (products, filters, categories) fully to ensure all updatedAt timestamps & categories match MongoDB exactly
         const filtersUrl = resolveApiUrl('/api/products/filters');
-        const shopsUrl = resolveApiUrl(`/api/shops?limit=5000&updatedSince=${deltaSince}`);
-        const ordersUrl = resolveApiUrl(`/api/orders?limit=5000&updatedSince=${deltaSince}`);
+        const shopsUrl = resolveApiUrl('/api/shops?limit=5000');
+        const ordersUrl = resolveApiUrl('/api/orders?limit=5000');
         const wishlistUrl = resolveApiUrl('/api/wishlist');
 
-        const [productsRes, filtersRes, shopsRes, ordersRes, wishlistRes] = await Promise.allSettled([
-          fetch(productsUrl, { headers, cache: 'no-store' }),
+        let deltaProducts: any[] = [];
+        let page = 1;
+        let hasMoreProducts = true;
+        while (hasMoreProducts) {
+          const pUrl = resolveApiUrl(`/api/products?limit=5000&page=${page}`);
+          const pRes = await fetch(pUrl, { headers, cache: 'no-store' });
+          if (!pRes.ok) break;
+          const pJson = await pRes.json();
+          const batch = pJson.data || pJson.products || (Array.isArray(pJson) ? pJson : []);
+          deltaProducts.push(...batch);
+          if (!pJson.hasNextPage || batch.length === 0 || deltaProducts.length >= (pJson.totalCount || batch.length)) {
+            hasMoreProducts = false;
+          } else {
+            page++;
+          }
+        }
+
+        const [filtersRes, shopsRes, ordersRes, wishlistRes] = await Promise.allSettled([
           fetch(filtersUrl, { headers, cache: 'no-store' }),
           fetch(shopsUrl, { headers, cache: 'no-store' }),
           fetch(ordersUrl, { headers, cache: 'no-store' }),
           fetch(wishlistUrl, { headers, cache: 'no-store' }),
         ]);
 
-        let deltaProducts: any[] = [];
         let removedProducts: any[] = [];
         let removedProductIds: string[] = [];
         let deltaShops: any[] = [];
@@ -663,13 +677,6 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         let categories: any[] = [];
         let subcategories: any[] = [];
         let wishlist: any = null;
-
-        if (productsRes.status === 'fulfilled' && productsRes.value.ok) {
-          const json = await productsRes.value.json();
-          deltaProducts = json.data || json.products || (Array.isArray(json) ? json : []);
-          removedProducts = Array.isArray(json.removedProducts) ? json.removedProducts : [];
-          removedProductIds = Array.isArray(json.removedProductIds) ? json.removedProductIds : [];
-        }
 
         if (shopsRes.status === 'fulfilled' && shopsRes.value.ok) {
           const json = await shopsRes.value.json();
@@ -818,6 +825,20 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
             updatedAt: updatedAtVal,
             createdAt: createdAtVal,
           };
+        });
+
+        formattedDeltaProducts.sort((a: any, b: any) => {
+          const updatedA = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+          const updatedB = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+          if (updatedB !== updatedA) return updatedB - updatedA;
+
+          const createdA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const createdB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          if (createdB !== createdA) return createdB - createdA;
+
+          const idA = String(a.productId || a.id || '');
+          const idB = String(b.productId || b.id || '');
+          return idB.localeCompare(idA);
         });
 
         // Format updated shops
@@ -991,10 +1012,26 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
         // 2. Save active delta products & shops
         if (formattedDeltaProducts.length > 0) {
+          const activeServerIds = new Set(formattedDeltaProducts.map((p) => p.id));
+          const existingProds = await offlineDB.getAll<any>('products').catch(() => []);
+          const existingMap = new Map(existingProds.map((p) => [p.id, p]));
+
+          // Evict images for products deleted or disabled on the server
+          for (const ep of existingProds) {
+            if (!activeServerIds.has(ep.id)) {
+              const oldImg = ep.image || ep.imageUrl;
+              if (oldImg) await evictImageAndFile(oldImg).catch(() => {});
+              if (Array.isArray(ep.images)) {
+                for (const extra of ep.images) {
+                  if (extra) await evictImageAndFile(extra).catch(() => {});
+                }
+              }
+            }
+          }
+
           // Evict old images that were replaced or removed on updated delta products
           for (const p of formattedDeltaProducts) {
-            const idKey = String(p.id || p.productId || '');
-            const localProd = idKey ? await offlineDB.getOne<any>('products', idKey).catch(() => null) : null;
+            const localProd = existingMap.get(p.id);
             if (localProd) {
               const oldImg = localProd.image || localProd.imageUrl;
               const newImg = p.image || p.imageUrl;
@@ -1012,7 +1049,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
             }
           }
 
-          await offlineDB.upsertBatch('products', formattedDeltaProducts);
+          await offlineDB.saveBatch('products', formattedDeltaProducts);
         }
         if (formattedCategories.length > 0) {
           await offlineDB.saveBatch('categories', formattedCategories);
