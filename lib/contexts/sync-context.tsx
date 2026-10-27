@@ -433,6 +433,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
+      const syncStartTime = new Date().toISOString();
       const { storage } = await NativeAdapter.requestAllPermissions();
       if (!storage.granted) {
         setSyncStatusText('Storage permission denied – sync aborted.');
@@ -534,7 +535,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
           if (isFullyVerified) {
             const newMeta: SyncMetadata = {
-              lastSyncedAt: new Date().toISOString(),
+              lastSyncedAt: syncStartTime,
               totalProducts: verifiedProducts,
               totalCategories: verifiedCategories,
               totalSubcategories: verifiedSubcategories,
@@ -1211,7 +1212,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         const imageMB = Number((summary.totalBytes / (1024 * 1024)).toFixed(2));
 
         const newMeta: SyncMetadata = {
-          lastSyncedAt: new Date().toISOString(),
+          lastSyncedAt: syncStartTime,
           totalProducts: verifiedProducts,
           totalCategories: verifiedCategories,
           totalSubcategories: verifiedSubcategories,
@@ -1688,7 +1689,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
       if (isFullyVerified) {
         const newMeta: SyncMetadata = {
-          lastSyncedAt: new Date().toISOString(),
+          lastSyncedAt: syncStartTime,
           totalProducts: verifiedProductCount,
           totalCategories: verifiedCategoryCount,
           totalSubcategories: verifiedSubcategoryCount,
