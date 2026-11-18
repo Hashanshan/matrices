@@ -49,6 +49,15 @@ const shopsFetcher = async (url: string) => {
   const mode = typeof window !== 'undefined' ? (localStorage.getItem('matrices_data_mode') as string) : 'online';
   const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
 
+  const parseQuery = () => {
+    try {
+      const u = new URL(url, 'http://x');
+      return (u.searchParams.get('searchQuery') || '').toLowerCase().trim();
+    } catch {
+      return '';
+    }
+  };
+
   const getOfflineShops = async () => {
     const rawShops = await offlineDB.getAll<any>('shops').catch(() => []);
     rawShops.sort((a: any, b: any) => {
@@ -56,11 +65,42 @@ const shopsFetcher = async (url: string) => {
       const timeB = b.updatedAt ? new Date(b.updatedAt).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
       return timeB - timeA;
     });
-    return { success: true, shops: rawShops };
+
+    const search = parseQuery();
+    const filtered = search
+      ? rawShops.filter((s: any) => {
+          const emailMatch = (s.email || '').toLowerCase().includes(search);
+          const brMatch = (s.brNumber || '').toLowerCase().includes(search);
+          const phoneMatch = (s.phone || '').toLowerCase().includes(search) ||
+            (Array.isArray(s.phones) && s.phones.some((p: string) => (p || '').toLowerCase().includes(search)));
+          const addressMatch = (s.address || '').toLowerCase().includes(search);
+          return (
+            (s.name || '').toLowerCase().includes(search) ||
+            (s.shopId || '').toLowerCase().includes(search) ||
+            emailMatch ||
+            brMatch ||
+            phoneMatch ||
+            addressMatch
+          );
+        })
+      : rawShops;
+
+    return {
+      rawCount: rawShops.length,
+      response: {
+        success: true,
+        shops: filtered,
+        totalRecords: filtered.length,
+        totalPages: 1,
+      },
+    };
   };
 
   if (mode === 'offline' || isOffline) {
-    return await getOfflineShops();
+    const { rawCount, response } = await getOfflineShops();
+    if (rawCount > 0 || isOffline) {
+      return response;
+    }
   }
 
   const token = getAuthToken();
@@ -70,9 +110,42 @@ const shopsFetcher = async (url: string) => {
       headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     });
     if (!res.ok) throw new Error('Failed to fetch shops');
-    return res.json();
+    const apiData = await res.json();
+
+    // In online mode, also merge any local unsynced offline shops from IndexedDB
+    try {
+      const rawShops = await offlineDB.getAll<any>('shops').catch(() => []);
+      if (rawShops.length > 0) {
+        const search = parseQuery();
+        const apiIds = new Set((apiData?.shops || []).map((s: any) => s.shopId || s.id));
+        const localOnly = rawShops.filter((s: any) => {
+          const id = s.shopId || s.id;
+          if (!id || apiIds.has(id)) return false;
+          if (!search) return true;
+          const emailMatch = (s.email || '').toLowerCase().includes(search);
+          const brMatch = (s.brNumber || '').toLowerCase().includes(search);
+          const phoneMatch = (s.phone || '').toLowerCase().includes(search) ||
+            (Array.isArray(s.phones) && s.phones.some((p: string) => (p || '').toLowerCase().includes(search)));
+          const addressMatch = (s.address || '').toLowerCase().includes(search);
+          return (
+            (s.name || '').toLowerCase().includes(search) ||
+            (s.shopId || '').toLowerCase().includes(search) ||
+            emailMatch ||
+            brMatch ||
+            phoneMatch ||
+            addressMatch
+          );
+        });
+        if (localOnly.length > 0) {
+          apiData.shops = [...(apiData.shops || []), ...localOnly];
+        }
+      }
+    } catch {}
+
+    return apiData;
   } catch {
-    return await getOfflineShops();
+    const { response } = await getOfflineShops();
+    return response;
   }
 };
 
@@ -197,19 +270,55 @@ function CreateOrderContent() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Fetch assigned shops (includes offline shops)
+  // Fetch assigned shops (includes offline shops and dynamic API-based search when online)
+  const shopQuery = new URLSearchParams();
+  if (shopFilterQuery.trim()) {
+    shopQuery.set('searchQuery', shopFilterQuery.trim());
+  }
+  shopQuery.set('limit', '100');
+  shopQuery.set('sortField', 'updatedAt');
+  shopQuery.set('sortOrder', '-1');
+
   const { data: shopsData } = useSWR(
-    '/api/shops?limit=100',
-    shopsFetcher
+    `/api/shops?${shopQuery.toString()}`,
+    shopsFetcher,
+    {
+      keepPreviousData: true,
+    }
   );
 
   useEffect(() => {
     async function mergeShops() {
       const dbShops = await offlineDB.getAll<any>('shops').catch(() => []);
-      const apiShops: ShopOption[] = shopsData?.shops || [];
+      const apiShops: any[] = shopsData?.shops || [];
       const shopMap = new Map<string, ShopOption>();
 
+      const search = shopFilterQuery.toLowerCase().trim();
       dbShops.forEach((s: any) => {
+        const id = s.shopId || s.id;
+        if (id) {
+          if (search) {
+            const emailMatch = (s.email || '').toLowerCase().includes(search);
+            const brMatch = (s.brNumber || '').toLowerCase().includes(search);
+            const phoneMatch = (s.phone || '').toLowerCase().includes(search) ||
+              (Array.isArray(s.phones) && s.phones.some((p: string) => (p || '').toLowerCase().includes(search)));
+            const addressMatch = (s.address || '').toLowerCase().includes(search);
+            const matches = (s.name || '').toLowerCase().includes(search) ||
+              (s.shopId || '').toLowerCase().includes(search) ||
+              emailMatch || brMatch || phoneMatch || addressMatch;
+            if (!matches) return;
+          }
+          shopMap.set(id, {
+            shopId: id,
+            name: s.name || 'Unnamed Shop',
+            email: s.email || '',
+            phone: s.phone || '',
+            address: s.address || '',
+          });
+        }
+      });
+
+      apiShops.forEach((s: any) => {
         const id = s.shopId || s.id;
         if (id) {
           shopMap.set(id, {
@@ -222,23 +331,11 @@ function CreateOrderContent() {
         }
       });
 
-      apiShops.forEach((s: any) => {
-        if (s.shopId) {
-          shopMap.set(s.shopId, {
-            shopId: s.shopId,
-            name: s.name || 'Unnamed Shop',
-            email: s.email || '',
-            phone: s.phone || '',
-            address: s.address || '',
-          });
-        }
-      });
-
       setAllShops(Array.from(shopMap.values()));
     }
 
     mergeShops();
-  }, [shopsData]);
+  }, [shopsData, shopFilterQuery]);
 
   // Filtered shops list for custom dropdown
   const filteredShopsList = allShops.filter(s => {

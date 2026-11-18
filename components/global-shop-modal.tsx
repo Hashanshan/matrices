@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Store, Search, X, Check, Lock, MapPin, Phone, ShieldCheck, Delete, ArrowRight, Mail } from 'lucide-react';
 import { offlineDB } from '@/lib/offline/indexed-db';
 import { resolveApiUrl, getAuthToken } from '@/lib/utils';
 import { useAuth } from '@/lib/contexts/auth-context';
+import { useDataMode } from '@/lib/contexts/data-mode-context';
 import useSWR from 'swr';
 
 export interface ShopOption {
@@ -28,6 +29,15 @@ const shopsFetcher = async (url: string) => {
   const mode = typeof window !== 'undefined' ? (localStorage.getItem('matrices_data_mode') as string) : 'online';
   const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
 
+  const parseQuery = () => {
+    try {
+      const u = new URL(url, 'http://x');
+      return (u.searchParams.get('searchQuery') || '').toLowerCase().trim();
+    } catch {
+      return '';
+    }
+  };
+
   const getOfflineShops = async () => {
     const rawShops = await offlineDB.getAll<any>('shops').catch(() => []);
     rawShops.sort((a: any, b: any) => {
@@ -35,11 +45,42 @@ const shopsFetcher = async (url: string) => {
       const timeB = b.updatedAt ? new Date(b.updatedAt).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
       return timeB - timeA;
     });
-    return { success: true, shops: rawShops };
+
+    const search = parseQuery();
+    const filtered = search
+      ? rawShops.filter((s: any) => {
+          const emailMatch = (s.email || '').toLowerCase().includes(search);
+          const brMatch = (s.brNumber || '').toLowerCase().includes(search);
+          const phoneMatch = (s.phone || '').toLowerCase().includes(search) ||
+            (Array.isArray(s.phones) && s.phones.some((p: string) => (p || '').toLowerCase().includes(search)));
+          const addressMatch = (s.address || '').toLowerCase().includes(search);
+          return (
+            (s.name || '').toLowerCase().includes(search) ||
+            (s.shopId || '').toLowerCase().includes(search) ||
+            emailMatch ||
+            brMatch ||
+            phoneMatch ||
+            addressMatch
+          );
+        })
+      : rawShops;
+
+    return {
+      rawCount: rawShops.length,
+      response: {
+        success: true,
+        shops: filtered,
+        totalRecords: filtered.length,
+        totalPages: 1,
+      },
+    };
   };
 
   if (mode === 'offline' || isOffline) {
-    return await getOfflineShops();
+    const { rawCount, response } = await getOfflineShops();
+    if (rawCount > 0 || isOffline) {
+      return response;
+    }
   }
 
   const token = getAuthToken();
@@ -49,9 +90,42 @@ const shopsFetcher = async (url: string) => {
       headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     });
     if (!res.ok) throw new Error('Failed to fetch shops');
-    return res.json();
+    const apiData = await res.json();
+
+    // In online mode, also merge any local unsynced offline shops from IndexedDB
+    try {
+      const rawShops = await offlineDB.getAll<any>('shops').catch(() => []);
+      if (rawShops.length > 0) {
+        const search = parseQuery();
+        const apiIds = new Set((apiData?.shops || []).map((s: any) => s.shopId || s.id));
+        const localOnly = rawShops.filter((s: any) => {
+          const id = s.shopId || s.id;
+          if (!id || apiIds.has(id)) return false;
+          if (!search) return true;
+          const emailMatch = (s.email || '').toLowerCase().includes(search);
+          const brMatch = (s.brNumber || '').toLowerCase().includes(search);
+          const phoneMatch = (s.phone || '').toLowerCase().includes(search) ||
+            (Array.isArray(s.phones) && s.phones.some((p: string) => (p || '').toLowerCase().includes(search)));
+          const addressMatch = (s.address || '').toLowerCase().includes(search);
+          return (
+            (s.name || '').toLowerCase().includes(search) ||
+            (s.shopId || '').toLowerCase().includes(search) ||
+            emailMatch ||
+            brMatch ||
+            phoneMatch ||
+            addressMatch
+          );
+        });
+        if (localOnly.length > 0) {
+          apiData.shops = [...(apiData.shops || []), ...localOnly];
+        }
+      }
+    } catch {}
+
+    return apiData;
   } catch {
-    return await getOfflineShops();
+    const { response } = await getOfflineShops();
+    return response;
   }
 };
 
@@ -62,6 +136,7 @@ export default function GlobalShopModal({
   currentShop,
 }: GlobalShopModalProps) {
   const { verifyPin } = useAuth();
+  const { dataMode } = useDataMode();
 
   const [pin, setPin] = useState('');
   const [pinVerified, setPinVerified] = useState(false);
@@ -69,109 +144,79 @@ export default function GlobalShopModal({
   const [isVerifying, setIsVerifying] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [allShops, setAllShops] = useState<ShopOption[]>([]);
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
 
-  // Fetch shops
-  const { data: shopsData, isLoading } = useSWR(
-    isOpen ? '/api/shops?limit=100' : null,
-    shopsFetcher
+  // Debounce search query by 250ms for snappy, smooth typing without redundant requests
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setDebouncedSearchQuery('');
+      return;
+    }
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery.trim());
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Build SWR query key with debounced search query and active dataMode
+  const queryParams = new URLSearchParams();
+  if (debouncedSearchQuery) {
+    queryParams.set('searchQuery', debouncedSearchQuery);
+  }
+  queryParams.set('limit', '100');
+  queryParams.set('sortField', 'updatedAt');
+  queryParams.set('sortOrder', '-1');
+  if (dataMode) {
+    queryParams.set('_mode', dataMode);
+  }
+
+  const swrKey = isOpen ? `/api/shops?${queryParams.toString()}` : null;
+  const { data: shopsData, isLoading, isValidating } = useSWR(
+    swrKey,
+    shopsFetcher,
+    {
+      revalidateOnFocus: true,
+      keepPreviousData: true,
+    }
   );
 
-  // ALWAYS require PIN verification every time the modal opens
-  useEffect(() => {
-    if (isOpen) {
-      setPin('');
-      setPinVerified(false);
-      setPinError('');
-      setIsVerifying(false);
-      setSearchQuery('');
-    }
-  }, [isOpen]);
-
-  // Physical keyboard listener for PIN entry
-  useEffect(() => {
-    if (!isOpen || pinVerified) return;
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (
-        document.activeElement?.tagName === 'INPUT' ||
-        document.activeElement?.tagName === 'TEXTAREA'
-      ) {
-        return;
-      }
-
-      if (/^[0-9]$/.test(e.key)) {
-        e.preventDefault();
-        handleDigit(e.key);
-      } else if (e.key === 'Backspace') {
-        e.preventDefault();
-        handleBackspace();
-      } else if (e.key === 'Escape') {
-        e.preventDefault();
-        onClose();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, pinVerified, pin]);
-
-  // Merge IndexedDB & API Shops
-  useEffect(() => {
-    async function mergeShops() {
-      const dbShops = await offlineDB.getAll<any>('shops').catch(() => []);
-      const apiShops: any[] = shopsData?.shops || [];
-      const shopMap = new Map<string, ShopOption>();
-
-      dbShops.forEach((s: any) => {
-        const id = s.shopId || s.id;
-        if (id) {
-          const pList = Array.isArray(s.phones) && s.phones.length > 0 ? s.phones : (s.phone ? s.phone.split(',').map((p: string) => p.trim()).filter(Boolean) : []);
-          shopMap.set(id, {
-            shopId: id,
-            name: s.name || 'Unnamed Shop',
-            email: s.email || '',
-            phone: s.phone || (pList[0] || ''),
-            phones: pList,
-            address: s.address || '',
-          });
-        }
-      });
-
-      apiShops.forEach((s: any) => {
-        if (s.shopId) {
-          const pList = Array.isArray(s.phones) && s.phones.length > 0 ? s.phones : (s.phone ? s.phone.split(',').map((p: string) => p.trim()).filter(Boolean) : []);
-          shopMap.set(s.shopId, {
-            shopId: s.shopId,
-            name: s.name || 'Unnamed Shop',
-            email: s.email || '',
-            phone: s.phone || (pList[0] || ''),
-            phones: pList,
-            address: s.address || '',
-          });
-        }
-      });
-
-      setAllShops(Array.from(shopMap.values()));
-    }
-
-    mergeShops();
+  // Normalize shops from API / IndexedDB
+  const normalizedShops: ShopOption[] = useMemo(() => {
+    const rawList: any[] = shopsData?.shops || [];
+    return rawList.map((s: any) => {
+      const id = s.shopId || s.id || '';
+      const pList = Array.isArray(s.phones) && s.phones.length > 0
+        ? s.phones
+        : (s.phone ? String(s.phone).split(',').map((p: string) => p.trim()).filter(Boolean) : []);
+      return {
+        shopId: id,
+        name: s.name || 'Unnamed Shop',
+        email: s.email || '',
+        phone: s.phone || (pList[0] || ''),
+        phones: pList,
+        address: s.address || '',
+      };
+    });
   }, [shopsData]);
 
-  const filteredShops = allShops.filter((s) => {
-    if (!searchQuery.trim()) return true;
+  // Instant client-side filter while waiting for debounced API response
+  const filteredShops = useMemo(() => {
+    if (!searchQuery.trim()) return normalizedShops;
     const q = searchQuery.toLowerCase().trim();
-    const phoneMatch = (s.phone || '').toLowerCase().includes(q) ||
-      (Array.isArray(s.phones) && s.phones.some((p) => p.toLowerCase().includes(q)));
-    const emailMatch = (s.email || '').toLowerCase().includes(q);
-    return (
-      (s.name || '').toLowerCase().includes(q) ||
-      (s.shopId || '').toLowerCase().includes(q) ||
-      (s.address || '').toLowerCase().includes(q) ||
-      emailMatch ||
-      phoneMatch
-    );
-  });
+    return normalizedShops.filter((s) => {
+      const phoneMatch = (s.phone || '').toLowerCase().includes(q) ||
+        (Array.isArray(s.phones) && s.phones.some((p) => p.toLowerCase().includes(q)));
+      const emailMatch = (s.email || '').toLowerCase().includes(q);
+      const addressMatch = (s.address || '').toLowerCase().includes(q);
+      return (
+        (s.name || '').toLowerCase().includes(q) ||
+        (s.shopId || '').toLowerCase().includes(q) ||
+        addressMatch ||
+        emailMatch ||
+        phoneMatch
+      );
+    });
+  }, [normalizedShops, searchQuery]);
 
   const handleDigit = (digit: string) => {
     if (pin.length < 4) {
@@ -373,20 +418,30 @@ export default function GlobalShopModal({
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="SEARCH SHOPS BY NAME OR ID..."
-                  className="w-full pl-11 pr-4 py-3 bg-white/70 backdrop-blur-xl border border-white/80 rounded-full text-xs font-bold text-[#0f172a] focus:outline-none focus:ring-2 focus:ring-[#0f172a]/20 uppercase shadow-xs"
+                  className="w-full pl-11 pr-10 py-3 bg-white/70 backdrop-blur-xl border border-white/80 rounded-full text-xs font-bold text-[#0f172a] focus:outline-none focus:ring-2 focus:ring-[#0f172a]/20 uppercase shadow-xs"
                   autoFocus
                 />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1 rounded-full cursor-pointer"
+                    title="Clear search"
+                  >
+                    <X size={16} />
+                  </button>
+                )}
               </div>
 
               {/* Shops Cards Container */}
               <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 max-h-[360px]">
-                {isLoading ? (
+                {isLoading && !shopsData ? (
                   <div className="py-12 text-center text-xs font-bold text-gray-400 uppercase animate-pulse">
                     Loading assigned shops...
                   </div>
                 ) : filteredShops.length === 0 ? (
                   <div className="py-12 text-center text-xs font-bold text-gray-400 uppercase">
-                    No assigned shops found
+                    {searchQuery ? 'No shops found matching your search' : 'No assigned shops found'}
                   </div>
                 ) : (
                   filteredShops.map((shop) => {
