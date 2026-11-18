@@ -74,10 +74,10 @@ export default function RootLayout({
 
         <div className="relative z-0 min-h-screen">
           <AuthProvider>
-            <CartProvider>
-              <WishlistProvider>
-                <SyncProvider>
-                  <DataModeProvider>
+            <DataModeProvider>
+              <SyncProvider>
+                <WishlistProvider>
+                  <CartProvider>
                     {/* <DataModeBanner /> */}
                     <HardwareBackButtonHandler />
                     {/* <AppUpdateModal /> */}
@@ -85,10 +85,10 @@ export default function RootLayout({
                       {children}
                       {process.env.NODE_ENV === 'production' && <Analytics />}
                     </AuthGuard>
-                  </DataModeProvider>
-                </SyncProvider>
-              </WishlistProvider>
-            </CartProvider>
+                  </CartProvider>
+                </WishlistProvider>
+              </SyncProvider>
+            </DataModeProvider>
           </AuthProvider>
         </div>
       </body>

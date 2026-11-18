@@ -132,9 +132,21 @@ export function DataModeProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
+const defaultContextValue: DataModeContextType = {
+  dataMode: 'online',
+  setDataMode: () => {},
+  toggleDataMode: async () => {},
+  hasSyncedData: false,
+  isReady: false,
+  isSyncStale: false,
+  syncAgeDays: 0,
+};
+
 export function useDataMode() {
   const ctx = useContext(DataModeContext);
-  if (!ctx) throw new Error('useDataMode must be used within DataModeProvider');
+  if (!ctx) {
+    return defaultContextValue;
+  }
   return ctx;
 }
 
